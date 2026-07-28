@@ -1,0 +1,70 @@
+.bingo-card {
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  padding: 1rem;
+  max-width: 420px;
+}
+
+.bingo-card-title {
+  text-align: center;
+  margin: 0 0 0.75rem;
+}
+
+.bingo-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  grid-template-rows: repeat(5, 1fr);
+  gap: 4px;
+  width: 100%;
+  aspect-ratio: 1;
+}
+
+.bingo-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: calc(0.7rem * var(--cell-font-scale, 1));
+  padding: 4px;
+  border: 1px solid #999;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.bingo-cell-free {
+  font-weight: bold;
+}
+
+.bingo-cell-blank {
+  border-style: dashed;
+  opacity: 0.5;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  .app {
+    max-width: none;
+    padding: 0;
+  }
+
+  .bingo-card,
+  .bingo-cell {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .bingo-card {
+    border: none;
+    width: 100%;
+    max-width: none;
+    box-sizing: border-box;
+  }
+
+  .bingo-cell {
+    font-size: calc(1rem * var(--cell-font-scale, 1));
+    padding: 8px;
+  }
+}
