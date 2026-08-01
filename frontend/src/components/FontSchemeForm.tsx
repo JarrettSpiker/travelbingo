@@ -1,14 +1,36 @@
 import FormControl from "@mui/material/FormControl";
 import InputLabel from "@mui/material/InputLabel";
+import ListSubheader from "@mui/material/ListSubheader";
 import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import { FONT_OPTIONS, type FontScheme } from "../lib/fontScheme";
+import { GOOGLE_FONT_OPTIONS, SYSTEM_FONT_OPTIONS, type FontScheme } from "../lib/fontScheme";
 
 interface FontSchemeFormProps {
   fontScheme: FontScheme;
   onChange: (fontScheme: FontScheme) => void;
+}
+
+function renderFontMenuItems() {
+  return [
+    <ListSubheader key="system-header" onKeyDown={(e) => e.stopPropagation()}>
+      System fonts
+    </ListSubheader>,
+    ...SYSTEM_FONT_OPTIONS.map((option) => (
+      <MenuItem key={option.value} value={option.value} sx={{ fontFamily: option.value }}>
+        {option.label}
+      </MenuItem>
+    )),
+    <ListSubheader key="google-header" onKeyDown={(e) => e.stopPropagation()}>
+      Google fonts
+    </ListSubheader>,
+    ...GOOGLE_FONT_OPTIONS.map((option) => (
+      <MenuItem key={option.value} value={option.value} sx={{ fontFamily: option.value }}>
+        {option.label}
+      </MenuItem>
+    )),
+  ];
 }
 
 export function FontSchemeForm({ fontScheme, onChange }: FontSchemeFormProps) {
@@ -28,11 +50,7 @@ export function FontSchemeForm({ fontScheme, onChange }: FontSchemeFormProps) {
             label="Title font"
             onChange={(e) => onChange({ ...fontScheme, titleFont: e.target.value })}
           >
-            {FONT_OPTIONS.map((option) => (
-              <MenuItem key={option.value} value={option.value} sx={{ fontFamily: option.value }}>
-                {option.label}
-              </MenuItem>
-            ))}
+            {renderFontMenuItems()}
           </Select>
         </FormControl>
 
@@ -45,11 +63,7 @@ export function FontSchemeForm({ fontScheme, onChange }: FontSchemeFormProps) {
             label="Cell font"
             onChange={(e) => onChange({ ...fontScheme, cellFont: e.target.value })}
           >
-            {FONT_OPTIONS.map((option) => (
-              <MenuItem key={option.value} value={option.value} sx={{ fontFamily: option.value }}>
-                {option.label}
-              </MenuItem>
-            ))}
+            {renderFontMenuItems()}
           </Select>
         </FormControl>
       </Stack>

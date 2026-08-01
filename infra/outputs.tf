@@ -15,5 +15,5 @@ output "cloudfront_domain_name" {
 
 output "site_url" {
   description = "URL the app is served at."
-  value       = local.use_custom_domain ? "https://${var.domain_name}" : "https://${aws_cloudfront_distribution.frontend.domain_name}"
+  value       = "https://${aws_cloudfront_distribution.frontend.domain_name}"
 }

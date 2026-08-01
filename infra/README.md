@@ -8,9 +8,9 @@ There is no compute and no database — the app is entirely client-side (see
 ## Prerequisites
 
 - [Terraform](https://developer.hashicorp.com/terraform/install) >= 1.5.0
-- AWS credentials with permission to manage S3, CloudFront, ACM, and
-  (optionally) Route53, available via the standard AWS credential chain
-  (env vars, `~/.aws/credentials`, or an SSO profile).
+- AWS credentials with permission to manage S3 and CloudFront, available
+  via the standard AWS credential chain (env vars, `~/.aws/credentials`,
+  or an SSO profile).
 
 ## Usage
 
@@ -23,22 +23,6 @@ terraform apply -var="bucket_name=<globally-unique-bucket-name>"
 
 Or set variables in a `terraform.tfvars` file (gitignored) instead of
 passing `-var` flags each time.
-
-### Custom domain (optional)
-
-By default the app is served on the CloudFront-assigned domain
-(`*.cloudfront.net`). To use your own domain, set both `domain_name` and
-`hosted_zone_id` — Terraform will provision and validate an ACM certificate
-and create the DNS alias record for you. Setting `domain_name` without
-`hosted_zone_id` is not supported by this config; leave `domain_name` empty
-if you don't want Terraform managing DNS.
-
-```bash
-terraform apply \
-  -var="bucket_name=<globally-unique-bucket-name>" \
-  -var="domain_name=bingo.example.com" \
-  -var="hosted_zone_id=<route53-zone-id>"
-```
 
 ## Deploying the built frontend
 

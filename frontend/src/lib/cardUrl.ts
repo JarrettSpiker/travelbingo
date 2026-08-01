@@ -4,18 +4,20 @@ import { DEFAULT_FONT_SCHEME, type FontScheme } from "./fontScheme";
 export interface CardUrlData {
   slots: (string | null)[];
   title: string;
+  hasFreeSpace: boolean;
   freeSpaceText: string;
   colorScheme: ColorScheme;
   fontScheme: FontScheme;
 }
 
 const URL_PARAM = "card";
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 interface EncodedPayload {
   v: number;
   s: string[];
   t: string;
+  hf: boolean;
   f: string;
   c: [string, string, string, string];
   ft: [string, string];
@@ -42,6 +44,7 @@ export function encodeCardToUrl(data: CardUrlData, baseUrl: string = window.loca
     v: SCHEMA_VERSION,
     s: data.slots.map((slot) => slot ?? ""),
     t: data.title,
+    hf: data.hasFreeSpace,
     f: data.freeSpaceText,
     c: [data.colorScheme.backgroundColor, data.colorScheme.cellColor, data.colorScheme.textColor, data.colorScheme.titleColor],
     ft: [data.fontScheme.titleFont, data.fontScheme.cellFont],
@@ -64,6 +67,7 @@ export function decodeCardFromUrl(search: string = window.location.search): Card
     return {
       slots: payload.s.map((slot) => (typeof slot === "string" && slot !== "" ? slot : null)),
       title: typeof payload.t === "string" ? payload.t : "",
+      hasFreeSpace: typeof payload.hf === "boolean" ? payload.hf : true,
       freeSpaceText: typeof payload.f === "string" ? payload.f : "",
       colorScheme: {
         backgroundColor: payload.c[0],

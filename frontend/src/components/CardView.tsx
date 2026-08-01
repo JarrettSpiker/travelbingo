@@ -58,7 +58,14 @@ export function CardView({ card, title, colorScheme, fontScheme, onRandomize, on
           <Button type="button" variant="outlined" size="small" onClick={handleExportClick}>
             Export URL
           </Button>
-          <Button type="button" variant="outlined" size="small" onClick={() => window.print()}>
+          <Button
+            type="button"
+            variant="outlined"
+            size="small"
+            onClick={() => {
+              document.fonts.ready.then(() => window.print());
+            }}
+          >
             Print / Save as PDF
           </Button>
         </Stack>

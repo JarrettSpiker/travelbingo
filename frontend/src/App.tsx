@@ -24,23 +24,26 @@ function App() {
         .map((text) => ({ text, mandatory: false })) ?? [],
   );
   const [title, setTitle] = useState(() => initialImport?.title ?? "");
+  const [hasFreeSpace, setHasFreeSpace] = useState(() => initialImport?.hasFreeSpace ?? true);
   const [freeSpaceText, setFreeSpaceText] = useState(() => initialImport?.freeSpaceText ?? "");
   const [colorScheme, setColorScheme] = useState<ColorScheme>(() => initialImport?.colorScheme ?? DEFAULT_COLOR_SCHEME);
   const [fontScheme, setFontScheme] = useState<FontScheme>(() => initialImport?.fontScheme ?? DEFAULT_FONT_SCHEME);
   const [card, setCard] = useState<BingoCard>(() =>
-    initialImport ? cardFromSlots(initialImport.slots, initialImport.freeSpaceText) : buildCard([]),
+    initialImport
+      ? cardFromSlots(initialImport.slots, { hasFreeSpace: initialImport.hasFreeSpace, freeSpaceText: initialImport.freeSpaceText })
+      : buildCard([]),
   );
 
   function handleAddEntry(text: string) {
     const next = [...entries, { text, mandatory: false }];
     setEntries(next);
-    setCard(buildCard(next, freeSpaceText));
+    setCard(buildCard(next, { hasFreeSpace, freeSpaceText }));
   }
 
   function handleEditEntry(index: number, text: string) {
     const next = entries.map((existing, i) => (i === index ? { ...existing, text } : existing));
     setEntries(next);
-    setCard(buildCard(next, freeSpaceText));
+    setCard(buildCard(next, { hasFreeSpace, freeSpaceText }));
   }
 
   function handleToggleMandatory(index: number) {
@@ -48,26 +51,46 @@ function App() {
       i === index ? { ...existing, mandatory: !existing.mandatory } : existing,
     );
     setEntries(next);
-    setCard(buildCard(next, freeSpaceText));
+    setCard(buildCard(next, { hasFreeSpace, freeSpaceText }));
+  }
+
+  function handleToggleEnabled(index: number) {
+    const next = entries.map((existing, i) =>
+      i === index ? { ...existing, enabled: !(existing.enabled ?? true) } : existing,
+    );
+    setEntries(next);
+    setCard(buildCard(next, { hasFreeSpace, freeSpaceText }));
   }
 
   function handleRemoveEntry(index: number) {
     const next = entries.filter((_, i) => i !== index);
     setEntries(next);
-    setCard(buildCard(next, freeSpaceText));
+    setCard(buildCard(next, { hasFreeSpace, freeSpaceText }));
+  }
+
+  function handleHasFreeSpaceChange(value: boolean) {
+    setHasFreeSpace(value);
+    setCard(buildCard(entries, { hasFreeSpace: value, freeSpaceText }));
   }
 
   function handleFreeSpaceChange(value: string) {
     setFreeSpaceText(value);
-    setCard(buildCard(entries, value));
+    setCard(buildCard(entries, { hasFreeSpace, freeSpaceText: value }));
   }
 
   function handleRandomize() {
-    setCard(randomizeCard(entries, freeSpaceText));
+    setCard(randomizeCard(entries, { hasFreeSpace, freeSpaceText }));
   }
 
   function handleExportUrl(): string {
-    return encodeCardToUrl({ slots: cardToSlots(card), title, freeSpaceText, colorScheme, fontScheme });
+    return encodeCardToUrl({
+      slots: cardToSlots(card, hasFreeSpace),
+      title,
+      hasFreeSpace,
+      freeSpaceText,
+      colorScheme,
+      fontScheme,
+    });
   }
 
   return (
@@ -90,6 +113,8 @@ function App() {
           <CardDetailsForm
             title={title}
             onTitleChange={setTitle}
+            hasFreeSpace={hasFreeSpace}
+            onHasFreeSpaceChange={handleHasFreeSpaceChange}
             freeSpaceText={freeSpaceText}
             onFreeSpaceChange={handleFreeSpaceChange}
           />
@@ -101,9 +126,11 @@ function App() {
 
         <EntryInput
           entries={entries}
+          hasFreeSpace={hasFreeSpace}
           onAdd={handleAddEntry}
           onEdit={handleEditEntry}
           onToggleMandatory={handleToggleMandatory}
+          onToggleEnabled={handleToggleEnabled}
           onRemove={handleRemoveEntry}
         />
       </Stack>

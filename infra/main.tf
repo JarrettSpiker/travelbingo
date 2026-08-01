@@ -1,13 +1,9 @@
 locals {
   tags = {
-    Project     = "bingo-card-generator"
+    Project     = "travelbingo"
     Environment = var.environment
     ManagedBy   = "terraform"
   }
-  # A custom domain requires both a domain name and the Route53 zone to
-  # validate it in and create the alias record in. Setting domain_name
-  # without hosted_zone_id is not supported by this config — see infra/README.md.
-  use_custom_domain = var.domain_name != "" && var.hosted_zone_id != ""
 }
 
 resource "aws_s3_bucket" "frontend" {
@@ -39,7 +35,6 @@ resource "aws_cloudfront_distribution" "frontend" {
   enabled             = true
   default_root_object = "index.html"
   price_class         = var.cloudfront_price_class
-  aliases             = local.use_custom_domain ? [var.domain_name] : []
   tags                = local.tags
 
   origin {
@@ -71,10 +66,7 @@ resource "aws_cloudfront_distribution" "frontend" {
   }
 
   viewer_certificate {
-    cloudfront_default_certificate = local.use_custom_domain ? null : true
-    acm_certificate_arn            = local.use_custom_domain ? aws_acm_certificate_validation.frontend[0].certificate_arn : null
-    ssl_support_method             = local.use_custom_domain ? "sni-only" : null
-    minimum_protocol_version       = "TLSv1.2_2021"
+    cloudfront_default_certificate = true
   }
 }
 

@@ -1,7 +1,6 @@
 export const GRID_SIZE = 5;
 export const CELLS_PER_CARD = GRID_SIZE * GRID_SIZE;
 export const FREE_SPACE_INDEX = Math.floor(CELLS_PER_CARD / 2);
-export const CARD_SLOT_COUNT = CELLS_PER_CARD - 1;
 export const DEFAULT_FREE_SPACE_TEXT = "FREE";
 
 export type BingoCellKind = "entry" | "free" | "blank";
@@ -18,6 +17,19 @@ export interface BingoCard {
 export interface BingoEntry {
   text: string;
   mandatory: boolean;
+  /** Whether the entry is eligible to appear on the card. Defaults to true. */
+  enabled?: boolean;
+}
+
+export interface CardOptions {
+  /** Whether the center cell is a free space or a normal entry/blank cell. Defaults to true. */
+  hasFreeSpace?: boolean;
+  freeSpaceText?: string;
+}
+
+/** Number of grid cells available for entries/blanks, i.e. all cells except the free space (if any). */
+export function getCardSlotCount(hasFreeSpace: boolean): number {
+  return hasFreeSpace ? CELLS_PER_CARD - 1 : CELLS_PER_CARD;
 }
 
 function normalize(text: string): string {
@@ -33,7 +45,7 @@ export function getUniqueEntries(entries: BingoEntry[]): BingoEntry[] {
     const key = normalize(trimmed);
     if (seen.has(key)) continue;
     seen.add(key);
-    unique.push({ text: trimmed, mandatory: entry.mandatory });
+    unique.push({ text: trimmed, mandatory: entry.mandatory, enabled: entry.enabled ?? true });
   }
   return unique;
 }
@@ -58,37 +70,42 @@ function resolveFreeSpaceText(freeSpaceText?: string): string {
 }
 
 /**
- * Picks which entries (by text) appear on the card. Within capacity, every
- * entry appears and mandatory status has no effect. Over capacity, mandatory
- * entries are guaranteed a slot (up to CARD_SLOT_COUNT) and the rest is
- * filled from the remaining pool. Passing `rng` shuffles each group before
- * combining (used by randomizeCard); omitting it preserves pool order (used
- * by buildCard).
+ * Picks which entries (by text) appear on the card. Disabled entries
+ * (enabled === false) are excluded before selection. Within capacity, every
+ * eligible entry appears and mandatory status has no effect. Over capacity,
+ * mandatory entries are guaranteed a slot (up to slotCount) and the rest is
+ * filled from the remaining eligible pool. Passing `rng` shuffles each group
+ * before combining (used by randomizeCard); omitting it preserves pool order
+ * (used by buildCard).
  */
-function selectEntryTexts(entries: BingoEntry[], rng?: () => number): string[] {
-  const unique = getUniqueEntries(entries);
-  if (unique.length <= CARD_SLOT_COUNT) {
-    const texts = unique.map((entry) => entry.text);
+function selectEntryTexts(entries: BingoEntry[], slotCount: number, rng?: () => number): string[] {
+  const eligible = getUniqueEntries(entries).filter((entry) => entry.enabled !== false);
+  if (eligible.length <= slotCount) {
+    const texts = eligible.map((entry) => entry.text);
     return rng ? shuffle(texts, rng) : texts;
   }
 
-  const mandatoryTexts = unique.filter((entry) => entry.mandatory).map((entry) => entry.text);
-  const optionalTexts = unique.filter((entry) => !entry.mandatory).map((entry) => entry.text);
+  const mandatoryTexts = eligible.filter((entry) => entry.mandatory).map((entry) => entry.text);
+  const optionalTexts = eligible.filter((entry) => !entry.mandatory).map((entry) => entry.text);
   const orderedMandatory = rng ? shuffle(mandatoryTexts, rng) : mandatoryTexts;
   const orderedOptional = rng ? shuffle(optionalTexts, rng) : optionalTexts;
 
-  const selectedMandatory = orderedMandatory.slice(0, CARD_SLOT_COUNT);
-  const remainingSlots = CARD_SLOT_COUNT - selectedMandatory.length;
+  const selectedMandatory = orderedMandatory.slice(0, slotCount);
+  const remainingSlots = slotCount - selectedMandatory.length;
   return [...selectedMandatory, ...orderedOptional.slice(0, remainingSlots)];
 }
 
-/** Assembles a card from an explicit 24-slot arrangement (null = blank). */
-export function cardFromSlots(slots: (string | null)[], freeSpaceText?: string): BingoCard {
-  const resolvedFreeSpaceText = resolveFreeSpaceText(freeSpaceText);
+/**
+ * Assembles a card from an explicit slot arrangement (null = blank). The
+ * slots array should have `getCardSlotCount(options.hasFreeSpace)` entries.
+ */
+export function cardFromSlots(slots: (string | null)[], options: CardOptions = {}): BingoCard {
+  const hasFreeSpace = options.hasFreeSpace ?? true;
+  const resolvedFreeSpaceText = resolveFreeSpaceText(options.freeSpaceText);
   const cells: BingoCell[] = [];
   let slotIndex = 0;
   for (let i = 0; i < CELLS_PER_CARD; i++) {
-    if (i === FREE_SPACE_INDEX) {
+    if (hasFreeSpace && i === FREE_SPACE_INDEX) {
       cells.push({ text: resolvedFreeSpaceText, kind: "free" });
       continue;
     }
@@ -99,10 +116,10 @@ export function cardFromSlots(slots: (string | null)[], freeSpaceText?: string):
   return { cells };
 }
 
-/** Extracts the 24-slot arrangement (null = blank) a card was built from. */
-export function cardToSlots(card: BingoCard): (string | null)[] {
+/** Extracts the slot arrangement (null = blank) a card was built from. */
+export function cardToSlots(card: BingoCard, hasFreeSpace: boolean = true): (string | null)[] {
   return card.cells
-    .filter((_, i) => i !== FREE_SPACE_INDEX)
+    .filter((_, i) => !hasFreeSpace || i !== FREE_SPACE_INDEX)
     .map((cell) => (cell.kind === "blank" ? null : cell.text));
 }
 
@@ -110,25 +127,29 @@ export function cardToSlots(card: BingoCard): (string | null)[] {
  * Builds the "live" card: entries fill the grid in pool order, with any
  * remaining cells left blank. Adding/editing/removing an entry only ever
  * changes the cells affected — the rest of the layout stays stable. When the
- * pool exceeds 24 entries, mandatory entries are guaranteed inclusion.
+ * pool exceeds capacity, mandatory entries are guaranteed inclusion.
  */
-export function buildCard(entries: BingoEntry[], freeSpaceText?: string): BingoCard {
-  return cardFromSlots(padWithBlanks(selectEntryTexts(entries), CARD_SLOT_COUNT), freeSpaceText);
+export function buildCard(entries: BingoEntry[], options: CardOptions = {}): BingoCard {
+  const hasFreeSpace = options.hasFreeSpace ?? true;
+  const slotCount = getCardSlotCount(hasFreeSpace);
+  return cardFromSlots(padWithBlanks(selectEntryTexts(entries, slotCount), slotCount), options);
 }
 
 /**
- * Builds a randomized card: a random 24-entry subset of the pool (all of it,
- * if there are 24 or fewer) in random order, with blank positions also
- * randomized when the pool is short of 24 entries. When the pool exceeds 24
- * entries, mandatory entries are guaranteed inclusion (the random subset is
+ * Builds a randomized card: a random subset of the pool (all of it, if there
+ * are fewer entries than available slots) in random order, with blank
+ * positions also randomized when the pool is short. When the pool exceeds
+ * capacity, mandatory entries are guaranteed inclusion (the random subset is
  * drawn from the remaining, non-mandatory entries).
  */
 export function randomizeCard(
   entries: BingoEntry[],
-  freeSpaceText?: string,
+  options: CardOptions = {},
   rng: () => number = Math.random,
 ): BingoCard {
-  const selected = selectEntryTexts(entries, rng);
-  const slots = shuffle(padWithBlanks(selected, CARD_SLOT_COUNT), rng);
-  return cardFromSlots(slots, freeSpaceText);
+  const hasFreeSpace = options.hasFreeSpace ?? true;
+  const slotCount = getCardSlotCount(hasFreeSpace);
+  const selected = selectEntryTexts(entries, slotCount, rng);
+  const slots = shuffle(padWithBlanks(selected, slotCount), rng);
+  return cardFromSlots(slots, options);
 }

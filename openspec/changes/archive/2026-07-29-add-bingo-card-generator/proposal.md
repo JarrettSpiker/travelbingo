@@ -14,7 +14,6 @@ There's no lightweight tool for quickly turning a custom list of words or phrase
 - Printable output: the card renders in a print-friendly layout (browser print / export), sized for standard paper.
 - Users can export the current card (entries and their exact arrangement, title, free-space text, and color scheme) as a URL, and reopening that URL reproduces the identical card — a way to "save"/share a card with no backend or account.
 - No user accounts, no database, no backend — each session is stateless; a card's only persistence is the URL the user chooses to export and keep.
-- New AWS infrastructure provisioned via Terraform to host the static frontend only.
 - A Go backend is deliberately deferred: it adds no value for pure client-side generation and will be introduced later if/when server-side persistence (e.g. a card library or short links) is added.
 
 ## Capabilities
@@ -28,7 +27,6 @@ There's no lightweight tool for quickly turning a custom list of words or phrase
 
 ## Impact
 
-- **New repo structure**: `frontend/` (React + TypeScript), `infra/` (Terraform for AWS). No `backend/` for this phase.
-- **New AWS resources**: static hosting/CDN for the frontend only (e.g. S3 + CloudFront). No compute, no database.
+- **New repo structure**: `frontend/` (React + TypeScript). No `backend/` for this phase.
 - No existing code or specs affected — this is a greenfield project.
 - **Future work**: a Go backend + persistence layer is expected in a later change once saving/sharing cards is prioritized.

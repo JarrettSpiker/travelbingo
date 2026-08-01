@@ -10,10 +10,17 @@ const SAMPLE_COLOR_SCHEME = {
 const SAMPLE_FONT_SCHEME = { titleFont: "Georgia, serif", cellFont: "'Courier New', monospace" };
 
 describe("encodeCardToUrl / decodeCardFromUrl", () => {
-  it("round-trips slots (including blanks), title, free space text, colors, and fonts", () => {
+  it("round-trips slots (including blanks), title, free space settings, colors, and fonts", () => {
     const slots = ["Alpha", null, "Charlie", null, "Echo"];
     const url = encodeCardToUrl(
-      { slots, title: "My Card", freeSpaceText: "Wild", colorScheme: SAMPLE_COLOR_SCHEME, fontScheme: SAMPLE_FONT_SCHEME },
+      {
+        slots,
+        title: "My Card",
+        hasFreeSpace: true,
+        freeSpaceText: "Wild",
+        colorScheme: SAMPLE_COLOR_SCHEME,
+        fontScheme: SAMPLE_FONT_SCHEME,
+      },
       "https://example.com/",
     );
 
@@ -21,15 +28,39 @@ describe("encodeCardToUrl / decodeCardFromUrl", () => {
     expect(decoded).toEqual({
       slots,
       title: "My Card",
+      hasFreeSpace: true,
       freeSpaceText: "Wild",
       colorScheme: SAMPLE_COLOR_SCHEME,
       fontScheme: SAMPLE_FONT_SCHEME,
     });
   });
 
+  it("round-trips hasFreeSpace: false", () => {
+    const url = encodeCardToUrl(
+      {
+        slots: ["A"],
+        title: "T",
+        hasFreeSpace: false,
+        freeSpaceText: "",
+        colorScheme: SAMPLE_COLOR_SCHEME,
+        fontScheme: SAMPLE_FONT_SCHEME,
+      },
+      "https://example.com/",
+    );
+    const decoded = decodeCardFromUrl(new URL(url).search);
+    expect(decoded?.hasFreeSpace).toBe(false);
+  });
+
   it("round-trips an empty title and free space text", () => {
     const url = encodeCardToUrl(
-      { slots: [], title: "", freeSpaceText: "", colorScheme: SAMPLE_COLOR_SCHEME, fontScheme: SAMPLE_FONT_SCHEME },
+      {
+        slots: [],
+        title: "",
+        hasFreeSpace: true,
+        freeSpaceText: "",
+        colorScheme: SAMPLE_COLOR_SCHEME,
+        fontScheme: SAMPLE_FONT_SCHEME,
+      },
       "https://example.com/",
     );
     const decoded = decodeCardFromUrl(new URL(url).search);
@@ -39,7 +70,14 @@ describe("encodeCardToUrl / decodeCardFromUrl", () => {
 
   it("produces a URL based on the given base URL with only the card param in the query", () => {
     const url = encodeCardToUrl(
-      { slots: ["A"], title: "T", freeSpaceText: "F", colorScheme: SAMPLE_COLOR_SCHEME, fontScheme: SAMPLE_FONT_SCHEME },
+      {
+        slots: ["A"],
+        title: "T",
+        hasFreeSpace: true,
+        freeSpaceText: "F",
+        colorScheme: SAMPLE_COLOR_SCHEME,
+        fontScheme: SAMPLE_FONT_SCHEME,
+      },
       "https://example.com/app?stale=1",
     );
     const parsed = new URL(url);
@@ -57,7 +95,7 @@ describe("encodeCardToUrl / decodeCardFromUrl", () => {
     expect(decodeCardFromUrl("?card=not-valid-base64!!!")).toBeNull();
   });
 
-  it("fills in default title color and fonts when decoding a pre-existing (v1) URL", () => {
+  it("fills in default title color, fonts, and hasFreeSpace when decoding a pre-existing (v1) URL", () => {
     const v1Payload = {
       v: 1,
       s: ["A", ""],
@@ -83,5 +121,7 @@ describe("encodeCardToUrl / decodeCardFromUrl", () => {
       titleFont: "system-ui, sans-serif",
       cellFont: "system-ui, sans-serif",
     });
+    // Pre-existing URLs predate the free-space toggle and always had a free space.
+    expect(decoded?.hasFreeSpace).toBe(true);
   });
 });

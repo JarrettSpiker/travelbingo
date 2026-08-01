@@ -1,6 +1,6 @@
 ## 1. Repo scaffolding
 
-- [x] 1.1 Create `frontend/` and `infra/` directories at the repo root
+- [x] 1.1 Create the `frontend/` directory at the repo root
 - [x] 1.2 Scaffold the React + TypeScript app in `frontend/` (Vite recommended)
 - [x] 1.3 Add root-level README describing the project and how to run the frontend locally
 
@@ -54,18 +54,10 @@
 - [x] 7.4 Show a warning in the entry list when more than 24 entries are marked mandatory
 - [x] 7.5 Add unit tests: mandatory has no effect within capacity; guaranteed inclusion over capacity for both the live and randomize builders; graceful behavior when mandatory count exceeds 24
 
-## 8. Infrastructure (Terraform on AWS)
+## 8. Integration and verification
 
-- [x] 8.1 Define S3 bucket + CloudFront distribution for static frontend hosting
-- [x] 8.2 Define supporting DNS/ACM certificate resources as needed
-- [x] 8.3 Wire up Terraform variables/outputs for environment-specific config
-- [x] 8.4 Document the `terraform plan`/`apply` workflow in `infra/README.md`
-
-## 9. Integration and verification
-
-- [x] 9.1 End-to-end manual test: add entries below and above 24, confirm live blank-cell behavior, set a title and free-space text, randomize repeatedly, print/export, confirm layout on a real page size
-- [x] 9.2 Verify long entry text shrinks to fit instead of resizing the cell
-- [x] 9.3 Verify exported URL, opened fresh, reproduces the exact card (including a randomized arrangement), title, free-space text, and colors
-- [x] 9.4 Verify printed/exported output retains the customized background and cell colors
-- [x] 9.5 Verify mandatory entries are guaranteed to appear with a pool > 24, on both the live view and after randomizing
-- [ ] 9.6 Deploy the built frontend to the Terraform-provisioned S3/CloudFront and verify it loads correctly
+- [x] 8.1 End-to-end manual test: add entries below and above 24, confirm live blank-cell behavior, set a title and free-space text, randomize repeatedly, print/export, confirm layout on a real page size
+- [x] 8.2 Verify long entry text shrinks to fit instead of resizing the cell
+- [x] 8.3 Verify exported URL, opened fresh, reproduces the exact card (including a randomized arrangement), title, free-space text, and colors
+- [x] 8.4 Verify printed/exported output retains the customized background and cell colors
+- [x] 8.5 Verify mandatory entries are guaranteed to appear with a pool > 24, on both the live view and after randomizing

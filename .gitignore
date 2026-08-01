@@ -1,0 +1,4 @@
+# Agent / tooling configs (local only)
+.claude/
+.opencode/
+.pi/

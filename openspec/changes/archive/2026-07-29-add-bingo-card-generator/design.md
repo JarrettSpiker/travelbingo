@@ -1,6 +1,6 @@
 ## Context
 
-Greenfield project. No existing frontend, backend, or infrastructure. React + TypeScript frontend, Terraform-provisioned AWS infrastructure. The app is stateless — no database, no accounts, no persisted cards, and — for this phase — no backend at all. A Go backend is planned for a future change once persistence/sharing is needed; this design deliberately keeps generation logic framework-agnostic (plain TS, no React-specific state coupling) so it can be ported to Go later with minimal rework.
+Greenfield project. No existing frontend, backend, or infrastructure. React + TypeScript frontend. The app is stateless — no database, no accounts, no persisted cards, and — for this phase — no backend at all. A Go backend is planned for a future change once persistence/sharing is needed; this design deliberately keeps generation logic framework-agnostic (plain TS, no React-specific state coupling) so it can be ported to Go later with minimal rework.
 
 ## Goals / Non-Goals
 
@@ -9,7 +9,6 @@ Greenfield project. No existing frontend, backend, or infrastructure. React + Ty
 - Keep the card-building logic (blank-fill + randomize) as a pure, isolated TS module so it's unit-testable and portable to a future Go service.
 - An explicit, repeatable randomize action lets the user reshuffle the card's arrangement (and, when the pool exceeds 24 entries, which entries are shown) as many times as they want.
 - Produce a printable card layout that works via standard browser print-to-PDF, sized for US Letter / A4, with cells that stay a fixed size regardless of content length.
-- Keep AWS infrastructure minimal and cheap to run — static hosting only, no compute, no persistent state.
 
 **Non-Goals:**
 - No user accounts, sessions, or server-side saved card history — the URL export is the only persistence mechanism, and it's entirely client-encoded.
@@ -33,7 +32,6 @@ Greenfield project. No existing frontend, backend, or infrastructure. React + Ty
 - **`print-color-adjust: exact` (and the `-webkit-` prefix) is set on the card and cells for print.** Browsers default to omitting background colors when printing (an ink-saving default, controlled by a "background graphics" toggle in the print dialog that's usually off). Without this CSS override, a customized color scheme would silently disappear on the printed/exported page even though it appears correctly on screen. Setting `exact` forces the chosen colors to print regardless of that toggle.
 - **Color scheme is a pure rendering concern, decoupled from card building.** Background/cell/text colors don't affect which entries land where, so they're plain UI state applied at render time (inline styles), not part of the card-building input. Randomization independently picks a random hex value for each of the three colors — no contrast/accessibility algorithm in this iteration, since the cards are for casual printed use, not on-screen accessibility-critical reading.
 - **Card state is exported by encoding it into a URL query parameter, not a shortened/opaque token.** The current card's exact 24-slot arrangement (entries and blanks, in their displayed positions — not just the raw entry pool, so an already-randomized card reproduces exactly), title, free-space text, and color scheme are JSON-serialized and base64url-encoded into a single `card` query parameter. Loading the app with that parameter present reconstructs the identical state on first render, before any live-update logic runs. No backend, no database, no short-link service — "saving" a card is just keeping the URL.
-- **Infrastructure: S3 + CloudFront for the static frontend only.** No compute, no API Gateway, no Lambda — the entire app ships as static assets. Terraform provisions just the bucket, CloudFront distribution, and supporting DNS/ACM as needed.
 
 ## Risks / Trade-offs
 

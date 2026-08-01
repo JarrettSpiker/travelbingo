@@ -11,13 +11,39 @@ See `openspec/changes/add-bingo-card-generator/` for the full proposal, design, 
 
 ## Running locally
 
+### Prerequisites
+
+- [Node.js](https://nodejs.org/) 20 or newer (this repo is developed against Node 22)
+- npm (bundled with Node.js)
+
+Verify your setup:
+
+```bash
+node --version
+npm --version
+```
+
+### Start the dev server
+
+All app code lives in `frontend/`. Install dependencies once, then start Vite:
+
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-Then open the printed local URL (typically http://localhost:5173).
+Then open the printed local URL (typically http://localhost:5173). The dev server supports hot module reloading, so saved changes appear in the browser automatically. Stop it with `Ctrl+C`.
+
+### Available scripts
+
+Run these from the `frontend/` directory:
+
+- `npm run dev` — start the Vite dev server with HMR
+- `npm run build` — type-check and produce a production build in `dist/`
+- `npm run preview` — serve the production build locally to verify it
+- `npm run lint` — lint the source with Oxlint
+- `npm test` — run the test suite once with Vitest
 
 ### Tests
 

@@ -1,3 +1,5 @@
+import Checkbox from "@mui/material/Checkbox";
+import FormControlLabel from "@mui/material/FormControlLabel";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
@@ -5,6 +7,8 @@ import Typography from "@mui/material/Typography";
 interface CardDetailsFormProps {
   title: string;
   onTitleChange: (title: string) => void;
+  hasFreeSpace: boolean;
+  onHasFreeSpaceChange: (hasFreeSpace: boolean) => void;
   freeSpaceText: string;
   onFreeSpaceChange: (freeSpaceText: string) => void;
 }
@@ -12,6 +16,8 @@ interface CardDetailsFormProps {
 export function CardDetailsForm({
   title,
   onTitleChange,
+  hasFreeSpace,
+  onHasFreeSpaceChange,
   freeSpaceText,
   onFreeSpaceChange,
 }: CardDetailsFormProps) {
@@ -31,15 +37,28 @@ export function CardDetailsForm({
         fullWidth
       />
 
-      <TextField
-        id="free-space"
-        label="Free space text (optional)"
-        value={freeSpaceText}
-        onChange={(e) => onFreeSpaceChange(e.target.value)}
-        placeholder="FREE"
-        size="small"
-        fullWidth
+      <FormControlLabel
+        control={
+          <Checkbox
+            id="has-free-space"
+            checked={hasFreeSpace}
+            onChange={(e) => onHasFreeSpaceChange(e.target.checked)}
+          />
+        }
+        label="Include a free space in the center"
       />
+
+      {hasFreeSpace && (
+        <TextField
+          id="free-space"
+          label="Free space text (optional)"
+          value={freeSpaceText}
+          onChange={(e) => onFreeSpaceChange(e.target.value)}
+          placeholder="FREE"
+          size="small"
+          fullWidth
+        />
+      )}
     </Stack>
   );
 }

@@ -2,24 +2,26 @@ import { useState, type FormEvent } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import IconButton from "@mui/material/IconButton";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
 import Stack from "@mui/material/Stack";
+import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import DeleteIcon from "@mui/icons-material/Delete";
 import EditIcon from "@mui/icons-material/Edit";
-import { CARD_SLOT_COUNT, getUniqueEntries, type BingoEntry } from "../lib/bingo";
+import { getCardSlotCount, getUniqueEntries, type BingoEntry } from "../lib/bingo";
 
 interface EntryInputProps {
   entries: BingoEntry[];
+  hasFreeSpace: boolean;
   onAdd: (entry: string) => void;
   onEdit: (index: number, entry: string) => void;
   onToggleMandatory: (index: number) => void;
+  onToggleEnabled: (index: number) => void;
   onRemove: (index: number) => void;
 }
 
@@ -32,7 +34,15 @@ function duplicatesAnotherEntry(entries: BingoEntry[], text: string, ignoreIndex
   return entries.some((entry, i) => i !== ignoreIndex && normalize(entry.text) === key);
 }
 
-export function EntryInput({ entries, onAdd, onEdit, onToggleMandatory, onRemove }: EntryInputProps) {
+export function EntryInput({
+  entries,
+  hasFreeSpace,
+  onAdd,
+  onEdit,
+  onToggleMandatory,
+  onToggleEnabled,
+  onRemove,
+}: EntryInputProps) {
   const [draft, setDraft] = useState("");
   const [duplicateError, setDuplicateError] = useState<string | null>(null);
 
@@ -40,9 +50,11 @@ export function EntryInput({ entries, onAdd, onEdit, onToggleMandatory, onRemove
   const [editDraft, setEditDraft] = useState("");
   const [editError, setEditError] = useState<string | null>(null);
 
-  const uniqueCount = getUniqueEntries(entries).length;
-  const filledCount = Math.min(uniqueCount, CARD_SLOT_COUNT);
-  const mandatoryCount = entries.filter((entry) => entry.mandatory).length;
+  const slotCount = getCardSlotCount(hasFreeSpace);
+  const enabledUnique = getUniqueEntries(entries).filter((entry) => entry.enabled !== false);
+  const uniqueCount = enabledUnique.length;
+  const filledCount = Math.min(uniqueCount, slotCount);
+  const mandatoryCount = enabledUnique.filter((entry) => entry.mandatory).length;
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -111,13 +123,13 @@ export function EntryInput({ entries, onAdd, onEdit, onToggleMandatory, onRemove
       {duplicateError && <Alert severity="error">{duplicateError}</Alert>}
 
       <Typography variant="body2">
-        {filledCount} / {CARD_SLOT_COUNT} cells filled
-        {uniqueCount > CARD_SLOT_COUNT && <> ({uniqueCount - CARD_SLOT_COUNT} extra, used on randomize)</>}
+        {filledCount} / {slotCount} cells filled
+        {uniqueCount > slotCount && <> ({uniqueCount - slotCount} extra, used on randomize)</>}
       </Typography>
 
-      {mandatoryCount > CARD_SLOT_COUNT && (
+      {mandatoryCount > slotCount && (
         <Alert severity="warning">
-          {mandatoryCount} entries are marked mandatory, but only {CARD_SLOT_COUNT} cells are available — not all of
+          {mandatoryCount} entries are marked mandatory, but only {slotCount} cells are available — not all of
           them can appear.
         </Alert>
       )}
@@ -175,10 +187,30 @@ export function EntryInput({ entries, onAdd, onEdit, onToggleMandatory, onRemove
               }}
             >
               <Stack direction="row" spacing={1} sx={{ width: "100%", alignItems: "center" }}>
-                <Box sx={{ flex: 1 }}>{entry.text}</Box>
+                <Box
+                  sx={{
+                    flex: 1,
+                    textDecoration: entry.enabled === false ? "line-through" : "none",
+                    opacity: entry.enabled === false ? 0.5 : 1,
+                  }}
+                >
+                  {entry.text}
+                </Box>
                 <FormControlLabel
                   control={
-                    <Checkbox
+                    <Switch
+                      size="small"
+                      checked={entry.enabled !== false}
+                      onChange={() => onToggleEnabled(index)}
+                      slotProps={{ input: { "aria-label": `Toggle ${entry.text} active` } }}
+                    />
+                  }
+                  label="Active"
+                  slotProps={{ typography: { variant: "body2", sx: { whiteSpace: "nowrap" } } }}
+                />
+                <FormControlLabel
+                  control={
+                    <Switch
                       size="small"
                       checked={entry.mandatory}
                       onChange={() => onToggleMandatory(index)}
@@ -186,6 +218,7 @@ export function EntryInput({ entries, onAdd, onEdit, onToggleMandatory, onRemove
                     />
                   }
                   label="Mandatory"
+                  disabled={entry.enabled === false}
                   slotProps={{ typography: { variant: "body2", sx: { whiteSpace: "nowrap" } } }}
                 />
                 <Tooltip title="Edit">
