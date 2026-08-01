@@ -1,0 +1,23 @@
+name: deploy-dev
+
+# Deploys the dev frontend on every push to main (and manually).
+# Infrastructure for dev is applied separately by HCP Terraform (auto-apply).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+jobs:
+  dev:
+    name: Deploy dev
+    uses: ./.github/workflows/_deploy.yml
+    with:
+      environment: dev

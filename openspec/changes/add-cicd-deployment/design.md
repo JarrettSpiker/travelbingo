@@ -34,7 +34,7 @@ These cannot be created by Terraform or the workflow files and must be performed
 - **HCP Terraform:** organization; project; workspaces `travelbingo-dev` and `travelbingo-prod` (Execution Mode = Remote, VCS-connected to `JarrettSpiker/travelbingo` on branch `main`, working directory `infra`, tagged `travelbingo`). Dev workspace Auto-apply ON; prod Auto-apply OFF.
 - **HCP Terraform workspace variables:** per workspace set `bucket_name` (`travelbingo-dev` / `travelbingo-prod`), `environment` (`dev`/`prod`), and `name_prefix` / `cloudfront_price_class` as needed.
 - **HCP Terraform dynamic provider credentials:** on each workspace, configure AWS provider credentials (`TFC_AWS_PROVIDER_AUTH=true`, `TFC_AWS_RUN_ROLE_ARN=<tfc role ARN>`) pointing at the role the bootstrap creates.
-- **GitHub:** install the HCP Terraform GitHub App on the repository (enables the VCS connection). Create Environments `dev` (no approval) and `prod` (required reviewers). Add repository variables `AWS_ROLE_GHA_DEV` and `AWS_ROLE_GHA_PROD`.
+- **GitHub:** install the HCP Terraform GitHub App on the repository (enables the VCS connection). Create Environments `dev` (no approval) and `prod` (required reviewers). On each environment set the configuration variables `AWS_ROLE_ARN`, `S3_BUCKET`, and `CLOUDFRONT_DISTRIBUTION_ID`, which the reusable workflow resolves automatically for the targeted environment.
 - **Local:** AWS administrator credentials and the `terraform` CLI, for the one-time `infra/bootstrap` apply and the dev state migration.
 - **Not stored anywhere:** static AWS keys, or an HCP API token in GitHub. GitHub Actions never triggers HCP runs (dev = VCS auto-apply; prod = manual HCP UI apply), so `TF_API_TOKEN` is not needed.
 

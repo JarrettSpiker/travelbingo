@@ -9,6 +9,12 @@ variable "bucket_name" {
   type        = string
 }
 
+variable "name_prefix" {
+  description = "Optional prefix applied to named resources (e.g. the CloudFront OAC). Defaults to none; the bucket name already differentiates environments."
+  type        = string
+  default     = ""
+}
+
 variable "environment" {
   description = "Environment name, used for tagging."
   type        = string

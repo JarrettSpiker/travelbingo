@@ -1,0 +1,22 @@
+name: deploy-prod
+
+# Deploys the prod frontend via a manual, review-gated run.
+# The `prod` GitHub Environment should have required reviewers configured.
+# Infrastructure for prod is applied separately by HCP Terraform (manual apply).
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  prod:
+    name: Deploy prod
+    uses: ./.github/workflows/_deploy.yml
+    with:
+      environment: prod

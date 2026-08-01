@@ -4,6 +4,9 @@ locals {
     Environment = var.environment
     ManagedBy   = "terraform"
   }
+  # When name_prefix is empty, resource_name == bucket_name, preserving the
+  # names the existing dev resources were created with.
+  resource_name = var.name_prefix != "" ? "${var.name_prefix}-${var.bucket_name}" : var.bucket_name
 }
 
 resource "aws_s3_bucket" "frontend" {
@@ -21,7 +24,7 @@ resource "aws_s3_bucket_public_access_block" "frontend" {
 }
 
 resource "aws_cloudfront_origin_access_control" "frontend" {
-  name                              = "${var.bucket_name}-oac"
+  name                              = "${local.resource_name}-oac"
   origin_access_control_origin_type = "s3"
   signing_behavior                  = "always"
   signing_protocol                  = "sigv4"
