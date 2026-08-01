@@ -7,6 +7,8 @@ locals {
   # When name_prefix is empty, resource_name == bucket_name, preserving the
   # names the existing dev resources were created with.
   resource_name = var.name_prefix != "" ? "${var.name_prefix}-${var.bucket_name}" : var.bucket_name
+  # Custom domain is active only when both a domain and its hosting zone are set.
+  use_custom_domain = var.domain_name != "" && var.hosted_zone_name != ""
 }
 
 resource "aws_s3_bucket" "frontend" {
@@ -38,6 +40,7 @@ resource "aws_cloudfront_distribution" "frontend" {
   enabled             = true
   default_root_object = "index.html"
   price_class         = var.cloudfront_price_class
+  aliases             = local.use_custom_domain ? [var.domain_name] : []
   tags                = local.tags
 
   origin {
@@ -69,7 +72,10 @@ resource "aws_cloudfront_distribution" "frontend" {
   }
 
   viewer_certificate {
-    cloudfront_default_certificate = true
+    cloudfront_default_certificate = local.use_custom_domain ? false : true
+    acm_certificate_arn            = local.use_custom_domain ? aws_acm_certificate_validation.frontend[0].certificate_arn : null
+    ssl_support_method             = local.use_custom_domain ? "sni-only" : null
+    minimum_protocol_version       = local.use_custom_domain ? "TLSv1.2_2021" : null
   }
 }
 

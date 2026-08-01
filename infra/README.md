@@ -30,8 +30,13 @@ Set these as Terraform Variables on each workspace:
 | `environment` | `dev` | `prod` |
 | `name_prefix` | _(empty)_ | _(empty)_ |
 | `cloudfront_price_class` | `PriceClass_100` | `PriceClass_100` |
+| `domain_name` | `dev.travelbingo.ca` | `travelbingo.ca` |
+| `hosted_zone_name` | `travelbingo.ca` | `travelbingo.ca` |
 
-`bucket_name` is required; the rest have defaults if omitted.
+`bucket_name` is required; the rest have defaults if omitted. `domain_name` /
+`hosted_zone_name` are optional — leave both empty to serve via the default
+`*.cloudfront.net` URL. When set, register `travelbingo.ca` in Route53 first
+(it creates the hosted zone that both environments reference).
 
 ## Triggers
 

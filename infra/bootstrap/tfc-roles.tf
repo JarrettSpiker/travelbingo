@@ -69,6 +69,25 @@ data "aws_iam_policy_document" "tfc_permissions" {
     ]
     resources = ["*"]
   }
+
+  statement {
+    sid = "ManageACM"
+    # ACM certificates are global; required in us-east-1 for CloudFront.
+    actions = [
+      "acm:*",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid = "ManageRoute53"
+    # The hosted zone is created outside Terraform (Route53 registration), so
+    # its ID is unknown at bootstrap time; Route53 access is account-scoped.
+    actions = [
+      "route53:*",
+    ]
+    resources = ["*"]
+  }
 }
 
 resource "aws_iam_role_policy" "tfc" {

@@ -16,9 +16,16 @@ data "aws_iam_policy_document" "gha_assume" {
       values   = ["sts.amazonaws.com"]
     }
     condition {
-      test     = "StringEquals"
+      # Repositories created after 2026-07-15 use GitHub's immutable subject
+      # format, which appends @<owner-id> and @<repo-id> to the owner/repo
+      # segment. Match both the legacy and immutable formats; the IDs are
+      # matched with wildcards (owner/repo names are unique).
+      test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_org}/${var.github_repo}:environment:${each.key}"]
+      values = [
+        "repo:${var.github_org}/${var.github_repo}:environment:${each.key}",
+        "repo:${var.github_org}@*/${var.github_repo}@*:environment:${each.key}",
+      ]
     }
   }
 }

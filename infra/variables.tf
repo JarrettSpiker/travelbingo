@@ -26,3 +26,15 @@ variable "cloudfront_price_class" {
   type        = string
   default     = "PriceClass_100"
 }
+
+variable "domain_name" {
+  description = "Custom domain for the CloudFront distribution (e.g. dev.travelbingo.ca). Leave empty to use the default *.cloudfront.net URL."
+  type        = string
+  default     = ""
+}
+
+variable "hosted_zone_name" {
+  description = "Name of the Route53 hosted zone that hosts domain_name (e.g. travelbingo.ca). Required when domain_name is set."
+  type        = string
+  default     = ""
+}
