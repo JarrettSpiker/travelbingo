@@ -1,5 +1,6 @@
 import { DEFAULT_COLOR_SCHEME, type ColorScheme } from "./colorScheme";
-import { DEFAULT_FONT_SCHEME, type FontScheme } from "./fontScheme";
+import { MAX_EMOJIS, type EmojiScheme } from "./emojiScheme";
+import { DEFAULT_FONT_SCHEME, FONT_OPTIONS, type FontScheme } from "./fontScheme";
 
 export interface CardUrlData {
   slots: (string | null)[];
@@ -8,10 +9,29 @@ export interface CardUrlData {
   freeSpaceText: string;
   colorScheme: ColorScheme;
   fontScheme: FontScheme;
+  emojiScheme: EmojiScheme;
 }
 
 const URL_PARAM = "card";
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
+
+/** Guard against oversized crafted payloads: bounds the synchronous atob/JSON.parse cost. */
+const MAX_ENCODED_LENGTH = 50_000;
+/** The grid is a fixed 5×5 (25 cells); allow headroom, cap far below DoS territory. */
+const MAX_SLOTS = 64;
+
+/** Accept only well-formed hex colors so untrusted URL values can't reach CSS. */
+const HEX_COLOR = /^#[0-9a-fA-F]{3,8}$/;
+/** Fonts are constrained to the editor's known options. */
+const ALLOWED_FONTS = new Set(FONT_OPTIONS.map((option) => option.value));
+
+function decodeColor(value: unknown, fallback: string): string {
+  return typeof value === "string" && HEX_COLOR.test(value) ? value : fallback;
+}
+
+function decodeFont(value: unknown, fallback: string): string {
+  return typeof value === "string" && ALLOWED_FONTS.has(value) ? value : fallback;
+}
 
 interface EncodedPayload {
   v: number;
@@ -21,6 +41,7 @@ interface EncodedPayload {
   f: string;
   c: [string, string, string, string];
   ft: [string, string];
+  e: string[];
 }
 
 function toBase64Url(text: string): string {
@@ -48,6 +69,7 @@ export function encodeCardToUrl(data: CardUrlData, baseUrl: string = window.loca
     f: data.freeSpaceText,
     c: [data.colorScheme.backgroundColor, data.colorScheme.cellColor, data.colorScheme.textColor, data.colorScheme.titleColor],
     ft: [data.fontScheme.titleFont, data.fontScheme.cellFont],
+    e: data.emojiScheme.emojis,
   };
 
   const url = new URL(baseUrl);
@@ -59,25 +81,33 @@ export function encodeCardToUrl(data: CardUrlData, baseUrl: string = window.loca
 export function decodeCardFromUrl(search: string = window.location.search): CardUrlData | null {
   const encoded = new URLSearchParams(search).get(URL_PARAM);
   if (!encoded) return null;
+  if (encoded.length > MAX_ENCODED_LENGTH) return null;
 
   try {
     const payload = JSON.parse(fromBase64Url(encoded)) as Partial<EncodedPayload>;
     if (!Array.isArray(payload.s) || !Array.isArray(payload.c) || payload.c.length < 3) return null;
 
     return {
-      slots: payload.s.map((slot) => (typeof slot === "string" && slot !== "" ? slot : null)),
+      slots: payload.s
+        .slice(0, MAX_SLOTS)
+        .map((slot) => (typeof slot === "string" && slot !== "" ? slot : null)),
       title: typeof payload.t === "string" ? payload.t : "",
       hasFreeSpace: typeof payload.hf === "boolean" ? payload.hf : true,
       freeSpaceText: typeof payload.f === "string" ? payload.f : "",
       colorScheme: {
-        backgroundColor: payload.c[0],
-        cellColor: payload.c[1],
-        textColor: payload.c[2],
-        titleColor: payload.c[3] ?? DEFAULT_COLOR_SCHEME.titleColor,
+        backgroundColor: decodeColor(payload.c[0], DEFAULT_COLOR_SCHEME.backgroundColor),
+        cellColor: decodeColor(payload.c[1], DEFAULT_COLOR_SCHEME.cellColor),
+        textColor: decodeColor(payload.c[2], DEFAULT_COLOR_SCHEME.textColor),
+        titleColor: decodeColor(payload.c[3], DEFAULT_COLOR_SCHEME.titleColor),
       },
       fontScheme: {
-        titleFont: payload.ft?.[0] ?? DEFAULT_FONT_SCHEME.titleFont,
-        cellFont: payload.ft?.[1] ?? DEFAULT_FONT_SCHEME.cellFont,
+        titleFont: decodeFont(payload.ft?.[0], DEFAULT_FONT_SCHEME.titleFont),
+        cellFont: decodeFont(payload.ft?.[1], DEFAULT_FONT_SCHEME.cellFont),
+      },
+      emojiScheme: {
+        emojis: Array.isArray(payload.e)
+          ? payload.e.filter((item): item is string => typeof item === "string").slice(0, MAX_EMOJIS)
+          : [],
       },
     };
   } catch {

@@ -1,13 +1,41 @@
 .bingo-card {
+  --card-pad: 2.75rem;
+  --emoji-inset: 1.375rem;
+  display: flex;
+  flex-direction: column;
   border: 1px solid #ccc;
   border-radius: 8px;
-  padding: 1rem;
   max-width: 420px;
+  overflow: hidden;
+}
+
+/* Title band: a full-width row at the top of the card reserved for the title.
+   Emojis never appear here, so the title can never overlap them. */
+.bingo-card-titlebar {
+  padding: 0.6rem 1.25rem;
+  text-align: center;
 }
 
 .bingo-card-title {
-  text-align: center;
-  margin: 0 0 0.75rem;
+  margin: 0;
+}
+
+/* Body holds the emoji ring + grid, and is the positioning/stacking context for
+   the absolutely-placed edge emojis. */
+.bingo-card-body {
+  position: relative;
+  z-index: 0;
+  padding: var(--card-pad);
+}
+
+.bingo-edge-emoji {
+  position: absolute;
+  z-index: -1;
+  transform: translate(-50%, -50%);
+  font-size: 1.5rem;
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
 }
 
 .bingo-grid {
@@ -51,7 +79,9 @@
   }
 
   .bingo-card,
-  .bingo-cell {
+  .bingo-cell,
+  .bingo-card-title,
+  .bingo-card-titlebar {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
@@ -61,10 +91,22 @@
     width: 100%;
     max-width: none;
     box-sizing: border-box;
+    --card-pad: 3rem;
+    --emoji-inset: 1.5rem;
+  }
+
+  .bingo-card-titlebar {
+    padding: 0.8rem 1.25rem;
   }
 
   .bingo-cell {
     font-size: calc(1rem * var(--cell-font-scale, 1));
     padding: 8px;
+  }
+
+  .bingo-edge-emoji {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    font-size: 2.5rem;
   }
 }

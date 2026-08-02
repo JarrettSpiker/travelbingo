@@ -7,7 +7,8 @@ const SAMPLE_COLOR_SCHEME = {
   textColor: "#ff00ff",
   titleColor: "#00ff00",
 };
-const SAMPLE_FONT_SCHEME = { titleFont: "Georgia, serif", cellFont: "'Courier New', monospace" };
+const SAMPLE_FONT_SCHEME = { titleFont: "Georgia, 'Times New Roman', serif", cellFont: "'Courier New', Courier, monospace" };
+const SAMPLE_EMOJI_SCHEME = { emojis: [] as string[] };
 
 describe("encodeCardToUrl / decodeCardFromUrl", () => {
   it("round-trips slots (including blanks), title, free space settings, colors, and fonts", () => {
@@ -20,6 +21,7 @@ describe("encodeCardToUrl / decodeCardFromUrl", () => {
         freeSpaceText: "Wild",
         colorScheme: SAMPLE_COLOR_SCHEME,
         fontScheme: SAMPLE_FONT_SCHEME,
+        emojiScheme: SAMPLE_EMOJI_SCHEME,
       },
       "https://example.com/",
     );
@@ -32,7 +34,64 @@ describe("encodeCardToUrl / decodeCardFromUrl", () => {
       freeSpaceText: "Wild",
       colorScheme: SAMPLE_COLOR_SCHEME,
       fontScheme: SAMPLE_FONT_SCHEME,
+      emojiScheme: SAMPLE_EMOJI_SCHEME,
     });
+  });
+
+  it("round-trips a non-empty emoji scheme exactly", () => {
+    const emojis = ["🌟", "🎉", "🚀"];
+    const url = encodeCardToUrl(
+      {
+        slots: ["A"],
+        title: "T",
+        hasFreeSpace: true,
+        freeSpaceText: "F",
+        colorScheme: SAMPLE_COLOR_SCHEME,
+        fontScheme: SAMPLE_FONT_SCHEME,
+        emojiScheme: { emojis },
+      },
+      "https://example.com/",
+    );
+    const decoded = decodeCardFromUrl(new URL(url).search);
+    expect(decoded?.emojiScheme).toEqual({ emojis });
+  });
+
+  it("decodes an older payload without an emoji field to no emojis", () => {
+    const v3Payload = {
+      v: 3,
+      s: ["A", ""],
+      t: "T",
+      hf: true,
+      f: "F",
+      c: ["#112233", "#445566", "#ff00ff", "#00ff00"],
+      ft: ["Georgia, serif", "'Courier New', monospace"],
+    };
+    const bytes = new TextEncoder().encode(JSON.stringify(v3Payload));
+    let binary = "";
+    bytes.forEach((byte) => {
+      binary += String.fromCharCode(byte);
+    });
+    const encoded = btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+    const decoded = decodeCardFromUrl(`?card=${encoded}`);
+    expect(decoded?.emojiScheme).toEqual({ emojis: [] });
+  });
+
+  it("round-trips an empty emoji set", () => {
+    const url = encodeCardToUrl(
+      {
+        slots: ["A"],
+        title: "T",
+        hasFreeSpace: true,
+        freeSpaceText: "",
+        colorScheme: SAMPLE_COLOR_SCHEME,
+        fontScheme: SAMPLE_FONT_SCHEME,
+        emojiScheme: { emojis: [] },
+      },
+      "https://example.com/",
+    );
+    const decoded = decodeCardFromUrl(new URL(url).search);
+    expect(decoded?.emojiScheme).toEqual({ emojis: [] });
   });
 
   it("round-trips hasFreeSpace: false", () => {
@@ -44,6 +103,7 @@ describe("encodeCardToUrl / decodeCardFromUrl", () => {
         freeSpaceText: "",
         colorScheme: SAMPLE_COLOR_SCHEME,
         fontScheme: SAMPLE_FONT_SCHEME,
+        emojiScheme: SAMPLE_EMOJI_SCHEME,
       },
       "https://example.com/",
     );
@@ -60,6 +120,7 @@ describe("encodeCardToUrl / decodeCardFromUrl", () => {
         freeSpaceText: "",
         colorScheme: SAMPLE_COLOR_SCHEME,
         fontScheme: SAMPLE_FONT_SCHEME,
+        emojiScheme: SAMPLE_EMOJI_SCHEME,
       },
       "https://example.com/",
     );
@@ -77,6 +138,7 @@ describe("encodeCardToUrl / decodeCardFromUrl", () => {
         freeSpaceText: "F",
         colorScheme: SAMPLE_COLOR_SCHEME,
         fontScheme: SAMPLE_FONT_SCHEME,
+        emojiScheme: SAMPLE_EMOJI_SCHEME,
       },
       "https://example.com/app?stale=1",
     );

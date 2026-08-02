@@ -1,0 +1,174 @@
+{
+  "themes": [
+    {
+      "id": "ocean",
+      "label": "Ocean",
+      "colorScheme": {
+        "backgroundColor": "#e3f2fd",
+        "cellColor": "#ffffff",
+        "textColor": "#0d47a1",
+        "titleColor": "#1565c0"
+      },
+      "fontScheme": {
+        "titleFont": "'Pacifico', cursive",
+        "cellFont": "'Poppins', sans-serif"
+      },
+      "emojiScheme": {
+        "emojis": ["🌊", "🐬", "🐚"]
+      }
+    },
+    {
+      "id": "sunset",
+      "label": "Sunset",
+      "colorScheme": {
+        "backgroundColor": "#fff3e0",
+        "cellColor": "#fff8f0",
+        "textColor": "#bf360c",
+        "titleColor": "#d84315"
+      },
+      "fontScheme": {
+        "titleFont": "'Playfair Display', serif",
+        "cellFont": "'Poppins', sans-serif"
+      },
+      "emojiScheme": {
+        "emojis": ["🌅", "🌴", "✨"]
+      }
+    },
+    {
+      "id": "night",
+      "label": "Night",
+      "colorScheme": {
+        "backgroundColor": "#1a1a2e",
+        "cellColor": "#16213e",
+        "textColor": "#e0e0e0",
+        "titleColor": "#ffffff"
+      },
+      "fontScheme": {
+        "titleFont": "'Anton', sans-serif",
+        "cellFont": "system-ui, sans-serif"
+      },
+      "emojiScheme": {
+        "emojis": ["🌙", "⭐", "🚀"]
+      }
+    },
+    {
+      "id": "forest",
+      "label": "Forest",
+      "colorScheme": {
+        "backgroundColor": "#f1f8e9",
+        "cellColor": "#ffffff",
+        "textColor": "#1b5e20",
+        "titleColor": "#2e7d32"
+      },
+      "fontScheme": {
+        "titleFont": "'Fredoka', sans-serif",
+        "cellFont": "system-ui, sans-serif"
+      },
+      "emojiScheme": {
+        "emojis": ["🌲", "🍄", "🦌"]
+      }
+    },
+    {
+      "id": "summer",
+      "label": "Summer",
+      "colorScheme": {
+        "backgroundColor": "#fffde7",
+        "cellColor": "#ffffff",
+        "textColor": "#e65100",
+        "titleColor": "#f57c00"
+      },
+      "fontScheme": {
+        "titleFont": "'Pacifico', cursive",
+        "cellFont": "'Poppins', sans-serif"
+      },
+      "emojiScheme": {
+        "emojis": ["☀️", "🏖️", "🍉"]
+      }
+    },
+    {
+      "id": "spring",
+      "label": "Spring",
+      "colorScheme": {
+        "backgroundColor": "#fce4ec",
+        "cellColor": "#ffffff",
+        "textColor": "#880e4f",
+        "titleColor": "#c2185b"
+      },
+      "fontScheme": {
+        "titleFont": "'Fredoka', sans-serif",
+        "cellFont": "'Poppins', sans-serif"
+      },
+      "emojiScheme": {
+        "emojis": ["🌸", "🐝", "🌷"]
+      }
+    },
+    {
+      "id": "winter",
+      "label": "Winter",
+      "colorScheme": {
+        "backgroundColor": "#e1f5fe",
+        "cellColor": "#ffffff",
+        "textColor": "#01579b",
+        "titleColor": "#0277bd"
+      },
+      "fontScheme": {
+        "titleFont": "'Playfair Display', serif",
+        "cellFont": "'Poppins', sans-serif"
+      },
+      "emojiScheme": {
+        "emojis": ["❄️", "⛄", "🎿"]
+      }
+    },
+    {
+      "id": "autumn",
+      "label": "Autumn",
+      "colorScheme": {
+        "backgroundColor": "#fbe9e7",
+        "cellColor": "#fff8f0",
+        "textColor": "#3e2723",
+        "titleColor": "#6d4c41"
+      },
+      "fontScheme": {
+        "titleFont": "'Playfair Display', serif",
+        "cellFont": "'Poppins', sans-serif"
+      },
+      "emojiScheme": {
+        "emojis": ["🍂", "🎃", "🍁"]
+      }
+    },
+    {
+      "id": "canada",
+      "label": "Canada",
+      "colorScheme": {
+        "backgroundColor": "#fff8f8",
+        "cellColor": "#ffffff",
+        "textColor": "#b71c1c",
+        "titleColor": "#d32f2f"
+      },
+      "fontScheme": {
+        "titleFont": "'Anton', sans-serif",
+        "cellFont": "system-ui, sans-serif"
+      },
+      "emojiScheme": {
+        "emojis": ["🍁", "🦫", "🏒"]
+      }
+    },
+    {
+      "id": "harry-potter",
+      "label": "Harry Potter",
+      "colorScheme": {
+        "backgroundColor": "#2d1b4e",
+        "cellColor": "#4a2c6d",
+        "textColor": "#ffe082",
+        "titleColor": "#ffd700"
+      },
+      "fontScheme": {
+        "titleFont": "'Playfair Display', serif",
+        "cellFont": "'Poppins', sans-serif"
+      },
+      "emojiScheme": {
+        "emojis": ["⚡", "🦉", "🪄"]
+      }
+    }
+  ]
+}

@@ -23,6 +23,7 @@ interface EntryInputProps {
   onToggleMandatory: (index: number) => void;
   onToggleEnabled: (index: number) => void;
   onRemove: (index: number) => void;
+  onOpenSuggestions?: () => void;
 }
 
 function normalize(text: string): string {
@@ -42,6 +43,7 @@ export function EntryInput({
   onToggleMandatory,
   onToggleEnabled,
   onRemove,
+  onOpenSuggestions,
 }: EntryInputProps) {
   const [draft, setDraft] = useState("");
   const [duplicateError, setDuplicateError] = useState<string | null>(null);
@@ -99,9 +101,16 @@ export function EntryInput({
 
   return (
     <Stack component="section" spacing={2}>
-      <Typography variant="h6" component="h2">
-        Entries
-      </Typography>
+      <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between" }}>
+        <Typography variant="h6" component="h2">
+          Entries
+        </Typography>
+        {onOpenSuggestions && (
+          <Button variant="outlined" size="small" onClick={onOpenSuggestions}>
+            See suggestions
+          </Button>
+        )}
+      </Stack>
 
       <Stack component="form" direction="row" spacing={1} onSubmit={handleSubmit} sx={{ alignItems: "flex-start" }}>
         <TextField

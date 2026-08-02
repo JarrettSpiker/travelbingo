@@ -1,0 +1,67 @@
+{
+  "categories": [
+    {
+      "id": "road-trip",
+      "label": "Road Trip",
+      "cells": [
+        "Rest stop",
+        "License plate out of state",
+        "Traffic jam",
+        "Singing along to the radio",
+        "Roadkill",
+        "Billboard",
+        "Wrong turn",
+        "Snacks in the car",
+        "Construction zone",
+        "Passenger napping",
+        "Rain on the windshield",
+        "Toll booth",
+        "Classic car",
+        "Roadside diner",
+        "Backseat driver"
+      ]
+    },
+    {
+      "id": "air-travel",
+      "label": "Air Travel",
+      "cells": [
+        "Crying baby",
+        "Pilot announcement",
+        "Drink cart in the aisle",
+        "Window seat",
+        "Turbulence",
+        "Boarding group 1",
+        "Lost boarding pass",
+        "Overhead bin full",
+        "Duty-free shop",
+        "Tray table down",
+        "Seatbelt sign on",
+        "Loud talker",
+        "Bags at baggage claim",
+        "Long security line",
+        "Gate change"
+      ]
+    },
+    {
+      "id": "sightseeing",
+      "label": "Sightseeing",
+      "cells": [
+        "Selfie stick",
+        "Tour group",
+        "Famous monument",
+        "Souvenir shop",
+        "Statue",
+        "Local street food",
+        "Museum",
+        "Mosaic or mural",
+        "Old church",
+        "Map in hand",
+        "Photo bomber",
+        "Cobblestone street",
+        "Fountain",
+        "Tour guide",
+        "Crowd at the view"
+      ]
+    }
+  ]
+}

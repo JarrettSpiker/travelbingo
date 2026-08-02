@@ -7,11 +7,15 @@ import "./App.css";
 import { EntryInput } from "./components/EntryInput";
 import { CardDetailsForm } from "./components/CardDetailsForm";
 import { ColorSchemeForm } from "./components/ColorSchemeForm";
+import { EmojiSchemeForm } from "./components/EmojiSchemeForm";
 import { FontSchemeForm } from "./components/FontSchemeForm";
 import { CardView } from "./components/CardView";
+import { SuggestionsDialog } from "./components/SuggestionsDialog";
 import { buildCard, cardFromSlots, cardToSlots, randomizeCard, type BingoCard, type BingoEntry } from "./lib/bingo";
 import { DEFAULT_COLOR_SCHEME, type ColorScheme } from "./lib/colorScheme";
+import { DEFAULT_EMOJI_SCHEME, type EmojiScheme } from "./lib/emojiScheme";
 import { DEFAULT_FONT_SCHEME, type FontScheme } from "./lib/fontScheme";
+import { type SuggestedTheme } from "./lib/suggestions";
 import { decodeCardFromUrl, encodeCardToUrl } from "./lib/cardUrl";
 
 const initialImport = decodeCardFromUrl();
@@ -28,6 +32,8 @@ function App() {
   const [freeSpaceText, setFreeSpaceText] = useState(() => initialImport?.freeSpaceText ?? "");
   const [colorScheme, setColorScheme] = useState<ColorScheme>(() => initialImport?.colorScheme ?? DEFAULT_COLOR_SCHEME);
   const [fontScheme, setFontScheme] = useState<FontScheme>(() => initialImport?.fontScheme ?? DEFAULT_FONT_SCHEME);
+  const [emojiScheme, setEmojiScheme] = useState<EmojiScheme>(() => initialImport?.emojiScheme ?? DEFAULT_EMOJI_SCHEME);
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const [card, setCard] = useState<BingoCard>(() =>
     initialImport
       ? cardFromSlots(initialImport.slots, { hasFreeSpace: initialImport.hasFreeSpace, freeSpaceText: initialImport.freeSpaceText })
@@ -82,6 +88,17 @@ function App() {
     setCard(randomizeCard(entries, { hasFreeSpace, freeSpaceText }));
   }
 
+  function handleAddEntries(next: BingoEntry[]) {
+    setEntries(next);
+    setCard(buildCard(next, { hasFreeSpace, freeSpaceText }));
+  }
+
+  function handleApplyTheme(theme: SuggestedTheme) {
+    setColorScheme(theme.colorScheme);
+    setFontScheme(theme.fontScheme);
+    setEmojiScheme(theme.emojiScheme);
+  }
+
   function handleExportUrl(): string {
     return encodeCardToUrl({
       slots: cardToSlots(card, hasFreeSpace),
@@ -90,6 +107,7 @@ function App() {
       freeSpaceText,
       colorScheme,
       fontScheme,
+      emojiScheme,
     });
   }
 
@@ -121,6 +139,7 @@ function App() {
           <Stack spacing={3}>
             <ColorSchemeForm colorScheme={colorScheme} onChange={setColorScheme} />
             <FontSchemeForm fontScheme={fontScheme} onChange={setFontScheme} />
+            <EmojiSchemeForm emojiScheme={emojiScheme} onChange={setEmojiScheme} />
           </Stack>
         </Box>
 
@@ -132,6 +151,7 @@ function App() {
           onToggleMandatory={handleToggleMandatory}
           onToggleEnabled={handleToggleEnabled}
           onRemove={handleRemoveEntry}
+          onOpenSuggestions={() => setSuggestionsOpen(true)}
         />
       </Stack>
 
@@ -140,8 +160,17 @@ function App() {
         title={title}
         colorScheme={colorScheme}
         fontScheme={fontScheme}
+        emojiScheme={emojiScheme}
         onRandomize={handleRandomize}
         onExportUrl={handleExportUrl}
+      />
+
+      <SuggestionsDialog
+        open={suggestionsOpen}
+        onClose={() => setSuggestionsOpen(false)}
+        entries={entries}
+        onAddEntries={handleAddEntries}
+        onApplyTheme={handleApplyTheme}
       />
     </Container>
   );

@@ -21,12 +21,12 @@
 
 ## 5. Manual prerequisites (you)
 
-- [ ] 5.1 (manual) Register `travelbingo.ca` in Route53 (creates the hosted zone)
-- [ ] 5.2 (manual) Set `domain_name` + `hosted_zone_name` on the dev and prod HCP workspaces
-- [ ] 5.3 (manual) Re-apply `infra/bootstrap` so tfc roles gain ACM/Route53 permissions
+- [x] 5.1 (manual) Register `travelbingo.ca` in Route53 (creates the hosted zone)
+- [x] 5.2 (manual) Set `domain_name` + `hosted_zone_name` on the dev and prod HCP workspaces
+- [x] 5.3 (manual) Re-apply `infra/bootstrap` so tfc roles gain ACM/Route53 permissions
 
 ## 6. Apply and verify
 
-- [ ] 6.1 Apply dev (in-place update: alias + cert swap, brief redeploy)
-- [ ] 6.2 Apply prod (creates the distribution with the domain from the start)
-- [ ] 6.3 Verify `https://travelbingo.ca` and `https://dev.travelbingo.ca` serve over HTTPS
+- [x] 6.1 Apply dev (in-place update: alias + cert swap, brief redeploy)
+- [x] 6.2 Apply prod (creates the distribution with the domain from the start)
+- [x] 6.3 Verify `https://travelbingo.ca` and `https://dev.travelbingo.ca` serve over HTTPS

@@ -1,11 +1,16 @@
 import { useEffect, useRef, useState } from "react";
+import { toPng } from "html-to-image";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import Menu from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import type { BingoCard } from "../lib/bingo";
 import type { ColorScheme } from "../lib/colorScheme";
+import { buildImageFilename } from "../lib/imageExport";
+import type { EmojiScheme } from "../lib/emojiScheme";
 import type { FontScheme } from "../lib/fontScheme";
 import { CardGrid } from "./CardGrid";
 
@@ -14,13 +19,17 @@ interface CardViewProps {
   title: string;
   colorScheme: ColorScheme;
   fontScheme: FontScheme;
+  emojiScheme: EmojiScheme;
   onRandomize: () => void;
   onExportUrl: () => string;
 }
 
-export function CardView({ card, title, colorScheme, fontScheme, onRandomize, onExportUrl }: CardViewProps) {
+export function CardView({ card, title, colorScheme, fontScheme, emojiScheme, onRandomize, onExportUrl }: CardViewProps) {
   const [exportedUrl, setExportedUrl] = useState<string | null>(null);
+  const [pngError, setPngError] = useState(false);
+  const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
   const urlInputRef = useRef<HTMLInputElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (exportedUrl) {
@@ -29,14 +38,41 @@ export function CardView({ card, title, colorScheme, fontScheme, onRandomize, on
     }
   }, [exportedUrl]);
 
-  async function handleExportClick() {
+  function closeMenu() {
+    setMenuAnchorEl(null);
+  }
+
+  function handleExportUrl() {
     const url = onExportUrl();
     setExportedUrl(url);
+    navigator.clipboard?.writeText(url).catch(() => {
+      // Clipboard access can fail/be unavailable (non-secure context, lost
+      // focus, permission denied); the visible, selected URL field below is
+      // the fallback way to copy it.
+    });
+  }
+
+  function handlePrint() {
+    document.fonts.ready.then(() => window.print());
+  }
+
+  async function handlePng() {
+    const node = cardRef.current;
+    if (!node) {
+      return;
+    }
+    setPngError(false);
     try {
-      await navigator.clipboard?.writeText(url);
+      await document.fonts.ready;
+      const dataUrl = await toPng(node, { pixelRatio: 2 });
+      const link = document.createElement("a");
+      link.download = buildImageFilename(title);
+      link.href = dataUrl;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     } catch {
-      // Clipboard access can fail/be unavailable; the visible, selected
-      // URL field below is the fallback way to copy it.
+      setPngError(true);
     }
   }
 
@@ -55,21 +91,48 @@ export function CardView({ card, title, colorScheme, fontScheme, onRandomize, on
           <Button type="button" variant="outlined" size="small" onClick={onRandomize}>
             Randomize card
           </Button>
-          <Button type="button" variant="outlined" size="small" onClick={handleExportClick}>
-            Export URL
-          </Button>
           <Button
             type="button"
             variant="outlined"
             size="small"
-            onClick={() => {
-              document.fonts.ready.then(() => window.print());
-            }}
+            onClick={(event) => setMenuAnchorEl(event.currentTarget)}
           >
-            Print / Save as PDF
+            Export
           </Button>
+          <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={closeMenu}>
+            <MenuItem
+              onClick={() => {
+                closeMenu();
+                handleExportUrl();
+              }}
+            >
+              Export URL
+            </MenuItem>
+            <MenuItem
+              onClick={() => {
+                closeMenu();
+                handlePrint();
+              }}
+            >
+              PDF
+            </MenuItem>
+            <MenuItem
+              onClick={() => {
+                closeMenu();
+                void handlePng();
+              }}
+            >
+              PNG
+            </MenuItem>
+          </Menu>
         </Stack>
       </Stack>
+
+      {pngError && (
+        <Typography className="no-print" color="error" variant="body2" sx={{ mb: 2, maxWidth: 420 }}>
+          Sorry, the PNG could not be generated. Please try again.
+        </Typography>
+      )}
 
       {exportedUrl && (
         <Box className="no-print" sx={{ mb: 2, maxWidth: 420 }}>
@@ -85,7 +148,14 @@ export function CardView({ card, title, colorScheme, fontScheme, onRandomize, on
         </Box>
       )}
 
-      <CardGrid card={card} title={title} colorScheme={colorScheme} fontScheme={fontScheme} />
+      <CardGrid
+        ref={cardRef}
+        card={card}
+        title={title}
+        colorScheme={colorScheme}
+        fontScheme={fontScheme}
+        emojiScheme={emojiScheme}
+      />
     </Box>
   );
 }
