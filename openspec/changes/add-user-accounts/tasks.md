@@ -5,15 +5,15 @@
 - [x] 1.3 Add `iam:PassRole` to the tfc roles, scoped to the single `travelbingo-lambda-<env>` ARN with an `iam:PassedToService = lambda.amazonaws.com` condition — and **no** `iam:CreateRole` or `iam:PutRolePolicy`
 - [x] 1.4 Extend `infra/bootstrap/gha-roles.tf` with `lambda:UpdateFunctionCode`, `lambda:GetFunction`, `lambda:GetFunctionConfiguration` on the env function; add `function_name` to `local.envs`
 - [x] 1.5 Add a `lambda_execution_role_arns` output to `infra/bootstrap/outputs.tf`
-- [ ] 1.6 (manual) Re-apply `infra/bootstrap` with administrator credentials
+- [x] 1.6 (manual) Re-apply `infra/bootstrap` with administrator credentials
 - [x] 1.7 Update `infra/bootstrap/README.md` with the new roles and the re-apply requirement
 
 ## 2. Manual prerequisites (you)
 
-- [ ] 2.1 (manual) Create two Google Cloud OAuth 2.0 Web clients (dev, prod) and configure the consent screen; redirect URI `https://travelbingo-<env>.auth.us-east-1.amazoncognito.com/oauth2/idpresponse`
-- [ ] 2.2 (manual) Set `google_oauth_client_id` and `google_oauth_client_secret` (marked **sensitive**) on the `travelbingo-dev` and `travelbingo-prod` HCP workspaces
-- [ ] 2.3 (manual) Set `lambda_execution_role_arn` on both HCP workspaces from the 1.5 output
-- [ ] 2.4 (manual) Create an AWS Budgets alert at ~$5/month
+- [x] 2.1 (manual) Create two Google Cloud OAuth 2.0 Web clients (dev, prod) and configure the consent screen; redirect URI `https://travelbingo-<env>.auth.us-east-1.amazoncognito.com/oauth2/idpresponse`
+- [x] 2.2 (manual) Set `google_oauth_client_id` and `google_oauth_client_secret` (marked **sensitive**) on the `travelbingo-dev` and `travelbingo-prod` HCP workspaces
+- [x] 2.3 (manual) Set `lambda_execution_role_arn` on both HCP workspaces from the 1.5 output
+- [x] 2.4 (manual) Create an AWS Budgets alert at ~$5/month
 
 ## 3. Terraform application infrastructure
 
