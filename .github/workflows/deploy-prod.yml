@@ -15,8 +15,17 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  backend:
+    name: Deploy prod backend
+    uses: ./.github/workflows/_deploy-backend.yml
+    with:
+      environment: prod
+
   prod:
     name: Deploy prod
+    # The frontend calls the API, so the API is updated first. A failed backend
+    # deploy stops the frontend rather than half-deploying the environment.
+    needs: backend
     uses: ./.github/workflows/_deploy.yml
     with:
       environment: prod

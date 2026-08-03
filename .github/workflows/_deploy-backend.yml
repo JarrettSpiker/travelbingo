@@ -1,0 +1,90 @@
+name: deploy-backend
+
+# Reusable workflow that builds the backend and ships its code to one
+# environment's Lambda. Callers: deploy-dev.yml, deploy-prod.yml.
+#
+# Separate from _deploy.yml on purpose: different working directory, artifact,
+# and AWS calls, and the existing frontend deploy path should carry no
+# regression risk from this change.
+#
+# Terraform provisions the function; this workflow is the only thing that
+# updates its code. That keeps a backend bugfix off the manual prod-apply path.
+#
+# Configuration is resolved from the GitHub Environment named by `environment`:
+#   vars.AWS_ROLE_ARN         - OIDC role to assume (from bootstrap)
+#   vars.LAMBDA_FUNCTION_NAME - target function (from the Terraform output)
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: GitHub Environment to deploy to (dev or prod).
+        required: true
+        type: string
+
+permissions:
+  id-token: write # required for OIDC
+  contents: read
+
+# NOTE: concurrency is declared in the caller workflows (deploy-dev/prod),
+# not here. A reusable workflow sharing a concurrency group with its caller
+# causes GitHub to detect a deadlock and cancel the run.
+
+jobs:
+  deploy:
+    name: Deploy backend (${{ inputs.environment }})
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          # Matches the Lambda runtime (nodejs22.x), so the build target and
+          # the execution environment cannot drift.
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Package
+        run: |
+          cd dist
+          zip -r ../function.zip index.mjs
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Update function code
+        run: |
+          aws lambda update-function-code \
+            --function-name "${{ vars.LAMBDA_FUNCTION_NAME }}" \
+            --zip-file fileb://function.zip \
+            --publish \
+            --no-cli-pager
+
+      - name: Wait for the update to finish
+        # update-function-code returns before the new code is active. Without
+        # this, the frontend job could deploy against a function still running
+        # the previous version.
+        run: |
+          aws lambda wait function-updated-v2 \
+            --function-name "${{ vars.LAMBDA_FUNCTION_NAME }}"

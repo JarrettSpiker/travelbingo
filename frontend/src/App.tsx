@@ -11,34 +11,49 @@ import { EmojiSchemeForm } from "./components/EmojiSchemeForm";
 import { FontSchemeForm } from "./components/FontSchemeForm";
 import { CardView } from "./components/CardView";
 import { SuggestionsDialog } from "./components/SuggestionsDialog";
-import { buildCard, cardFromSlots, cardToSlots, randomizeCard, type BingoCard, type BingoEntry } from "./lib/bingo";
-import { DEFAULT_COLOR_SCHEME, type ColorScheme } from "./lib/colorScheme";
-import { DEFAULT_EMOJI_SCHEME, type EmojiScheme } from "./lib/emojiScheme";
-import { DEFAULT_FONT_SCHEME, type FontScheme } from "./lib/fontScheme";
+import { AuthMenu } from "./components/AuthMenu";
+import { ShareLinkDialog } from "./components/ShareLinkDialog";
+import { useAuth } from "./auth/authContext";
+import { buildCard, cardToSlots, randomizeCard, type BingoCard, type BingoEntry } from "./lib/bingo";
+import { type ColorScheme } from "./lib/colorScheme";
+import { type EmojiScheme } from "./lib/emojiScheme";
+import { type FontScheme } from "./lib/fontScheme";
 import { type SuggestedTheme } from "./lib/suggestions";
-import { decodeCardFromUrl, encodeCardToUrl } from "./lib/cardUrl";
+import { decodeCardFromUrl, encodeCardToUrl, type CardUrlData } from "./lib/cardUrl";
+import { cardStateFrom } from "./lib/cardState";
+import { createCard, replaceCard } from "./lib/cardsApi";
 
 const initialImport = decodeCardFromUrl();
 
-function App() {
-  const [entries, setEntries] = useState<BingoEntry[]>(
-    () =>
-      initialImport?.slots
-        .filter((slot): slot is string => slot !== null)
-        .map((text) => ({ text, mandatory: false })) ?? [],
-  );
-  const [title, setTitle] = useState(() => initialImport?.title ?? "");
-  const [hasFreeSpace, setHasFreeSpace] = useState(() => initialImport?.hasFreeSpace ?? true);
-  const [freeSpaceText, setFreeSpaceText] = useState(() => initialImport?.freeSpaceText ?? "");
-  const [colorScheme, setColorScheme] = useState<ColorScheme>(() => initialImport?.colorScheme ?? DEFAULT_COLOR_SCHEME);
-  const [fontScheme, setFontScheme] = useState<FontScheme>(() => initialImport?.fontScheme ?? DEFAULT_FONT_SCHEME);
-  const [emojiScheme, setEmojiScheme] = useState<EmojiScheme>(() => initialImport?.emojiScheme ?? DEFAULT_EMOJI_SCHEME);
+interface AppProps {
+  /**
+   * A card handed over from another route — a saved card being opened, or a
+   * share snapshot. Null means the editor starts from the ?card= URL, exactly
+   * as it did before accounts existed.
+   */
+  initialCard?: CardUrlData | null;
+  /** Set when initialCard came from a saved card, so saving updates it in place. */
+  initialCardId?: string | null;
+}
+
+function App({ initialCard = null, initialCardId = null }: AppProps = {}) {
+  // One source for initial editor state, shared by the ?card= import, opening a
+  // saved card, and importing a share snapshot. See lib/cardState.ts.
+  const initialState = cardStateFrom(initialCard ?? initialImport);
+
+  const { api, status, accountsEnabled } = useAuth();
+
+  const [entries, setEntries] = useState<BingoEntry[]>(() => initialState.entries);
+  const [title, setTitle] = useState(() => initialState.title);
+  const [hasFreeSpace, setHasFreeSpace] = useState(() => initialState.hasFreeSpace);
+  const [freeSpaceText, setFreeSpaceText] = useState(() => initialState.freeSpaceText);
+  const [colorScheme, setColorScheme] = useState<ColorScheme>(() => initialState.colorScheme);
+  const [fontScheme, setFontScheme] = useState<FontScheme>(() => initialState.fontScheme);
+  const [emojiScheme, setEmojiScheme] = useState<EmojiScheme>(() => initialState.emojiScheme);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
-  const [card, setCard] = useState<BingoCard>(() =>
-    initialImport
-      ? cardFromSlots(initialImport.slots, { hasFreeSpace: initialImport.hasFreeSpace, freeSpaceText: initialImport.freeSpaceText })
-      : buildCard([]),
-  );
+  const [card, setCard] = useState<BingoCard>(() => initialState.card);
+  const [savedCardId, setSavedCardId] = useState<string | null>(initialCardId);
+  const [shareOpen, setShareOpen] = useState(false);
 
   function handleAddEntry(text: string) {
     const next = [...entries, { text, mandatory: false }];
@@ -99,8 +114,8 @@ function App() {
     setEmojiScheme(theme.emojiScheme);
   }
 
-  function handleExportUrl(): string {
-    return encodeCardToUrl({
+  function currentCardData(): CardUrlData {
+    return {
       slots: cardToSlots(card, hasFreeSpace),
       title,
       hasFreeSpace,
@@ -108,15 +123,43 @@ function App() {
       colorScheme,
       fontScheme,
       emojiScheme,
-    });
+    };
+  }
+
+  function handleExportUrl(): string {
+    return encodeCardToUrl(currentCardData());
+  }
+
+  /** Saves the editor's card, updating it in place once it has an id. */
+  async function saveCurrentCard(): Promise<string | null> {
+    const data = currentCardData();
+    try {
+      if (savedCardId) {
+        await replaceCard(api, savedCardId, data);
+        return savedCardId;
+      }
+      const created = await createCard(api, data);
+      setSavedCardId(created.cardId);
+      return created.cardId;
+    } catch {
+      return null;
+    }
+  }
+
+  async function handleSaveCard(): Promise<string> {
+    return (await saveCurrentCard()) ? "Saved" : "Could not save";
   }
 
   return (
     <Container component="main" maxWidth="md" className="app" sx={{ py: 3 }}>
-      <Box className="no-print">
+      <Box
+        className="no-print"
+        sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 2 }}
+      >
         <Typography variant="h4" component="h1" gutterBottom>
           Bingo Card Generator
         </Typography>
+        <AuthMenu onSaveCard={handleSaveCard} />
       </Box>
 
       <Stack className="no-print" spacing={3} sx={{ mb: 4 }}>
@@ -163,7 +206,19 @@ function App() {
         emojiScheme={emojiScheme}
         onRandomize={handleRandomize}
         onExportUrl={handleExportUrl}
+        // Undefined when accounts are off, so the menu shows only the
+        // account-free "Copy card link".
+        onCreateShareLink={accountsEnabled ? () => setShareOpen(true) : undefined}
       />
+
+      {accountsEnabled && (
+        <ShareLinkDialog
+          open={shareOpen}
+          onClose={() => setShareOpen(false)}
+          cardId={status === "authenticated" ? savedCardId : null}
+          onSaveFirst={saveCurrentCard}
+        />
+      )}
 
       <SuggestionsDialog
         open={suggestionsOpen}

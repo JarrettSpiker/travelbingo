@@ -36,6 +36,71 @@ data "aws_cloudfront_cache_policy" "caching_optimized" {
   name = "Managed-CachingOptimized"
 }
 
+# Mandatory for /api/*: an edge-cached /api/cards or share response would be a
+# cross-user data leak.
+data "aws_cloudfront_cache_policy" "caching_disabled" {
+  name = "Managed-CachingDisabled"
+}
+
+# Also mandatory for /api/*: forwards Authorization through to the API while
+# suppressing the viewer Host header, which API Gateway routing requires.
+data "aws_cloudfront_origin_request_policy" "all_viewer_except_host" {
+  name = "Managed-AllViewerExceptHostHeader"
+}
+
+resource "aws_cloudfront_function" "spa_fallback" {
+  name    = "${local.resource_name}-spa-fallback"
+  runtime = "cloudfront-js-2.0"
+  publish = true
+  comment = "Serves index.html for app routes. Attached to the S3 behavior only."
+  code    = file("${path.module}/cloudfront_function.js")
+}
+
+resource "aws_cloudfront_response_headers_policy" "frontend" {
+  name = "${local.resource_name}-security-headers"
+
+  security_headers_config {
+    content_security_policy {
+      override = true
+      # The primary mitigation for the refresh token held in localStorage.
+      # 'unsafe-inline' is required for style-src because Emotion (MUI) injects
+      # styles at runtime; it is deliberately absent from script-src.
+      content_security_policy = join("; ", [
+        "default-src 'self'",
+        "script-src 'self'",
+        "style-src 'self' 'unsafe-inline'",
+        "img-src 'self' data: blob:",
+        "font-src 'self' data:",
+        "connect-src 'self' https://${local.cognito_auth_domain}",
+        "form-action 'self' https://${local.cognito_auth_domain}",
+        "frame-ancestors 'none'",
+        "base-uri 'self'",
+        "object-src 'none'",
+      ])
+    }
+
+    referrer_policy {
+      override        = true
+      referrer_policy = "no-referrer"
+    }
+
+    content_type_options {
+      override = true
+    }
+
+    frame_options {
+      override     = true
+      frame_option = "DENY"
+    }
+
+    strict_transport_security {
+      override                   = true
+      access_control_max_age_sec = 31536000
+      include_subdomains         = true
+    }
+  }
+}
+
 resource "aws_cloudfront_distribution" "frontend" {
   enabled             = true
   default_root_object = "index.html"
@@ -49,20 +114,51 @@ resource "aws_cloudfront_distribution" "frontend" {
     origin_access_control_id = aws_cloudfront_origin_access_control.frontend.id
   }
 
-  default_cache_behavior {
-    allowed_methods        = ["GET", "HEAD"]
-    cached_methods         = ["GET", "HEAD"]
-    target_origin_id       = "s3-frontend"
-    viewer_protocol_policy = "redirect-to-https"
-    cache_policy_id        = data.aws_cloudfront_cache_policy.caching_optimized.id
+  origin {
+    domain_name = replace(aws_apigatewayv2_api.api.api_endpoint, "https://", "")
+    origin_id   = "api-gateway"
+
+    custom_origin_config {
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = "https-only"
+      origin_ssl_protocols   = ["TLSv1.2"]
+    }
   }
 
-  # Single-page app with no server-side routes: send any missing path back
-  # to index.html instead of showing CloudFront's default error page.
-  custom_error_response {
-    error_code         = 404
-    response_code      = 200
-    response_page_path = "/index.html"
+  default_cache_behavior {
+    allowed_methods            = ["GET", "HEAD"]
+    cached_methods             = ["GET", "HEAD"]
+    target_origin_id           = "s3-frontend"
+    viewer_protocol_policy     = "redirect-to-https"
+    cache_policy_id            = data.aws_cloudfront_cache_policy.caching_optimized.id
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.frontend.id
+
+    # The SPA fallback. Attached here and not distribution-wide, so API
+    # responses are never rewritten into the app shell. See
+    # cloudfront_function.js for why custom_error_response was removed.
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.spa_fallback.arn
+    }
+  }
+
+  ordered_cache_behavior {
+    path_pattern     = "/api/*"
+    target_origin_id = "api-gateway"
+
+    allowed_methods = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
+    cached_methods  = ["GET", "HEAD"]
+
+    # https-only rather than redirect-to-https: a redirected POST would arrive
+    # as a GET, which is a worse failure than a clear refusal.
+    viewer_protocol_policy = "https-only"
+
+    cache_policy_id          = data.aws_cloudfront_cache_policy.caching_disabled.id
+    origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer_except_host.id
+
+    # No function_association and no response_headers_policy_id: API responses
+    # pass through untouched, with their own status codes and bodies.
   }
 
   restrictions {

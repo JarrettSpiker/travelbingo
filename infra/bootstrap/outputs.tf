@@ -8,6 +8,11 @@ output "gha_role_arns" {
   value       = { for k, r in aws_iam_role.gha : k => r.arn }
 }
 
+output "lambda_execution_role_arns" {
+  description = "Backend Lambda execution role ARNs (set as lambda_execution_role_arn on the matching HCP workspace), keyed by environment."
+  value       = { for k, r in aws_iam_role.lambda : k => r.arn }
+}
+
 output "github_oidc_provider_arn" {
   description = "ARN of the GitHub Actions OIDC identity provider."
   value       = aws_iam_openid_connect_provider.github.arn
