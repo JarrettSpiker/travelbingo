@@ -153,6 +153,22 @@ data "aws_iam_policy_document" "tfc_permissions" {
   }
 
   statement {
+    sid = "DescribeLogGroups"
+    # DescribeLogGroups enumerates log groups rather than acting on one, so the
+    # authorization context carries no group ARN and the action cannot be
+    # scoped — it must be granted on "*" or it fails for every group, including
+    # ones this role owns. The Terraform provider calls it on every refresh of
+    # aws_cloudwatch_log_group.
+    #
+    # This grants visibility of log group *names and metadata* account-wide. It
+    # does not grant reading their contents: logs:GetLogEvents and
+    # logs:FilterLogEvents are resource-scoped and stay limited to the two
+    # groups above.
+    actions   = ["logs:DescribeLogGroups"]
+    resources = ["*"]
+  }
+
+  statement {
     sid = "PassLambdaExecutionRole"
     # The single IAM permission these roles hold, and deliberately not
     # iam:CreateRole or iam:PutRolePolicy: this role may attach the
