@@ -54,6 +54,18 @@ Do these once, before the first apply of the account infrastructure:
 4. **Create an AWS Budgets alert** at roughly $5/month. This is the first
    surface in the project where a bug can generate cost.
 
+   Filter it to **this project's services only** — S3, CloudFront, DynamoDB,
+   Lambda, API Gateway, CloudWatch, Cognito, ACM. An unfiltered budget on a
+   shared AWS account is worthless here: domain registration, Route 53 across
+   other domains, Lightsail, and tax together dwarf this project's spend, so
+   the alert would either fire constantly or never move in response to anything
+   this app did. Route 53 is deliberately excluded even though the hosted zone
+   is project infrastructure, because it is shared with unrelated domains.
+
+   The live budget is `travelbingo-monthly` (80% actual, 100% forecasted). It
+   is created by hand rather than in Terraform: budgets are account-wide, not
+   per-environment, so neither workspace owns it.
+
 ## HCP workspace variables
 
 Set these as Terraform Variables on each workspace:
