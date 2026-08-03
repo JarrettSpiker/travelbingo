@@ -7,6 +7,9 @@ name: deploy
 #   vars.AWS_ROLE_ARN              - OIDC role to assume (from bootstrap)
 #   vars.S3_BUCKET                 - target S3 bucket
 #   vars.CLOUDFRONT_DISTRIBUTION_ID - CloudFront distribution to invalidate
+#   vars.VITE_COGNITO_DOMAIN       - Cognito hosted UI domain (Terraform output)
+#   vars.VITE_COGNITO_CLIENT_ID    - public SPA client id (Terraform output)
+#   vars.VITE_APP_ORIGIN           - origin the app is served from
 on:
   workflow_call:
     inputs:
@@ -52,6 +55,15 @@ jobs:
         run: npm test
 
       - name: Build
+        # These are baked into the bundle at build time. They are non-secret by
+        # design — the Cognito domain and the public SPA client id appear in
+        # every sign-in redirect — so they are Environment variables, not
+        # secrets, matching the existing pattern. A consequence: dev and prod
+        # builds from the same commit are no longer byte-identical.
+        env:
+          VITE_COGNITO_DOMAIN: ${{ vars.VITE_COGNITO_DOMAIN }}
+          VITE_COGNITO_CLIENT_ID: ${{ vars.VITE_COGNITO_CLIENT_ID }}
+          VITE_APP_ORIGIN: ${{ vars.VITE_APP_ORIGIN }}
         run: npm run build
 
       - name: Configure AWS credentials (OIDC)

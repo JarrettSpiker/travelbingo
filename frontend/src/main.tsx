@@ -10,14 +10,25 @@ import '@fontsource/anton/400.css'
 import '@fontsource/pacifico/400.css'
 import '@fontsource/fredoka/400.css'
 import '@fontsource/fredoka/700.css'
+import { BrowserRouter } from 'react-router'
 import { theme } from './theme'
-import App from './App.tsx'
+import { AuthProvider } from './auth/AuthProvider.tsx'
+import { AppRoutes } from './routes.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ThemeProvider theme={theme} defaultMode="system">
       <CssBaseline />
-      <App />
+      <BrowserRouter>
+        {/*
+          AuthProvider renders its children immediately at status "loading", so
+          it never gates first paint, and a visitor with no stored session makes
+          no network call at all.
+        */}
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
+      </BrowserRouter>
     </ThemeProvider>
   </StrictMode>,
 )

@@ -22,9 +22,20 @@ interface CardViewProps {
   emojiScheme: EmojiScheme;
   onRandomize: () => void;
   onExportUrl: () => string;
+  /** Opens the revocable server-side share dialog. Omitted when accounts are off. */
+  onCreateShareLink?: () => void;
 }
 
-export function CardView({ card, title, colorScheme, fontScheme, emojiScheme, onRandomize, onExportUrl }: CardViewProps) {
+export function CardView({
+  card,
+  title,
+  colorScheme,
+  fontScheme,
+  emojiScheme,
+  onRandomize,
+  onExportUrl,
+  onCreateShareLink,
+}: CardViewProps) {
   const [exportedUrl, setExportedUrl] = useState<string | null>(null);
   const [pngError, setPngError] = useState(false);
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
@@ -100,14 +111,30 @@ export function CardView({ card, title, colorScheme, fontScheme, emojiScheme, on
             Export
           </Button>
           <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={closeMenu}>
+            {/*
+              The two sharing mechanisms are deliberately worded so it is clear
+              which one needs an account and which one can be revoked. They are
+              not alternatives to each other: the URL export works with no
+              account, forever, and is never going away.
+            */}
             <MenuItem
               onClick={() => {
                 closeMenu();
                 handleExportUrl();
               }}
             >
-              Export URL
+              Copy card link (no account, permanent)
             </MenuItem>
+            {onCreateShareLink && (
+              <MenuItem
+                onClick={() => {
+                  closeMenu();
+                  onCreateShareLink();
+                }}
+              >
+                Create share link (short, revocable)
+              </MenuItem>
+            )}
             <MenuItem
               onClick={() => {
                 closeMenu();

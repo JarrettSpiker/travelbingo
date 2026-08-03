@@ -15,11 +15,26 @@ Creates:
   environment's S3 bucket + CloudFront).
 - GitHub Actions deploy roles: `travelbingo-gha-dev`, `travelbingo-gha-prod`
   (assumed by GitHub Actions via OIDC; scoped to S3 put/get/delete on the env
-  bucket and CloudFront invalidation).
+  bucket, CloudFront invalidation, and code updates to the env Lambda).
+- Backend Lambda execution roles: `travelbingo-lambda-dev`,
+  `travelbingo-lambda-prod` (assumed by the backend function at runtime; scoped
+  to item operations on the env DynamoDB table and writes to its own log
+  stream).
 
 > CloudFront distribution IDs are assigned by AWS and cannot be predicted at
-> bootstrap time, so CloudFront permissions are account-scoped. S3 permissions
-> are scoped to each environment's bucket.
+> bootstrap time, so CloudFront permissions are account-scoped. The same applies
+> to Cognito user pool IDs and API Gateway API IDs. S3, DynamoDB, Lambda, and
+> CloudWatch Logs permissions are scoped to each environment's resources.
+
+### Why the Lambda execution roles live here
+
+The main config could create them, but then the HCP Terraform roles would need
+`iam:CreateRole` and `iam:PutRolePolicy` — which would let a VCS-triggered
+auto-apply workspace attach an arbitrary inline policy to a role it creates,
+making it effectively an administrator. Creating them here instead means the
+`travelbingo-tfc-*` roles hold exactly one IAM permission: `iam:PassRole` on the
+single matching `travelbingo-lambda-*` ARN, conditioned on
+`iam:PassedToService = lambda.amazonaws.com`.
 
 ## Apply (once)
 
@@ -41,8 +56,17 @@ After it completes, capture the role ARNs from the outputs:
   credentials (`TFC_AWS_RUN_ROLE_ARN`).
 - `gha_role_arns.dev` / `gha_role_arns.prod` → GitHub Environment variable
   `AWS_ROLE_ARN` for the `dev` / `prod` environments.
+- `lambda_execution_role_arns.dev` / `.prod` → HCP workspace variable
+  `lambda_execution_role_arn` on `travelbingo-dev` / `travelbingo-prod`.
 
 ## Re-run
 
 Re-run only if you change OIDC/role configuration. It is intentionally separate
 from `../` (the HCP-managed main config).
+
+**A re-apply is required before the backend can be provisioned.** The main
+config cannot create the DynamoDB table, Cognito pool, API, or Lambda until the
+widened `travelbingo-tfc-*` permissions and the `travelbingo-lambda-*` execution
+roles exist here. Re-apply with administrator credentials, then set
+`lambda_execution_role_arn` on both HCP workspaces from the new output, and only
+then let the main config apply.

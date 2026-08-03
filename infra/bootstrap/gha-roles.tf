@@ -59,11 +59,27 @@ data "aws_iam_policy_document" "gha_permissions" {
     ]
     resources = ["*"]
   }
+
+  statement {
+    sid = "DeployEnvFunctionCode"
+    # Code only. The workflow ships a new zip; it cannot change the function's
+    # configuration, its execution role, or its concurrency reservation, all of
+    # which stay owned by Terraform.
+    actions = [
+      "lambda:UpdateFunctionCode",
+      "lambda:GetFunction",
+      "lambda:GetFunctionConfiguration",
+      "lambda:PublishVersion",
+    ]
+    resources = [
+      "arn:aws:lambda:${var.aws_region}:${data.aws_caller_identity.current.account_id}:function:${each.value.function_name}",
+    ]
+  }
 }
 
 resource "aws_iam_role_policy" "gha" {
   for_each = local.envs
-  name     = "deploy-frontend"
+  name     = "deploy-app"
   role     = aws_iam_role.gha[each.key].id
   policy   = data.aws_iam_policy_document.gha_permissions[each.key].json
 }

@@ -1,14 +1,22 @@
 locals {
+  # table_name and function_name mirror the main config's local.resource_name,
+  # which equals the bucket name while name_prefix is empty. If name_prefix is
+  # ever set, these must be updated to match or the roles will be scoped to
+  # resources that do not exist.
   envs = {
     dev = {
-      bucket      = var.dev_bucket_name
-      workspace   = var.dev_workspace_name
-      role_suffix = "dev"
+      bucket        = var.dev_bucket_name
+      workspace     = var.dev_workspace_name
+      role_suffix   = "dev"
+      table_name    = var.dev_bucket_name
+      function_name = "${var.dev_bucket_name}-api"
     }
     prod = {
-      bucket      = var.prod_bucket_name
-      workspace   = var.prod_workspace_name
-      role_suffix = "prod"
+      bucket        = var.prod_bucket_name
+      workspace     = var.prod_workspace_name
+      role_suffix   = "prod"
+      table_name    = var.prod_bucket_name
+      function_name = "${var.prod_bucket_name}-api"
     }
   }
 }
@@ -87,6 +95,77 @@ data "aws_iam_policy_document" "tfc_permissions" {
       "route53:*",
     ]
     resources = ["*"]
+  }
+
+  statement {
+    sid = "ManageEnvTable"
+    actions = [
+      "dynamodb:*",
+    ]
+    resources = [
+      "arn:aws:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${each.value.table_name}",
+      "arn:aws:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/${each.value.table_name}/index/*",
+    ]
+  }
+
+  statement {
+    sid = "ManageCognito"
+    # User pool IDs are assigned by AWS and cannot be scoped at bootstrap time,
+    # following the same pattern as CloudFront and Route53 above.
+    actions = [
+      "cognito-idp:*",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid = "ManageApiGateway"
+    # API IDs are likewise assigned by AWS. apigateway:* covers the v2 (HTTP
+    # API) control plane, which is addressed through the same service prefix.
+    actions = [
+      "apigateway:*",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid = "ManageEnvFunction"
+    actions = [
+      "lambda:*",
+    ]
+    resources = [
+      "arn:aws:lambda:${var.aws_region}:${data.aws_caller_identity.current.account_id}:function:${each.value.function_name}",
+      "arn:aws:lambda:${var.aws_region}:${data.aws_caller_identity.current.account_id}:function:${each.value.function_name}:*",
+    ]
+  }
+
+  statement {
+    sid = "ManageEnvLogGroups"
+    actions = [
+      "logs:*",
+    ]
+    resources = [
+      "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${each.value.function_name}",
+      "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${each.value.function_name}:*",
+      "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/apigateway/${each.value.function_name}",
+      "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/apigateway/${each.value.function_name}:*",
+    ]
+  }
+
+  statement {
+    sid = "PassLambdaExecutionRole"
+    # The single IAM permission these roles hold, and deliberately not
+    # iam:CreateRole or iam:PutRolePolicy: this role may attach the
+    # pre-existing execution role to a Lambda function and nothing else. The
+    # service condition stops it being passed to any other service.
+    actions   = ["iam:PassRole"]
+    resources = [aws_iam_role.lambda[each.key].arn]
+
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PassedToService"
+      values   = ["lambda.amazonaws.com"]
+    }
   }
 }
 
