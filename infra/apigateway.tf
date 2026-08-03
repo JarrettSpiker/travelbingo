@@ -79,6 +79,12 @@ resource "aws_apigatewayv2_stage" "default" {
   auto_deploy = true
   tags        = local.tags
 
+  # route_settings below names a route by key, but the stage only references
+  # the API id — so Terraform sees no dependency on the routes themselves and
+  # is free to create the stage first, at which point API Gateway rejects the
+  # settings with "Unable to find Route by key".
+  depends_on = [aws_apigatewayv2_route.routes]
+
   default_route_settings {
     throttling_rate_limit  = 20
     throttling_burst_limit = 40
