@@ -77,15 +77,15 @@
 ## 8. Verification
 
 - [x] 8.1 `curl -i https://dev.travelbingo.ca/api/shares/doesnotexist` → JSON **404**, not `index.html` (proves the `custom_error_response` removal)
-- [ ] 8.2 `curl -i https://dev.travelbingo.ca/s/anything` → **200** + `index.html` (proves the CloudFront Function replaced the fallback, including the pre-existing 403 case)
+- [x] 8.2 `curl -i https://dev.travelbingo.ca/s/anything` → **200** + `index.html` (proves the CloudFront Function replaced the fallback, including the pre-existing 403 case)
 - [x] 8.3 `curl -i https://dev.travelbingo.ca/api/cards` with no `Authorization` → **401** JSON, unmodified by CloudFront
-- [ ] 8.4 Request a non-existent asset path ending in `.js` → not rewritten to HTML
-- [ ] 8.5 Sign in with Google end to end; reload and stay signed in; sign out and return to anonymous
-- [ ] 8.6 Save → appears in `/cards` → open → identical grid, title, colors, fonts, emojis, free space → rename → delete
+- [x] 8.4 Request a non-existent asset path ending in `.js` → not rewritten to HTML
+- [x] 8.5 Sign in with Google end to end; reload and stay signed in; sign out and return to anonymous
+- [x] 8.6 Save → appears in `/cards` → open → identical grid, title, colors, fonts, emojis, free space → rename → delete
 - [x] 8.7 Cross-tenant: as user B, `GET /api/cards/<user A's cardId>` → **404** (not 403, not 200)
-- [ ] 8.8 Share link: create → open in a private window with no account → renders → "Save a copy" prompts sign-in → revoke → same URL now 404 → a copy already taken still exists
+- [x] 8.8 Share link: create → open in a private window with no account → renders → "Save a copy" prompts sign-in → revoke → same URL now 404 → a copy already taken still exists
 - [ ] 8.9 Logged-out parity: with `/api` blocked in devtools, the editor, randomize, print, PNG, and `?card=` export/import all work, with no console errors and no network calls on load
 - [ ] 8.10 An existing pre-change `?card=` URL still round-trips (`SCHEMA_VERSION` unchanged at 4)
 - [x] 8.11 `npm run lint && npm test && npm run build` passes in **both** `frontend/` and `backend/`
-- [ ] 8.12 Confirm no static AWS credentials and no Google client secret exist in GitHub secrets or variables
+- [x] 8.12 Confirm no static AWS credentials and no Google client secret exist in GitHub secrets or variables
 - [ ] 8.13 Prod: manual HCP apply, then reviewer-gated `deploy-prod` dispatch; repeat 8.1–8.10 against `travelbingo.ca`
