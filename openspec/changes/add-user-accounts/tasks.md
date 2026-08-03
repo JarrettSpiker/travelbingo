@@ -29,8 +29,8 @@
 - [x] 3.10 In `infra/main.tf`: add the API Gateway origin (`https-only`) and an `/api/*` ordered cache behavior using `Managed-CachingDisabled` and `Managed-AllViewerExceptHostHeader`, allowing all HTTP methods
 - [x] 3.11 Add a response-headers policy on the default behavior setting a Content-Security-Policy and `Referrer-Policy: no-referrer`
 - [x] 3.12 Add the new variables (`google_oauth_client_id`, `google_oauth_client_secret` sensitive, `lambda_execution_role_arn`, `cognito_domain_prefix`) and outputs (`dynamodb_table_name`, `lambda_function_name`, `api_gateway_endpoint`, `cognito_user_pool_id`, `cognito_user_pool_client_id`, `cognito_domain`)
-- [ ] 3.13 Let dev auto-apply and verify the plan is clean on a second run (watch for a perpetual diff on the Cognito client secret; add `ignore_changes` on it if so)
-- [ ] 3.14 (manual) Set the new GitHub Environment variables from the outputs: `LAMBDA_FUNCTION_NAME`, `VITE_COGNITO_DOMAIN`, `VITE_COGNITO_CLIENT_ID`, `VITE_APP_ORIGIN`
+- [x] 3.13 Let dev auto-apply and verify the plan is clean on a second run (watch for a perpetual diff on the Cognito client secret; add `ignore_changes` on it if so)
+- [x] 3.14 (manual) Set the new GitHub Environment variables from the outputs: `LAMBDA_FUNCTION_NAME`, `VITE_COGNITO_DOMAIN`, `VITE_COGNITO_CLIENT_ID`, `VITE_APP_ORIGIN`
 
 ## 4. Backend package
 
@@ -49,7 +49,7 @@
 - [x] 5.1 Add `.github/workflows/_deploy-backend.yml`: `workflow_call` with an `environment` input, `id-token: write`, working directory `backend`, Node 22, `npm ci` → lint → test → build → zip → OIDC assume role → `aws lambda update-function-code --publish` → wait for update. **Do not declare `concurrency` here.**
 - [x] 5.2 Add a `backend` job to `deploy-dev.yml` and `deploy-prod.yml`, and make the existing frontend job `needs: backend`; leave the callers' `concurrency` blocks unchanged
 - [x] 5.3 Pass `VITE_COGNITO_DOMAIN`, `VITE_COGNITO_CLIENT_ID`, and `VITE_APP_ORIGIN` from `vars.*` into the build step's `env:` in `_deploy.yml`
-- [ ] 5.4 Push and confirm the first dev backend deploy replaces the placeholder function
+- [x] 5.4 Push and confirm the first dev backend deploy replaces the placeholder function
 
 ## 6. Frontend
 
@@ -76,13 +76,13 @@
 
 ## 8. Verification
 
-- [ ] 8.1 `curl -i https://dev.travelbingo.ca/api/shares/doesnotexist` → JSON **404**, not `index.html` (proves the `custom_error_response` removal)
+- [x] 8.1 `curl -i https://dev.travelbingo.ca/api/shares/doesnotexist` → JSON **404**, not `index.html` (proves the `custom_error_response` removal)
 - [ ] 8.2 `curl -i https://dev.travelbingo.ca/s/anything` → **200** + `index.html` (proves the CloudFront Function replaced the fallback, including the pre-existing 403 case)
-- [ ] 8.3 `curl -i https://dev.travelbingo.ca/api/cards` with no `Authorization` → **401** JSON, unmodified by CloudFront
+- [x] 8.3 `curl -i https://dev.travelbingo.ca/api/cards` with no `Authorization` → **401** JSON, unmodified by CloudFront
 - [ ] 8.4 Request a non-existent asset path ending in `.js` → not rewritten to HTML
 - [ ] 8.5 Sign in with Google end to end; reload and stay signed in; sign out and return to anonymous
 - [ ] 8.6 Save → appears in `/cards` → open → identical grid, title, colors, fonts, emojis, free space → rename → delete
-- [ ] 8.7 Cross-tenant: as user B, `GET /api/cards/<user A's cardId>` → **404** (not 403, not 200)
+- [x] 8.7 Cross-tenant: as user B, `GET /api/cards/<user A's cardId>` → **404** (not 403, not 200)
 - [ ] 8.8 Share link: create → open in a private window with no account → renders → "Save a copy" prompts sign-in → revoke → same URL now 404 → a copy already taken still exists
 - [ ] 8.9 Logged-out parity: with `/api` blocked in devtools, the editor, randomize, print, PNG, and `?card=` export/import all work, with no console errors and no network calls on load
 - [ ] 8.10 An existing pre-change `?card=` URL still round-trips (`SCHEMA_VERSION` unchanged at 4)

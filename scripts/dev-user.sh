@@ -16,10 +16,11 @@
 # flow exists on the dev app client only (see infra/cognito.tf).
 #
 # Usage:
-#   scripts/dev-user.sh create <email>   # create if absent, then print tokens
-#   scripts/dev-user.sh token  <email>   # same thing; re-runnable at any time
-#   scripts/dev-user.sh list             # list test users in the pool
-#   scripts/dev-user.sh delete <email>   # remove the Cognito user
+#   scripts/dev-user.sh create <email>           # create if absent, print tokens
+#   scripts/dev-user.sh token  <email>           # same thing; re-runnable
+#   scripts/dev-user.sh token  <email> --token   # print only the access token
+#   scripts/dev-user.sh list                     # list test users in the pool
+#   scripts/dev-user.sh delete <email>           # remove the Cognito user
 #
 # Emails default to the @example.com domain, which is reserved by RFC 2606 and
 # can never be a real Google account. That matters: Cognito does not link a
@@ -126,6 +127,14 @@ cmd_token() {
   IFS=$'\t' read -r access refresh < <(authenticate "${email}")
 
   [[ -n "${access}" ]] || die "authentication returned no token"
+
+  # Token-only mode, so a caller can do ALICE=$(dev-user.sh token alice --token).
+  # Everything else this script prints already goes to stderr, so stdout here is
+  # just the token.
+  if [[ "${2:-}" == "--token" ]]; then
+    printf '%s\n' "${access}"
+    return 0
+  fi
 
   cat <<EOF
 

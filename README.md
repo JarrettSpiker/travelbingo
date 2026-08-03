@@ -79,7 +79,47 @@ This works because dev's app client carries the `ALLOW_ADMIN_USER_PASSWORD_AUTH`
 
 > **Gmail plus-aliases do not work.** `you+test1@gmail.com` is the *same* Google account as `you@gmail.com`. It returns the same Google subject, so Cognito maps it to a single user. You would appear to have two accounts and actually have one — and a permissions test run that way passes for the wrong reason. Use the script instead, and note that test emails default to `@example.com`, which is reserved and can never be a real Google account.
 
-Two things to know. Test users write **real rows to the dev table**, and deleting the Cognito user does not remove them — the `sub` is a partition key, so their cards are orphaned rather than cleaned up. And the check worth running first is that user B requesting user A's card gets a **404** — not a 403, not the card. That is the security property the whole accounts feature rests on.
+Two things to know. Test users write **real rows to the dev table**, and deleting the Cognito user does not remove them — the `sub` is a partition key, so their cards are orphaned rather than cleaned up. And the check worth running first is the one below.
+
+#### Verifying that one user cannot read another's cards
+
+This is the security property the whole accounts feature rests on, so it is worth running rather than assuming. `--token` prints just the access token, so this is copy-pasteable:
+
+```bash
+ALICE=$(scripts/dev-user.sh token alice --token)
+BOB=$(scripts/dev-user.sh token bob --token)
+API=https://dev.travelbingo.ca
+
+CARD='{"slots":["Airport","Dog"],"title":"Alice private","hasFreeSpace":true,"freeSpaceText":"FREE",
+"colorScheme":{"backgroundColor":"#ffffff","cellColor":"#eeeeee","textColor":"#1a1a1a","titleColor":"#1a1a1a"},
+"fontScheme":{"titleFont":"system-ui, sans-serif","cellFont":"system-ui, sans-serif"},
+"emojiScheme":{"emojis":[]}}'
+
+# Alice saves a card and keeps its id
+ID=$(curl -s -X POST "$API/api/cards" -H "Authorization: Bearer $ALICE" \
+  -H 'Content-Type: application/json' -d "$CARD" \
+  | python3 -c 'import json,sys; print(json.load(sys.stdin)["cardId"])')
+
+curl -s -o /dev/null -w 'alice reads her card: %{http_code}\n' \
+  "$API/api/cards/$ID" -H "Authorization: Bearer $ALICE"
+
+curl -s -o /dev/null -w 'bob reads alice card:  %{http_code}\n' \
+  "$API/api/cards/$ID" -H "Authorization: Bearer $BOB"
+
+curl -s "$API/api/cards" -H "Authorization: Bearer $BOB"   # bob's own list
+
+curl -s -X DELETE "$API/api/cards/$ID" -H "Authorization: Bearer $ALICE"   # cleanup
+```
+
+Expected:
+
+```
+alice reads her card: 200
+bob reads alice card:  404
+{"cards":[]}
+```
+
+**404 is the correct answer, not 403.** A 403 would confirm that `$ID` is a real card belonging to someone else, which leaks the existence of other users' data. The API answers identically whether a card does not exist or simply is not yours — so if you ever see a 403 here, that is a regression in `backend/src/auth.ts`, not a cosmetic difference.
 
 For a **human** to sign in to dev while the OAuth consent screen is still in Testing mode, add their Google address under **Google Cloud Console → OAuth consent screen → Test users** (capped at 100). Publishing the consent screen removes that restriction and needs no Google verification review, because `openid`, `email`, and `profile` are all non-sensitive scopes.
 
