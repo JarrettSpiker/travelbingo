@@ -22,6 +22,16 @@ npm test         # Vitest
 npm run build    # tsc -b (type-check only) && esbuild → dist/index.mjs
 ```
 
+**There is deliberately no dev server.** This package is a Lambda handler, and
+running it locally would mean standing up an HTTP shim, a local data store, and
+some way to fake the identity that API Gateway's authorizer normally supplies —
+a second authentication path whose only job would be to never reach production.
+
+So the feedback loop here is the unit tests, which cover the routes, the
+authorization rules, and the validation directly through `route()` with an
+in-memory table. End-to-end verification happens by deploying to dev. See
+"What local development is, and isn't" in the root `README.md`.
+
 ## Layout
 
 - `src/index.ts` — Lambda entrypoint. Nothing but wiring.

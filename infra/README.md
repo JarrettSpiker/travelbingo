@@ -46,6 +46,11 @@ Do these once, before the first apply of the account infrastructure:
    Publishing needs no Google verification review, because `openid`, `email`,
    and `profile` are all non-sensitive scopes.
 
+   The **Test users** list is how you grant anyone — including yourself —
+   access to dev while in Testing mode. Note that a Gmail plus-alias is the
+   same Google account and will not give you a second identity; see "Test
+   accounts" in the root `README.md` before testing anything multi-user.
+
    Cognito domain prefixes are globally unique per region, and availability is
    only truly confirmed at apply time. If an apply fails on a collision, change
    the `cognito_domain_prefix` workspace variable and edit the redirect URI in

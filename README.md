@@ -49,6 +49,29 @@ VITE_API_TARGET=https://dev.travelbingo.ca
 
 The first three come from the dev Terraform outputs (`cognito_domain`, `cognito_user_pool_client_id`). `VITE_API_TARGET` points the dev server's `/api` proxy at a deployed environment, so the API stays same-origin exactly as it is in production.
 
+Sign-in works from localhost with no OAuth client of its own — and cannot have one. The Google client's redirect URI points at *Cognito's* hosted domain, never at the app, so Google never learns where the app is running. The flow is localhost → Cognito hosted UI → Google → Cognito → back to localhost, which works because `infra/cognito.tf` registers `http://localhost:5173/auth/callback` on the dev pool.
+
+#### What local development is, and isn't
+
+Running locally gives you the **local frontend against the deployed dev backend**. That is a deliberate trade-off, and it has consequences worth knowing before you rely on it:
+
+- **You share dev's data and users — it is not a copy.** Same Cognito pool, same DynamoDB table. Cards you save locally are real dev rows, and deleting one locally deletes it for real.
+- **You cannot run the backend locally.** `backend/` has no dev server, only `lint`, `test`, and `build`. A backend change has to be deployed to dev before you can exercise it end to end; until then, its unit tests are the feedback loop.
+- **Port 5173 is load-bearing.** The registered redirect URI is exactly that port. If Vite falls back to 5174 because 5173 is busy, sign-in fails at Cognito with a redirect mismatch — free the port rather than accepting the fallback.
+- **There is no Content-Security-Policy locally.** It is applied by CloudFront, and Vite serves your local app directly, so a CSP violation stays invisible until it is deployed.
+- **Share links copy as `http://localhost:5173/s/<token>` URLs.** The token is real and stored in dev, but the URL is only useful to you.
+- **CloudFront behaviour cannot be tested locally at all.** Vite runs its own single-page-app fallback and will happily serve `/s/anything`, whether or not the CloudFront Function is correct. Those checks only mean something against a deployed environment.
+
+### Test accounts
+
+Sign-in is Google-only by design, so there is no way to create a user directly in Cognito and no reason to want one — the pool has no password flow at all.
+
+> **Gmail plus-aliases do not work.** `you+test1@gmail.com` is the *same* Google account as `you@gmail.com`. It returns the same Google subject, so Cognito maps it to a single user. You would appear to have two accounts and actually have one — and a permissions test run that way passes for the wrong reason.
+
+To let someone sign in while the OAuth consent screen is still in Testing mode, add their Google address under **Google Cloud Console → OAuth consent screen → Test users** (capped at 100). Publishing the consent screen removes that restriction and needs no Google verification review, because `openid`, `email`, and `profile` are all non-sensitive scopes.
+
+**Testing that one user cannot read another's cards requires a second, genuinely separate Google account.** That check — user B requesting user A's card and getting a 404, not a 403 and not the card — is the security property the whole accounts feature rests on, so it is worth the two minutes of creating a real second account rather than approximating it.
+
 ### Available scripts
 
 Run these from the `frontend/` directory:

@@ -82,6 +82,13 @@ npm run build    # tsc -b && esbuild → dist/index.mjs
 Account features need `frontend/.env.local` (see `README.md`). Without it the
 editor works exactly as it always has, and no account UI is shown.
 
+> ⚠️ **There is no `npm run dev` in `backend/`, and adding one is a decision,
+> not a chore.** Running the Lambda locally needs an HTTP shim, a local data
+> store, and a way to fake the identity API Gateway's authorizer supplies —
+> i.e. a second authentication path that must provably never reach production.
+> That trade-off was considered and declined. Backend feedback comes from the
+> unit tests; end-to-end verification comes from deploying to dev.
+
 Infrastructure (see `infra/README.md` for the full workflow):
 
 ```bash
@@ -166,3 +173,8 @@ source of intent for what the app should do.
 - `terraform destroy` is now a data-loss operation. The DynamoDB table and
   Cognito user pool carry `prevent_destroy`; recreating the pool would change
   every user's `sub` and orphan their saved cards.
+- Local development runs against the **deployed dev** API, pool, and table —
+  not a copy. Cards saved locally are real dev rows.
+- A Gmail plus-alias is the same Google account and yields the same `sub`, so
+  it cannot be used to test multi-user behaviour. A second identity needs a
+  genuinely separate Google account.
