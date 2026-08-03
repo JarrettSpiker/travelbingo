@@ -56,6 +56,12 @@ variable "lambda_execution_role_arn" {
   type        = string
 }
 
+variable "lambda_reserved_concurrency" {
+  description = "Reserved concurrent executions for the backend function. -1 leaves it unreserved. AWS rejects any reservation that would leave the account's unreserved pool below 100, so this stays -1 until the account's concurrency limit is raised. API Gateway stage throttling is the primary cost control regardless."
+  type        = number
+  default     = -1
+}
+
 variable "cognito_domain_prefix" {
   description = "Prefix for the Cognito hosted domain (<prefix>.auth.<region>.amazoncognito.com). Prefixes are globally unique per region and availability is only confirmed at apply time, so this is a variable: on a collision, change it here and update the redirect URI in the Google OAuth client. Defaults to the environment's resource name."
   type        = string

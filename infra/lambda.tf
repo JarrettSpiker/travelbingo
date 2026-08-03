@@ -47,9 +47,19 @@ resource "aws_lambda_function" "api" {
   filename         = data.archive_file.placeholder.output_path
   source_code_hash = data.archive_file.placeholder.output_base64sha256
 
-  # Abuse, not usage, is the cost risk here. This is the ceiling on what a
-  # runaway loop or a scripted attack can spend.
-  reserved_concurrent_executions = 10
+  # Abuse, not usage, is the cost risk here, and a reservation would be the
+  # hard ceiling on what a runaway loop or a scripted attack can spend.
+  #
+  # Left unreserved (-1) by default because AWS refuses any reservation that
+  # would drop the account's unreserved pool below 100, and this account
+  # currently has only 50 available — a reduced initial limit that AWS raises
+  # over time, despite the nominal quota reading 1000.
+  #
+  # The API Gateway stage throttle (20 rps / 40 burst, 5/10 on the public share
+  # route) remains the primary control and is unaffected. Once the account's
+  # concurrency limit exceeds 100 + the reservation, set
+  # lambda_reserved_concurrency to restore the ceiling — no code change needed.
+  reserved_concurrent_executions = var.lambda_reserved_concurrency
 
   environment {
     variables = {
