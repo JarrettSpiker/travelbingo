@@ -84,8 +84,8 @@
 - [x] 8.6 Save → appears in `/cards` → open → identical grid, title, colors, fonts, emojis, free space → rename → delete
 - [x] 8.7 Cross-tenant: as user B, `GET /api/cards/<user A's cardId>` → **404** (not 403, not 200)
 - [x] 8.8 Share link: create → open in a private window with no account → renders → "Save a copy" prompts sign-in → revoke → same URL now 404 → a copy already taken still exists
-- [ ] 8.9 Logged-out parity: with `/api` blocked in devtools, the editor, randomize, print, PNG, and `?card=` export/import all work, with no console errors and no network calls on load
-- [ ] 8.10 An existing pre-change `?card=` URL still round-trips (`SCHEMA_VERSION` unchanged at 4)
+- [x] 8.9 Logged-out parity: with `/api` blocked in devtools, the editor, randomize, print, PNG, and `?card=` export/import all work, with no console errors and no network calls on load
+- [x] 8.10 An existing pre-change `?card=` URL still round-trips (`SCHEMA_VERSION` unchanged at 4)
 - [x] 8.11 `npm run lint && npm test && npm run build` passes in **both** `frontend/` and `backend/`
 - [x] 8.12 Confirm no static AWS credentials and no Google client secret exist in GitHub secrets or variables
-- [ ] 8.13 Prod: manual HCP apply, then reviewer-gated `deploy-prod` dispatch; repeat 8.1–8.10 against `travelbingo.ca`
+- [x] 8.13 Prod: manual HCP apply, then reviewer-gated `deploy-prod` dispatch; repeat 8.1–8.10 against `travelbingo.ca`
