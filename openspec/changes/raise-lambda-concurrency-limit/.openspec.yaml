@@ -1,0 +1,7 @@
+schema: spec-driven
+created: 2026-08-03
+# No requirement changes: the backend-api capability introduced by
+# add-user-accounts already requires that the API "cap the concurrency of the
+# backend compute". This change makes the deployment satisfy that existing
+# requirement rather than altering it.
+skip_specs: true

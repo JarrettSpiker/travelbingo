@@ -2,6 +2,18 @@
 
 Guidance for AI coding agents (and humans) working in this repo.
 
+## Git operations require approval
+
+**Never run `git commit`, `git push`, `git tag`, `git revert`, `git reset`,
+`git rebase`, or any other command that rewrites history or shares changes with
+a remote without explicit approval from the repo owner.** This includes
+amending, force-pushing, creating branches that you then push, opening PRs, or
+"tidying up" uncommitted work into a commit.
+
+Stage files for review (e.g. leave changes in the working tree or show a diff)
+and stop. Summarize what you changed and ask before doing anything that would
+publish it. Treat every commit-to-main as an auto-deploy to dev.
+
 ## Project overview
 
 Bingo Card Generator: a webapp that turns a list of words or phrases into
