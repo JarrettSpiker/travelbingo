@@ -178,4 +178,28 @@ describe("deleteCard", () => {
     expect(await statusOf(deleteCard(deps, request({ userId: "user-b", params: { cardId } })))).toBe(404);
     expect(deps.ddb.get(cardMetaKey(cardId).PK, "META")).toBeDefined();
   });
+
+  it("pages through the partition when one Query cannot hold every share pointer", async () => {
+    const deps = makeTestDeps();
+    // Force the fake to hand back small pages so the loop is exercised. Real
+    // DynamoDB paginates at 1 MB; without this knob the fake returns the whole
+    // partition at once and the regression would be invisible.
+    deps.ddb.queryPageSize = 3;
+
+    const cardId = await seedCard(deps);
+
+    // Eight share links — more than two pages at size 3 — each with its
+    // snapshot and its owner-facing pointer in the card's partition.
+    for (let i = 0; i < 8; i += 1) {
+      const token = `tok-${i}`;
+      deps.ddb.seed({ ...shareKey(token), cardId, ownerId: "user-a", snapshot: card, createdAt: "t" });
+      deps.ddb.seed({ ...cardSharePointerKey(cardId, token), createdAt: "t" });
+    }
+
+    await deleteCard(deps, request({ params: { cardId } }));
+
+    // Nothing left anywhere: a surviving share would keep serving a snapshot of
+    // a card its owner believes they deleted.
+    expect(deps.ddb.items.size).toBe(0);
+  });
 });

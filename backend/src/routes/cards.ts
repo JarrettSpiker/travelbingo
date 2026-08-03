@@ -265,29 +265,39 @@ export async function deleteCard(deps: Deps, request: RouteRequest): Promise<Jso
   const cardId = request.params.cardId ?? "";
   await requireCardRole(deps, userId, cardId, OWNER_ONLY);
 
-  const result = await deps.ddb.send(
-    new QueryCommand({
-      TableName: deps.tableName,
-      KeyConditionExpression: "PK = :pk",
-      ExpressionAttributeValues: { ":pk": cardPartition(cardId) },
-    }),
-  );
-
+  // Collect every item in the card's partition, paging until DynamoDB stops
+  // returning a LastEvaluatedKey. A single Query returns at most 1 MB; without
+  // the loop, share pointers past the last page would survive the delete and
+  // keep serving snapshots of a card its owner believes they deleted.
   const keys: { PK: string; SK: string }[] = [];
+  let startKey: Record<string, unknown> | undefined;
 
-  for (const item of result.Items ?? []) {
-    const sk = String(item.SK);
-    keys.push({ PK: String(item.PK), SK: sk });
+  do {
+    const result = await deps.ddb.send(
+      new QueryCommand({
+        TableName: deps.tableName,
+        KeyConditionExpression: "PK = :pk",
+        ExpressionAttributeValues: { ":pk": cardPartition(cardId) },
+        ExclusiveStartKey: startKey,
+      }),
+    );
 
-    // Items in other partitions that this card owns, and that the query above
-    // therefore cannot see.
-    const token = tokenFromSharePointerSk(sk);
-    if (token !== null) keys.push(shareKey(token));
+    for (const item of result.Items ?? []) {
+      const sk = String(item.SK);
+      keys.push({ PK: String(item.PK), SK: sk });
 
-    if (sk.startsWith("MEMBER#")) {
-      keys.push(membershipKey(sk.slice("MEMBER#".length), cardId));
+      // Items in other partitions that this card owns, and that the query above
+      // therefore cannot see.
+      const token = tokenFromSharePointerSk(sk);
+      if (token !== null) keys.push(shareKey(token));
+
+      if (sk.startsWith("MEMBER#")) {
+        keys.push(membershipKey(sk.slice("MEMBER#".length), cardId));
+      }
     }
-  }
+
+    startKey = result.LastEvaluatedKey;
+  } while (startKey);
 
   await deleteKeys(deps, keys);
 

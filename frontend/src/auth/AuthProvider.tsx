@@ -102,25 +102,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    // Show the remembered email immediately, before the refresh resolves.
     setEmail(session.email);
 
-    let cancelled = false;
-    void (async () => {
-      const set = await refreshTokens(authConfig, session.refreshToken);
-      if (cancelled) return;
-
-      if (set) {
-        applyTokens(set, session.refreshToken);
-      } else {
-        // Expired or revoked. Anonymous is a working state, not an error.
-        signOutLocally();
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [applyTokens, signOutLocally]);
+    // Route through doRefresh rather than calling refreshTokens directly, so
+    // this initial refresh shares the same in-flight guard as a 401-triggered
+    // refresh. Without that, a refresh started here races any refresh started
+    // by getAccessToken in the same window: two concurrent refreshes against
+    // one Cognito refresh token can have one fail transiently and call
+    // signOutLocally, clobbering a valid session the other just established.
+    void doRefresh();
+  }, [doRefresh]);
 
   const signIn = useCallback((returnTo?: string) => {
     if (!authConfig) return;
