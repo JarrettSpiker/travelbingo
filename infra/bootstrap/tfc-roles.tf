@@ -169,6 +169,34 @@ data "aws_iam_policy_document" "tfc_permissions" {
   }
 
   statement {
+    sid = "VendedLogDelivery"
+    # Access logging on the HTTP API stage does not write to CloudWatch
+    # directly. API Gateway registers a "log delivery" and attaches a resource
+    # policy to the destination group so the service may write to it, which is
+    # the vended-logs mechanism AWS uses for several services.
+    #
+    # None of these APIs take a resource ARN — a delivery is its own object,
+    # identified only after creation — so they cannot be scoped and AWS
+    # requires "*". Omitting them fails the apply on aws_apigatewayv2_stage
+    # with "not authorized to perform: logs:CreateLogDelivery".
+    #
+    # PutResourcePolicy is the widest of these and deserves naming: it lets
+    # this role attach a resource policy to any log group in the account. It is
+    # unavoidable here, because that policy is precisely what grants API
+    # Gateway write access to the access-log group.
+    actions = [
+      "logs:CreateLogDelivery",
+      "logs:GetLogDelivery",
+      "logs:UpdateLogDelivery",
+      "logs:DeleteLogDelivery",
+      "logs:ListLogDeliveries",
+      "logs:PutResourcePolicy",
+      "logs:DescribeResourcePolicies",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
     sid = "PassLambdaExecutionRole"
     # The single IAM permission these roles hold, and deliberately not
     # iam:CreateRole or iam:PutRolePolicy: this role may attach the
