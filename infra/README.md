@@ -46,10 +46,25 @@ Do these once, before the first apply of the account infrastructure:
    Publishing needs no Google verification review, because `openid`, `email`,
    and `profile` are all non-sensitive scopes.
 
-   The **Test users** list is how you grant anyone — including yourself —
-   access to dev while in Testing mode. Note that a Gmail plus-alias is the
-   same Google account and will not give you a second identity; see "Test
-   accounts" in the root `README.md` before testing anything multi-user.
+   The **Test users** list is how you grant a human — including yourself —
+   access to dev while in Testing mode. For *test* identities, use
+   `scripts/dev-user.sh` rather than more Google accounts; note that a Gmail
+   plus-alias is the same Google account and will not give you a second
+   identity. See "Test accounts" in the root `README.md`.
+
+## Dev and prod are not identical
+
+One deliberate divergence, beyond the obvious per-environment values:
+
+- **Dev's Cognito app client allows `ALLOW_ADMIN_USER_PASSWORD_AUTH`; prod
+  allows only `ALLOW_REFRESH_TOKEN_AUTH`.** This lets `scripts/dev-user.sh`
+  mint tokens for test users that have no Google account. It is not a public
+  password login — `AdminInitiateAuth` is IAM-authorized, so it is reachable
+  only by someone who already holds admin credentials for this account — and
+  `supported_identity_providers` stays `["Google"]`, so the hosted UI offers
+  nothing new to the internet. It is gated on `var.environment == "dev"` in
+  `cognito.tf`; check `describe-user-pool-client` against prod after any
+  Cognito change to confirm prod's flow list is still the shorter one.
 
    Cognito domain prefixes are globally unique per region, and availability is
    only truly confirmed at apply time. If an apply fails on a collision, change

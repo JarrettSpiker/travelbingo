@@ -64,13 +64,24 @@ Running locally gives you the **local frontend against the deployed dev backend*
 
 ### Test accounts
 
-Sign-in is Google-only by design, so there is no way to create a user directly in Cognito and no reason to want one — the pool has no password flow at all.
+Sign-in is Google-only by design. For **testing** in dev, `scripts/dev-user.sh` creates identities directly, so you don't need a Google account per test user:
 
-> **Gmail plus-aliases do not work.** `you+test1@gmail.com` is the *same* Google account as `you@gmail.com`. It returns the same Google subject, so Cognito maps it to a single user. You would appear to have two accounts and actually have one — and a permissions test run that way passes for the wrong reason.
+```bash
+scripts/dev-user.sh create alice     # -> alice@example.com
+scripts/dev-user.sh create bob
+scripts/dev-user.sh list
+scripts/dev-user.sh delete alice
+```
 
-To let someone sign in while the OAuth consent screen is still in Testing mode, add their Google address under **Google Cloud Console → OAuth consent screen → Test users** (capped at 100). Publishing the consent screen removes that restriction and needs no Google verification review, because `openid`, `email`, and `profile` are all non-sensitive scopes.
+It prints two things: an `export TOKEN=…` line for `curl`, and a one-line `localStorage.setItem(…)` snippet. Paste that snippet into the devtools console on `http://localhost:5173` or `https://dev.travelbingo.ca` and reload — the app refreshes it into a live session on load, so there is no sign-in screen to get past and both origins work against the one pool. It is re-runnable at any time; a user that already exists is fine.
 
-**Testing that one user cannot read another's cards requires a second, genuinely separate Google account.** That check — user B requesting user A's card and getting a 404, not a 403 and not the card — is the security property the whole accounts feature rests on, so it is worth the two minutes of creating a real second account rather than approximating it.
+This works because dev's app client carries the `ALLOW_ADMIN_USER_PASSWORD_AUTH` flow, which **prod deliberately does not have**. It is not a public password login: `AdminInitiateAuth` is an IAM-authorized API, so only someone already holding admin credentials for the AWS account can use it, and the dev hosted UI still offers nothing but the Google button.
+
+> **Gmail plus-aliases do not work.** `you+test1@gmail.com` is the *same* Google account as `you@gmail.com`. It returns the same Google subject, so Cognito maps it to a single user. You would appear to have two accounts and actually have one — and a permissions test run that way passes for the wrong reason. Use the script instead, and note that test emails default to `@example.com`, which is reserved and can never be a real Google account.
+
+Two things to know. Test users write **real rows to the dev table**, and deleting the Cognito user does not remove them — the `sub` is a partition key, so their cards are orphaned rather than cleaned up. And the check worth running first is that user B requesting user A's card gets a **404** — not a 403, not the card. That is the security property the whole accounts feature rests on.
+
+For a **human** to sign in to dev while the OAuth consent screen is still in Testing mode, add their Google address under **Google Cloud Console → OAuth consent screen → Test users** (capped at 100). Publishing the consent screen removes that restriction and needs no Google verification review, because `openid`, `email`, and `profile` are all non-sensitive scopes.
 
 ### Available scripts
 

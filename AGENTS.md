@@ -176,5 +176,11 @@ source of intent for what the app should do.
 - Local development runs against the **deployed dev** API, pool, and table —
   not a copy. Cards saved locally are real dev rows.
 - A Gmail plus-alias is the same Google account and yields the same `sub`, so
-  it cannot be used to test multi-user behaviour. A second identity needs a
-  genuinely separate Google account.
+  it cannot be used to test multi-user behaviour. Use `scripts/dev-user.sh` to
+  create test identities in dev instead.
+- **Dev's Cognito app client carries `ALLOW_ADMIN_USER_PASSWORD_AUTH`; prod
+  must never get it.** It is gated on `var.environment == "dev"` in
+  `infra/cognito.tf` and exists so test users can be authenticated from the
+  CLI. It is IAM-authorized, not a public password login, and
+  `supported_identity_providers` stays `["Google"]` so the hosted UI is
+  unchanged. Do not "tidy" the conditional away.

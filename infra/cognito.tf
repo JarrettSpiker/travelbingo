@@ -116,10 +116,12 @@ resource "aws_cognito_user_pool_client" "spa" {
 
   # Refresh tokens live in localStorage; access and ID tokens stay in memory.
   # One hour bounds the damage from a leaked access token, and revocation on
-  # sign-out is what invalidates the refresh token.
+  # sign-out is what invalidates the refresh token. The refresh window is kept
+  # short (7 days) so that an exfiltrated refresh token — the worst case if an
+  # XSS ever bypasses the CSP — ages out quickly rather than lasting a month.
   access_token_validity  = 1
   id_token_validity      = 1
-  refresh_token_validity = 30
+  refresh_token_validity = 7
 
   token_validity_units {
     access_token  = "hours"
@@ -129,8 +131,22 @@ resource "aws_cognito_user_pool_client" "spa" {
 
   enable_token_revocation = true
 
-  # No USER_PASSWORD or SRP flows: there are no passwords in this pool.
-  explicit_auth_flows = ["ALLOW_REFRESH_TOKEN_AUTH"]
+  # Prod gets refresh only: there are no passwords in this pool, and Google is
+  # the only way in.
+  #
+  # Dev additionally allows ADMIN_USER_PASSWORD_AUTH so that test users can be
+  # created and authenticated from the CLI without a Google account — see
+  # scripts/dev-user.sh. This is not a public password login:
+  # AdminInitiateAuth is an IAM-authorized API, so it is reachable only by
+  # someone who already holds admin credentials for this AWS account and who
+  # therefore gains nothing new. supported_identity_providers stays ["Google"]
+  # above, so the hosted UI still offers only the Google button to the internet.
+  #
+  # Prod must never get this flow.
+  explicit_auth_flows = var.environment == "dev" ? [
+    "ALLOW_REFRESH_TOKEN_AUTH",
+    "ALLOW_ADMIN_USER_PASSWORD_AUTH",
+  ] : ["ALLOW_REFRESH_TOKEN_AUTH"]
 
   prevent_user_existence_errors = "ENABLED"
 
