@@ -25,7 +25,7 @@ interface ShareLinkDialogProps {
 }
 
 export function ShareLinkDialog({ open, onClose, cardId, onSaveFirst }: ShareLinkDialogProps) {
-  const { api, status, signIn } = useAuth();
+  const { api, status } = useAuth();
   const [shares, setShares] = useState<ShareLink[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -84,77 +84,64 @@ export function ShareLinkDialog({ open, onClose, cardId, onSaveFirst }: ShareLin
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
       <DialogTitle>Share a copy of this card</DialogTitle>
       <DialogContent>
-        {status !== "authenticated" ? (
-          <Stack spacing={2}>
-            <DialogContentText>
-              Share links need an account, because they are stored on the server so you can revoke
-              them later. You can share this card without an account using{" "}
-              <strong>Copy card link</strong> instead.
-            </DialogContentText>
-            <Button variant="contained" onClick={() => signIn()}>
-              Sign in
-            </Button>
-          </Stack>
-        ) : (
-          <Stack spacing={2}>
-            <DialogContentText>
-              Anyone with the link gets their own copy of this card as it is now. Later edits you
-              make will not change their copy.
-            </DialogContentText>
+        <Stack spacing={2}>
+          <DialogContentText>
+            Anyone with the link gets their own copy of this card as it is now. Later edits you
+            make will not change their copy.
+          </DialogContentText>
 
-            {/*
-              Stated plainly and not only in the spec: this is the one thing
-              about share links that will surprise people.
-            */}
-            <Alert severity="info">
-              Revoking a link stops anyone new from opening it. It cannot take back a copy someone
-              has already made.
-            </Alert>
+          {/*
+            Stated plainly and not only in the spec: this is the one thing
+            about share links that will surprise people.
+          */}
+          <Alert severity="info">
+            Revoking a link stops anyone new from opening it. It cannot take back a copy someone
+            has already made.
+          </Alert>
 
-            {error && <Alert severity="error">{error}</Alert>}
+          {error && <Alert severity="error">{error}</Alert>}
 
-            <Button variant="contained" onClick={() => void handleCreate()} disabled={busy}>
-              Create a share link
-            </Button>
+          <Button variant="contained" onClick={() => void handleCreate()} disabled={busy}>
+            Create a share link
+          </Button>
 
-            {shares.length > 0 && (
-              <>
-                <Typography variant="subtitle2">Active links</Typography>
-                <List dense disablePadding>
-                  {shares.map((share) => (
-                    <ListItem key={share.token} disableGutters sx={{ gap: 1 }}>
-                      <TextField
-                        value={shareUrl(share.token)}
-                        size="small"
-                        fullWidth
-                        slotProps={{ htmlInput: { readOnly: true } }}
-                        onFocus={(event) => event.target.select()}
-                      />
-                      <Button
-                        size="small"
-                        onClick={() => {
-                          navigator.clipboard?.writeText(shareUrl(share.token)).catch(() => {
-                            // Clipboard access can fail; the field above is
-                            // selectable as the fallback.
-                          });
-                        }}
-                      >
-                        Copy
-                      </Button>
-                      <IconButton
-                        aria-label="Revoke this link"
-                        onClick={() => void handleRevoke(share.token)}
-                        disabled={busy}
-                      >
-                        <DeleteIcon />
-                      </IconButton>
-                    </ListItem>
-                  ))}
-                </List>
-              </>
-            )}
-          </Stack>
-        )}
+          {shares.length > 0 && (
+            <>
+              <Typography variant="subtitle2">Active links</Typography>
+              <List dense disablePadding>
+                {shares.map((share) => (
+                  <ListItem key={share.token} disableGutters sx={{ gap: 1 }}>
+                    <TextField
+                      value={shareUrl(share.token)}
+                      size="small"
+                      fullWidth
+                      slotProps={{ htmlInput: { readOnly: true } }}
+                      onFocus={(event) => event.target.select()}
+                    />
+                    <Button
+                      size="small"
+                      onClick={() => {
+                        navigator.clipboard?.writeText(shareUrl(share.token)).catch(() => {
+                          // Clipboard access can fail; the field above is
+                          // selectable as the fallback.
+                        });
+                      }}
+                    >
+                      Copy
+                    </Button>
+                    <IconButton
+                      aria-label="Revoke this link"
+                      onClick={() => void handleRevoke(share.token)}
+                      disabled={busy}
+                    >
+                      <DeleteIcon />
+                    </IconButton>
+                  </ListItem>
+                ))}
+              </List>
+            </>
+          )}
+        </Stack>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Close</Button>

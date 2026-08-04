@@ -19,17 +19,14 @@ import { type ColorScheme } from "./lib/colorScheme";
 import { type EmojiScheme } from "./lib/emojiScheme";
 import { type FontScheme } from "./lib/fontScheme";
 import { type SuggestedTheme } from "./lib/suggestions";
-import { decodeCardFromUrl, encodeCardToUrl, type CardUrlData } from "./lib/cardUrl";
+import { type CardUrlData } from "./lib/cardData";
 import { cardStateFrom } from "./lib/cardState";
 import { createCard, replaceCard } from "./lib/cardsApi";
-
-const initialImport = decodeCardFromUrl();
 
 interface AppProps {
   /**
    * A card handed over from another route — a saved card being opened, or a
-   * share snapshot. Null means the editor starts from the ?card= URL, exactly
-   * as it did before accounts existed.
+   * share snapshot. Null means the editor starts empty.
    */
   initialCard?: CardUrlData | null;
   /** Set when initialCard came from a saved card, so saving updates it in place. */
@@ -37,9 +34,9 @@ interface AppProps {
 }
 
 function App({ initialCard = null, initialCardId = null }: AppProps = {}) {
-  // One source for initial editor state, shared by the ?card= import, opening a
-  // saved card, and importing a share snapshot. See lib/cardState.ts.
-  const initialState = cardStateFrom(initialCard ?? initialImport);
+  // One source for initial editor state, shared by opening a saved card and
+  // importing a share snapshot. See lib/cardState.ts.
+  const initialState = cardStateFrom(initialCard);
 
   const { api, status, accountsEnabled } = useAuth();
 
@@ -126,10 +123,6 @@ function App({ initialCard = null, initialCardId = null }: AppProps = {}) {
     };
   }
 
-  function handleExportUrl(): string {
-    return encodeCardToUrl(currentCardData());
-  }
-
   /** Saves the editor's card, updating it in place once it has an id. */
   async function saveCurrentCard(): Promise<string | null> {
     const data = currentCardData();
@@ -205,10 +198,8 @@ function App({ initialCard = null, initialCardId = null }: AppProps = {}) {
         fontScheme={fontScheme}
         emojiScheme={emojiScheme}
         onRandomize={handleRandomize}
-        onExportUrl={handleExportUrl}
-        // Undefined when accounts are off, so the menu shows only the
-        // account-free "Copy card link".
         onCreateShareLink={accountsEnabled ? () => setShareOpen(true) : undefined}
+        shareLinkDisabled={status !== "authenticated"}
       />
 
       {accountsEnabled && (

@@ -14,8 +14,8 @@ function read(value: unknown): string | null {
 /**
  * Account configuration, or null when it is absent.
  *
- * Null is a supported state, not an error: the editor, randomize, print, PNG,
- * and ?card= sharing must all work with no backend at all. A local checkout
+ * Null is a supported state, not an error: the editor, randomize, print, and
+ * PNG export must all work with no backend at all. A local checkout
  * with no frontend/.env.local simply has no account features. What null must
  * never do is break the app or trigger a network call.
  */

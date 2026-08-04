@@ -1,4 +1,4 @@
-import type { CardUrlData } from "./cardUrl";
+import type { CardUrlData } from "./cardData";
 import { DEFAULT_COLOR_SCHEME, type ColorScheme } from "./colorScheme";
 import { MAX_EMOJIS } from "./emojiScheme";
 import { DEFAULT_FONT_SCHEME, FONT_OPTIONS, type FontScheme } from "./fontScheme";
@@ -7,8 +7,8 @@ import { DEFAULT_FONT_SCHEME, FONT_OPTIONS, type FontScheme } from "./fontScheme
 //
 // The stored shape is deliberately CardUrlData: a saved card and a shared
 // snapshot both come back as CardUrlData and flow through the same
-// cardStateFrom -> cardFromSlots path as a ?card= import. There is exactly one
-// deserializer for a card in this app, and this is not a second one.
+// cardStateFrom -> cardFromSlots path. There is exactly one deserializer for a
+// card in this app, and this is not a second one.
 //
 // The wire shape is duplicated in backend/src/lib/cardPayload.ts with no
 // compile-time link between them — the largest accepted piece of technical debt
@@ -63,9 +63,8 @@ function readFont(value: unknown, fallback: string): string {
  * Reads a payload from the API back into card data.
  *
  * The API rejects anything malformed, so this should never see a bad payload —
- * but it defaults rather than throws anyway, matching decodeCardFromUrl. A
- * half-rendered card beats a blank page, and a stored card the user can still
- * see is a card they can still fix.
+ * but it defaults rather than throws anyway. A half-rendered card beats a blank
+ * page, and a stored card the user can still see is a card they can still fix.
  */
 export function fromSavedCardPayload(payload: unknown): CardUrlData | null {
   if (typeof payload !== "object" || payload === null) return null;

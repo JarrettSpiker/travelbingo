@@ -4,7 +4,7 @@
 Defines the saved-card library available to a signed-in user: saving the current card to their account, listing what they have saved, opening a saved card back into the editor, renaming it, and deleting it.
 ## Requirements
 ### Requirement: A signed-in user can save the current card
-The system SHALL let a signed-in user save the current card to their account, capturing the same state the `?card=` URL captures: the entries and blanks in their displayed grid positions, the title, the free-space text and on/off state, the color scheme, the font scheme, and the emoji scheme. Saving a card that was itself opened from the library SHALL update that card rather than creating a duplicate. The system SHALL record the payload's schema version with the saved card.
+The system SHALL let a signed-in user save the current card to their account, capturing the card's exact state: the entries and blanks in their displayed grid positions, the title, the free-space text and on/off state, the color scheme, the font scheme, and the emoji scheme. Saving a card that was itself opened from the library SHALL update that card rather than creating a duplicate. The system SHALL record the payload's schema version with the saved card.
 
 #### Scenario: User saves a new card
 - **WHEN** a signed-in user saves a card that did not come from their library

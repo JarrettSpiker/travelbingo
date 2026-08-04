@@ -20,6 +20,7 @@ The account-free `?card=` URL was the original sharing mechanism, but the app no
 - `card-url-sharing`: **Removed entirely.** Every requirement (export as URL, restore from URL, handle malformed data, remain available without an account) is deleted, and the capability ceases to exist.
 - `card-library`: The save requirement currently says a saved card captures "the same state the `?card=` URL captures." That reference is replaced with an inline enumeration of the captured state, since the referenced mechanism is going away.
 - `card-share-links`: The recipient scenario currently promises a signed-out visitor can "edit, print, and export" a shared card. "Export" there meant the `?card=` URL export, which is gone; the scenario is amended to drop URL-export and keep edit/print/PNG (PNG remains under `card-print-export`).
+- `user-accounts`: The "fully functional signed out" requirement lists "`?card=` URL export and import" among the signed-out card capabilities. That capability no longer exists, so the requirement and its "Signed-out user builds and exports a card" scenario are amended to drop the `?card=` references, leaving building, editing, randomizing, rendering, printing, and PNG export in the signed-out set.
 
 ## Impact
 

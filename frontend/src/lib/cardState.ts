@@ -1,13 +1,12 @@
 import { buildCard, cardFromSlots, type BingoCard, type BingoEntry } from "./bingo";
-import type { CardUrlData } from "./cardUrl";
+import type { CardUrlData } from "./cardData";
 import { DEFAULT_COLOR_SCHEME, type ColorScheme } from "./colorScheme";
 import { DEFAULT_EMOJI_SCHEME, type EmojiScheme } from "./emojiScheme";
 import { DEFAULT_FONT_SCHEME, type FontScheme } from "./fontScheme";
 
-// Extracted from the inline initial-state logic in App.tsx, which had one
-// caller when the only way to load a card was a ?card= URL. There are now
-// three: the URL import, opening a saved card, and importing a share snapshot.
-// All three go through here, so they cannot drift.
+// Extracted from the inline initial-state logic in App.tsx. Every way a card
+// arrives in the editor — opening a saved card, or importing a share snapshot —
+// goes through here, so they cannot drift.
 
 export interface CardState {
   entries: BingoEntry[];

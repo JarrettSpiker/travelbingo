@@ -111,7 +111,7 @@ export function decodeIdToken(idToken: string): IdTokenClaims | null {
   if (parts.length !== 3 || !parts[1]) return null;
 
   try {
-    // Same base64url decoding as cardUrl.ts, so a non-ASCII email survives.
+    // Base64url-decode the JWT payload so a non-ASCII email survives.
     const binary = atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"));
     const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
     const json = JSON.parse(new TextDecoder().decode(bytes)) as Record<string, unknown>;

@@ -1,11 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { toPng } from "html-to-image";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
+import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import type { BingoCard } from "../lib/bingo";
 import type { ColorScheme } from "../lib/colorScheme";
@@ -21,9 +21,10 @@ interface CardViewProps {
   fontScheme: FontScheme;
   emojiScheme: EmojiScheme;
   onRandomize: () => void;
-  onExportUrl: () => string;
   /** Opens the revocable server-side share dialog. Omitted when accounts are off. */
   onCreateShareLink?: () => void;
+  /** True when the user is signed out; the share item is shown disabled with a hint. */
+  shareLinkDisabled?: boolean;
 }
 
 export function CardView({
@@ -33,34 +34,15 @@ export function CardView({
   fontScheme,
   emojiScheme,
   onRandomize,
-  onExportUrl,
   onCreateShareLink,
+  shareLinkDisabled,
 }: CardViewProps) {
-  const [exportedUrl, setExportedUrl] = useState<string | null>(null);
   const [pngError, setPngError] = useState(false);
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
-  const urlInputRef = useRef<HTMLInputElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (exportedUrl) {
-      urlInputRef.current?.focus();
-      urlInputRef.current?.select();
-    }
-  }, [exportedUrl]);
 
   function closeMenu() {
     setMenuAnchorEl(null);
-  }
-
-  function handleExportUrl() {
-    const url = onExportUrl();
-    setExportedUrl(url);
-    navigator.clipboard?.writeText(url).catch(() => {
-      // Clipboard access can fail/be unavailable (non-secure context, lost
-      // focus, permission denied); the visible, selected URL field below is
-      // the fallback way to copy it.
-    });
   }
 
   function handlePrint() {
@@ -111,29 +93,25 @@ export function CardView({
             Export
           </Button>
           <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={closeMenu}>
-            {/*
-              The two sharing mechanisms are deliberately worded so it is clear
-              which one needs an account and which one can be revoked. They are
-              not alternatives to each other: the URL export works with no
-              account, forever, and is never going away.
-            */}
-            <MenuItem
-              onClick={() => {
-                closeMenu();
-                handleExportUrl();
-              }}
-            >
-              Copy card link (no account, permanent)
-            </MenuItem>
             {onCreateShareLink && (
-              <MenuItem
-                onClick={() => {
-                  closeMenu();
-                  onCreateShareLink();
-                }}
-              >
-                Create share link (short, revocable)
-              </MenuItem>
+              shareLinkDisabled ? (
+                // A disabled MenuItem doesn't receive pointer events, so the
+                // Tooltip has to wrap a block-level element to show the hint.
+                <Tooltip title="Sign in to share this card" placement="left">
+                  <Box component="span" sx={{ display: "block" }}>
+                    <MenuItem disabled>Create share link (short, revocable)</MenuItem>
+                  </Box>
+                </Tooltip>
+              ) : (
+                <MenuItem
+                  onClick={() => {
+                    closeMenu();
+                    onCreateShareLink();
+                  }}
+                >
+                  Create share link (short, revocable)
+                </MenuItem>
+              )
             )}
             <MenuItem
               onClick={() => {
@@ -159,20 +137,6 @@ export function CardView({
         <Typography className="no-print" color="error" variant="body2" sx={{ mb: 2, maxWidth: 420 }}>
           Sorry, the PNG could not be generated. Please try again.
         </Typography>
-      )}
-
-      {exportedUrl && (
-        <Box className="no-print" sx={{ mb: 2, maxWidth: 420 }}>
-          <TextField
-            id="export-url"
-            label="Card URL (copied to clipboard if supported — select and copy otherwise)"
-            inputRef={urlInputRef}
-            value={exportedUrl}
-            slotProps={{ htmlInput: { readOnly: true } }}
-            size="small"
-            fullWidth
-          />
-        </Box>
       )}
 
       <CardGrid

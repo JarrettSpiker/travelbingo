@@ -10,7 +10,7 @@ import { CardGrid } from "../components/CardGrid";
 import { useAuth } from "../auth/authContext";
 import { cardStateFrom } from "../lib/cardState";
 import { createCard, resolveShare } from "../lib/cardsApi";
-import type { CardUrlData } from "../lib/cardUrl";
+import type { CardUrlData } from "../lib/cardData";
 
 export function SharedCardPage() {
   const { token } = useParams<{ token: string }>();

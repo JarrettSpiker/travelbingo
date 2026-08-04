@@ -1,5 +1,5 @@
 import type { ApiClient } from "./apiClient";
-import type { CardUrlData } from "./cardUrl";
+import type { CardUrlData } from "./cardData";
 import { fromSavedCardPayload, toSavedCardPayload, type SavedCardSummary } from "./savedCard";
 
 // Thin, typed wrapper over the API's card and share routes. Keeping the paths

@@ -26,7 +26,7 @@ The system SHALL let any visitor open a share link without signing in, and SHALL
 
 #### Scenario: Signed-out recipient opens a share link
 - **WHEN** a visitor with no account opens a share link
-- **THEN** the system SHALL display the shared card and let them edit, print, and export it, without prompting them to sign in
+- **THEN** the system SHALL display the shared card and let them edit, print, and export it as an image, without prompting them to sign in
 
 #### Scenario: Recipient edits the shared card
 - **WHEN** a recipient modifies the card they received from a share link

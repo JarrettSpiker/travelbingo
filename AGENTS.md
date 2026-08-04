@@ -113,14 +113,12 @@ terraform apply -var="bucket_name=<globally-unique-bucket>"
 ## Architectural constraints (do not break)
 
 - **The app must be fully usable signed out.** Card generation, randomize,
-  print, PNG, and `?card=` sharing must never require an account, a backend, or
-  a network call. A signed-out visitor makes **zero** API requests on load. If a
-  new feature cannot work signed out, it is an account feature and must be
-  additive, not a replacement.
-- **`?card=` URL sharing is permanent.** It is not deprecated by share links and
-  is not going away. New card state must still round-trip through
-  `encodeCardToUrl` / `decodeCardFromUrl` in `frontend/src/lib/cardUrl.ts`.
-  Bumping `SCHEMA_VERSION` breaks every link anyone has ever shared.
+  print, and PNG must never require an account, a backend, or a network call. A
+  signed-out visitor makes **zero** API requests on load. If a new feature
+  cannot work signed out, it is an account feature and must be additive, not a
+  replacement. Sharing is one such account feature: it requires saving the card
+  and minting a (revocable, server-backed) share link. A leftover `?card=` query
+  param is ignored — the encode/decode mechanism has been removed.
 - **All authorization happens in `backend/src/auth.ts`**, from the JWT `sub`
   claim that API Gateway's authorizer has already verified. Never trust a user
   id from a request body, path, query string, or header. Never write a

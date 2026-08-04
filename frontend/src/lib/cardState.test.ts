@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { cardStateFrom, emptyCardState, entriesFromSlots } from "./cardState";
-import type { CardUrlData } from "./cardUrl";
+import type { CardUrlData } from "./cardData";
 import { DEFAULT_COLOR_SCHEME } from "./colorScheme";
 import { DEFAULT_FONT_SCHEME } from "./fontScheme";
 

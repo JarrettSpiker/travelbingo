@@ -3,7 +3,7 @@ import App from "./App";
 import { AuthCallbackPage } from "./pages/AuthCallbackPage";
 import { SavedCardsPage } from "./pages/SavedCardsPage";
 import { SharedCardPage } from "./pages/SharedCardPage";
-import type { CardUrlData } from "./lib/cardUrl";
+import type { CardUrlData } from "./lib/cardData";
 
 interface EditorNavigationState {
   card?: CardUrlData;

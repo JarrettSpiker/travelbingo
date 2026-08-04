@@ -12,8 +12,8 @@ import { clearPending, loadPending } from "../lib/authSession";
 
 /**
  * The registered OAuth redirect URI. It exists as its own route so the callback
- * handler cannot race the editor's ?card= import — both read the query string,
- * and on one path they would fight over it.
+ * handler owns the query string during the code exchange and does not collide
+ * with any other route's reading of it.
  */
 export function AuthCallbackPage() {
   const { completeSignIn } = useAuth();
