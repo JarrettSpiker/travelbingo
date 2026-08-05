@@ -16,10 +16,14 @@ export async function listCards(api: ApiClient): Promise<SavedCardSummary[]> {
   return body.cards ?? [];
 }
 
-export async function createCard(api: ApiClient, data: CardUrlData): Promise<SavedCardSummary> {
+export async function createCard(
+  api: ApiClient,
+  data: CardUrlData,
+  thumbnail?: string | null,
+): Promise<SavedCardSummary> {
   return api.request<SavedCardSummary>("/api/cards", {
     method: "POST",
-    body: toSavedCardPayload(data),
+    body: thumbnail ? { ...toSavedCardPayload(data), thumbnail } : toSavedCardPayload(data),
   });
 }
 
@@ -32,10 +36,11 @@ export async function replaceCard(
   api: ApiClient,
   cardId: string,
   data: CardUrlData,
+  thumbnail?: string | null,
 ): Promise<SavedCardSummary> {
   return api.request<SavedCardSummary>(`/api/cards/${encodeURIComponent(cardId)}`, {
     method: "PUT",
-    body: toSavedCardPayload(data),
+    body: thumbnail ? { ...toSavedCardPayload(data), thumbnail } : toSavedCardPayload(data),
   });
 }
 

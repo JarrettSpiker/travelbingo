@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Stack from "@mui/material/Stack";
@@ -22,6 +22,7 @@ import { type SuggestedTheme } from "./lib/suggestions";
 import { type CardUrlData } from "./lib/cardData";
 import { cardStateFrom } from "./lib/cardState";
 import { createCard, replaceCard } from "./lib/cardsApi";
+import { generateCardThumbnail } from "./lib/cardThumbnail";
 
 interface AppProps {
   /**
@@ -51,6 +52,9 @@ function App({ initialCard = null, initialCardId = null }: AppProps = {}) {
   const [card, setCard] = useState<BingoCard>(() => initialState.card);
   const [savedCardId, setSavedCardId] = useState<string | null>(initialCardId);
   const [shareOpen, setShareOpen] = useState(false);
+  // Owned here so the save flow can render a thumbnail from the same node the
+  // PNG export uses. Passed down to CardView.
+  const cardRef = useRef<HTMLDivElement>(null);
 
   function handleAddEntry(text: string) {
     const next = [...entries, { text, mandatory: false }];
@@ -126,12 +130,17 @@ function App({ initialCard = null, initialCardId = null }: AppProps = {}) {
   /** Saves the editor's card, updating it in place once it has an id. */
   async function saveCurrentCard(): Promise<string | null> {
     const data = currentCardData();
+    // Render a downscaled thumbnail from the already-styled card DOM. Best
+    // effort: a null result (generation failure, or a thumbnail that could not
+    // be kept under the cap) saves the card without one — the library shows a
+    // placeholder until the next save.
+    const thumbnail = cardRef.current ? await generateCardThumbnail(cardRef.current) : null;
     try {
       if (savedCardId) {
-        await replaceCard(api, savedCardId, data);
+        await replaceCard(api, savedCardId, data, thumbnail);
         return savedCardId;
       }
-      const created = await createCard(api, data);
+      const created = await createCard(api, data, thumbnail);
       setSavedCardId(created.cardId);
       return created.cardId;
     } catch {
@@ -200,6 +209,7 @@ function App({ initialCard = null, initialCardId = null }: AppProps = {}) {
         onRandomize={handleRandomize}
         onCreateShareLink={accountsEnabled ? () => setShareOpen(true) : undefined}
         shareLinkDisabled={status !== "authenticated"}
+        cardRef={cardRef}
       />
 
       {accountsEnabled && (

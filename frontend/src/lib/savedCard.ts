@@ -31,6 +31,10 @@ export interface SavedCardSummary {
   cardId: string;
   title: string;
   updatedAt: string;
+  /** Object key in the thumbnail bucket; present only when a thumbnail exists. */
+  thumbnailKey?: string;
+  /** Short-lived presigned GET URL for the thumbnail; present only when a thumbnail exists. */
+  thumbnailUrl?: string;
 }
 
 const HEX_COLOR = /^#[0-9a-fA-F]{3,8}$/;

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { HttpError } from "../http.ts";
 import { cardMemberKey, cardMetaKey, membershipKey, shareKey, cardSharePointerKey } from "../lib/keys.ts";
+import type { ThumbnailStore } from "../lib/thumbnailStore.ts";
 import { makeTestDeps, type TestDeps } from "../testing/fakeDdb.ts";
 import type { RouteRequest } from "../request.ts";
 import { createCard, deleteCard, getCard, listCards, renameCard, replaceCard } from "./cards.ts";
@@ -36,6 +37,22 @@ async function statusOf(promise: Promise<{ statusCode: number }>): Promise<numbe
 async function seedCard(deps: TestDeps, userId = "user-a") {
   const response = await createCard(deps, request({ userId, body: card }));
   return JSON.parse(response.body).cardId as string;
+}
+
+/** A valid PNG data URL small enough to pass the thumbnail cap. */
+function thumbnailDataUrl(bytes = "tiny-thumb"): string {
+  return `data:image/png;base64,${Buffer.from(bytes).toString("base64")}`;
+}
+
+interface FakeThumbnailStore extends ThumbnailStore {
+  objects: Map<string, Buffer>;
+  presigned: string[];
+  puts: number;
+  deletes: number;
+}
+
+function thumbnailStoreOf(deps: TestDeps): FakeThumbnailStore {
+  return deps.thumbnailStore as FakeThumbnailStore;
 }
 
 describe("createCard", () => {
@@ -201,5 +218,135 @@ describe("deleteCard", () => {
     // Nothing left anywhere: a surviving share would keep serving a snapshot of
     // a card its owner believes they deleted.
     expect(deps.ddb.items.size).toBe(0);
+  });
+});
+
+describe("thumbnails", () => {
+  it("writes the thumbnail object and stores the key on the card and membership", async () => {
+    const deps = makeTestDeps();
+    const store = thumbnailStoreOf(deps);
+
+    const response = await createCard(deps, request({ body: { ...card, thumbnail: thumbnailDataUrl() } }));
+    const cardId = JSON.parse(response.body).cardId as string;
+
+    // The object is keyed by cardId, and the key is denormalized onto both the
+    // meta and the membership so listing needs no per-card lookup.
+    expect(store.objects.get(`${cardId}.png`)?.toString("utf8")).toBe("tiny-thumb");
+    expect(deps.ddb.get(cardMetaKey(cardId).PK, "META")?.thumbnailKey).toBe(`${cardId}.png`);
+    const membership = membershipKey("user-a", cardId);
+    expect(deps.ddb.get(membership.PK, membership.SK)?.thumbnailKey).toBe(`${cardId}.png`);
+  });
+
+  it("saves the card without a thumbnail when none is supplied", async () => {
+    const deps = makeTestDeps();
+    const store = thumbnailStoreOf(deps);
+
+    const cardId = await seedCard(deps);
+
+    expect(store.puts).toBe(0);
+    expect(deps.ddb.get(cardMetaKey(cardId).PK, "META")?.thumbnailKey).toBeUndefined();
+  });
+
+  it("saves the card without a thumbnail when the payload is invalid", async () => {
+    const deps = makeTestDeps();
+    const store = thumbnailStoreOf(deps);
+
+    const response = await createCard(deps, request({ body: { ...card, thumbnail: "not-a-data-url" } }));
+    const cardId = JSON.parse(response.body).cardId as string;
+
+    // The card saved; the malformed thumbnail was dropped, not stored.
+    expect(response.statusCode).toBe(201);
+    expect(store.puts).toBe(0);
+    expect(deps.ddb.get(cardMetaKey(cardId).PK, "META")?.thumbnailKey).toBeUndefined();
+  });
+
+  it("overwrites the thumbnail on re-save and updates the denormalized key", async () => {
+    const deps = makeTestDeps();
+    const store = thumbnailStoreOf(deps);
+
+    const cardId = await seedCard(deps);
+    await replaceCard(deps, request({ params: { cardId }, body: { ...card, thumbnail: thumbnailDataUrl("v2") } }));
+
+    expect(store.objects.get(`${cardId}.png`)?.toString("utf8")).toBe("v2");
+    expect(deps.ddb.get(cardMetaKey(cardId).PK, "META")?.thumbnailKey).toBe(`${cardId}.png`);
+    const membership = membershipKey("user-a", cardId);
+    expect(deps.ddb.get(membership.PK, membership.SK)?.thumbnailKey).toBe(`${cardId}.png`);
+  });
+
+  it("leaves an existing thumbnail in place when a re-save sends none", async () => {
+    const deps = makeTestDeps();
+    const store = thumbnailStoreOf(deps);
+
+    const cardId = await createCard(deps, request({ body: { ...card, thumbnail: thumbnailDataUrl("first") } }))
+      .then((r) => JSON.parse(r.body).cardId as string);
+
+    // A re-save with no thumbnail (e.g. generation failed in the browser) keeps
+    // the prior thumbnail object rather than clearing it.
+    await replaceCard(deps, request({ params: { cardId }, body: card }));
+
+    expect(store.objects.get(`${cardId}.png`)?.toString("utf8")).toBe("first");
+    expect(deps.ddb.get(cardMetaKey(cardId).PK, "META")?.thumbnailKey).toBe(`${cardId}.png`);
+  });
+
+  it("mints a presigned URL for each card with a thumbnail on list", async () => {
+    const deps = makeTestDeps();
+    const store = thumbnailStoreOf(deps);
+
+    // One card with a thumbnail, one without.
+    const withThumb = await createCard(deps, request({ body: { ...card, thumbnail: thumbnailDataUrl() } }))
+      .then((r) => JSON.parse(r.body).cardId as string);
+    await seedCard(deps);
+
+    const response = await listCards(deps, request());
+    const cards = JSON.parse(response.body).cards as Array<{
+      cardId: string;
+      thumbnailKey?: string;
+      thumbnailUrl?: string;
+    }>;
+
+    const withEntry = cards.find((c) => c.cardId === withThumb);
+    const withoutEntry = cards.find((c) => c.cardId !== withThumb);
+    expect(withEntry?.thumbnailKey).toBe(`${withThumb}.png`);
+    expect(withEntry?.thumbnailUrl).toBeDefined();
+    expect(withoutEntry?.thumbnailKey).toBeUndefined();
+    expect(withoutEntry?.thumbnailUrl).toBeUndefined();
+    // One presign per card that actually has a thumbnail — never for the other.
+    expect(store.presigned).toHaveLength(1);
+  });
+
+  it("does not list another user's cards or presign their thumbnails", async () => {
+    const deps = makeTestDeps();
+    const store = thumbnailStoreOf(deps);
+
+    await createCard(deps, request({ userId: "user-a", body: { ...card, thumbnail: thumbnailDataUrl() } }));
+
+    // Another user sees nothing: no cards, no presigned URLs leaked.
+    const response = await listCards(deps, request({ userId: "user-b" }));
+    expect(JSON.parse(response.body).cards).toEqual([]);
+    expect(store.presigned).toHaveLength(0);
+  });
+
+  it("deletes the thumbnail object when the card is deleted", async () => {
+    const deps = makeTestDeps();
+    const store = thumbnailStoreOf(deps);
+
+    const cardId = await createCard(deps, request({ body: { ...card, thumbnail: thumbnailDataUrl() } }))
+      .then((r) => JSON.parse(r.body).cardId as string);
+
+    await deleteCard(deps, request({ params: { cardId } }));
+
+    expect(store.objects.has(`${cardId}.png`)).toBe(false);
+    expect(store.deletes).toBe(1);
+  });
+
+  it("still completes deletion when no thumbnail existed", async () => {
+    const deps = makeTestDeps();
+    const store = thumbnailStoreOf(deps);
+
+    const cardId = await seedCard(deps);
+    await deleteCard(deps, request({ params: { cardId } }));
+
+    expect(deps.ddb.items.size).toBe(0);
+    expect(store.deletes).toBe(1);
   });
 });

@@ -9,6 +9,11 @@ locals {
   resource_name = var.name_prefix != "" ? "${var.name_prefix}-${var.bucket_name}" : var.bucket_name
   # Custom domain is active only when both a domain and its hosting zone are set.
   use_custom_domain = var.domain_name != "" && var.hosted_zone_name != ""
+  # Owner-private thumbnails live in their own bucket, kept separate from the
+  # static-asset bucket so its public CloudFront delivery never applies. The name
+  # mirrors infra/bootstrap/tfc-roles.tf's thumbnail_bucket_name; both derive
+  # from the env's bucket name and must stay aligned.
+  thumbnail_bucket_name = "${local.resource_name}-thumbnails"
 }
 
 resource "aws_s3_bucket" "frontend" {
@@ -23,6 +28,47 @@ resource "aws_s3_bucket_public_access_block" "frontend" {
   block_public_policy     = true
   ignore_public_acls      = true
   restrict_public_buckets = true
+}
+
+# Owner-private card thumbnails. Read access is granted only through short-lived
+# presigned GET URLs minted by the backend after requireCardRole authorizes the
+# caller, so the bucket is fully private: public access block on, no OAC, no
+# public bucket policy, and no CloudFront behaviour in front of it.
+resource "aws_s3_bucket" "thumbnails" {
+  bucket = local.thumbnail_bucket_name
+  tags   = local.tags
+}
+
+resource "aws_s3_bucket_public_access_block" "thumbnails" {
+  bucket = aws_s3_bucket.thumbnails.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# Belt-and-suspenders against orphaned uploads: a failed save mid-write could
+# leave an incomplete multipart behind, and a bug could strand a noncurrent
+# version if versioning is ever enabled. Both expire quickly.
+resource "aws_s3_bucket_lifecycle_configuration" "thumbnails" {
+  bucket = aws_s3_bucket.thumbnails.id
+
+  rule {
+    id     = "expire-incomplete-and-noncurrent"
+    status = "Enabled"
+
+    # Empty filter = the rule applies to every object in the bucket.
+    filter {}
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 1
+    }
+
+    noncurrent_version_expiration {
+      noncurrent_days = 1
+    }
+  }
 }
 
 resource "aws_cloudfront_origin_access_control" "frontend" {
@@ -65,11 +111,17 @@ resource "aws_cloudfront_response_headers_policy" "frontend" {
       # The primary mitigation for the refresh token held in localStorage.
       # 'unsafe-inline' is required for style-src because Emotion (MUI) injects
       # styles at runtime; it is deliberately absent from script-src.
+      #
+      # img-src widens to the thumbnail bucket's S3 regional domain: card
+      # thumbnails are read via short-lived presigned GET URLs that resolve
+      # directly to S3 (routing through the API would be N invocations per
+      # library render). The bucket name is environment-specific, so this is a
+      # per-env literal rather than a broad wildcard.
       content_security_policy = join("; ", [
         "default-src 'self'",
         "script-src 'self'",
         "style-src 'self' 'unsafe-inline'",
-        "img-src 'self' data: blob:",
+        "img-src 'self' data: blob: https://${local.thumbnail_bucket_name}.s3.${var.aws_region}.amazonaws.com",
         "font-src 'self' data:",
         "connect-src 'self' https://${local.cognito_auth_domain}",
         "form-action 'self' https://${local.cognito_auth_domain}",

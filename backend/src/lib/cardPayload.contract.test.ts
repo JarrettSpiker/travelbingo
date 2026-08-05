@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { ALLOWED_FONTS, MAX_EMOJIS, MAX_SLOTS, parseCardPayload } from "./cardPayload.ts";
+import {
+  ALLOWED_FONTS,
+  MAX_EMOJIS,
+  MAX_SLOTS,
+  MAX_THUMBNAIL_BYTES,
+  parseCardPayload,
+  parseThumbnail,
+} from "./cardPayload.ts";
 
 // The wire-shape contract between this package and the frontend.
 //
@@ -68,9 +75,45 @@ describe("stored card wire shape", () => {
   });
 
   it("pins the shared bounds", () => {
-    // MAX_EMOJIS must equal the frontend's emojiScheme.MAX_EMOJIS, and
-    // MAX_SLOTS the frontend's cardUrl.MAX_SLOTS.
+    // MAX_EMOJIS must equal the frontend's emojiScheme.MAX_EMOJIS,
+    // MAX_SLOTS the frontend's cardUrl.MAX_SLOTS, and MAX_THUMBNAIL_BYTES the
+    // frontend's cardThumbnail.MAX_THUMBNAIL_BYTES.
     expect(MAX_EMOJIS).toBe(5);
     expect(MAX_SLOTS).toBe(64);
+    expect(MAX_THUMBNAIL_BYTES).toBe(100_000);
+  });
+});
+
+describe("thumbnail input contract", () => {
+  // The save body carries an optional `thumbnail` sibling field (not part of
+  // CardPayload): a data:image/png;base64 URL. Mirrored by the frontend's
+  // generateCardThumbnail output shape.
+
+  function dataUrl(bytes: Buffer): string {
+    return `data:image/png;base64,${bytes.toString("base64")}`;
+  }
+
+  it("accepts a well-formed PNG data URL under the cap", () => {
+    const bytes = Buffer.from("small-thumbnail");
+    expect(parseThumbnail(dataUrl(bytes))).toEqual(bytes);
+  });
+
+  it("returns null when no thumbnail is supplied", () => {
+    expect(parseThumbnail(undefined)).toBeNull();
+    expect(parseThumbnail(null)).toBeNull();
+  });
+
+  it("drops an invalid thumbnail rather than throwing", () => {
+    // The thumbnail is non-essential: a malformed one is dropped so the card
+    // still saves, rather than rejecting the whole request.
+    expect(parseThumbnail("not-a-data-url")).toBeNull();
+    expect(parseThumbnail("data:image/jpeg;base64,AAAA")).toBeNull(); // wrong type
+    expect(parseThumbnail(42)).toBeNull();
+    expect(parseThumbnail("data:image/png;base64,")).toBeNull(); // empty
+  });
+
+  it("rejects a thumbnail whose decoded size exceeds the cap", () => {
+    const oversized = Buffer.alloc(MAX_THUMBNAIL_BYTES + 1, 0x41);
+    expect(parseThumbnail(dataUrl(oversized))).toBeNull();
   });
 });

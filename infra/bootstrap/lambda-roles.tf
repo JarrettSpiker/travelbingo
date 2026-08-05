@@ -61,6 +61,21 @@ data "aws_iam_policy_document" "lambda_permissions" {
       "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${each.value.function_name}:*",
     ]
   }
+
+  statement {
+    sid = "ManageOwnThumbnails"
+    # Object-level access only for card thumbnails: the function writes them on
+    # save, reads them to mint presigned GET URLs, and deletes them with the
+    # card. It never touches the bucket itself — Terraform owns that.
+    actions = [
+      "s3:PutObject",
+      "s3:GetObject",
+      "s3:DeleteObject",
+    ]
+    resources = [
+      "arn:aws:s3:::${each.value.thumbnail_bucket_name}/*",
+    ]
+  }
 }
 
 resource "aws_iam_role_policy" "lambda" {

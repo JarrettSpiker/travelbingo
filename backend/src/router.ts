@@ -8,9 +8,11 @@ import { createShare, listShares, resolveShare, revokeShare } from "./routes/sha
 /**
  * The reachable bound on request size. The per-field limits in cardPayload.ts
  * constrain a *valid* card; this constrains what an attacker can make the
- * runtime parse before validation gets a chance to run.
+ * runtime parse before validation gets a chance to run. Sized to admit a card
+ * payload plus a base64 thumbnail (the two ride the same save request), well
+ * under API Gateway HTTP API's 10MB body limit.
  */
-export const MAX_BODY_BYTES = 64 * 1024;
+export const MAX_BODY_BYTES = 1024 * 1024;
 
 type Handler = (deps: Deps, request: RouteRequest) => Promise<JsonResponse>;
 

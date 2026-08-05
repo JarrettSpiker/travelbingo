@@ -5,18 +5,20 @@ locals {
   # resources that do not exist.
   envs = {
     dev = {
-      bucket        = var.dev_bucket_name
-      workspace     = var.dev_workspace_name
-      role_suffix   = "dev"
-      table_name    = var.dev_bucket_name
-      function_name = "${var.dev_bucket_name}-api"
+      bucket                = var.dev_bucket_name
+      thumbnail_bucket_name = "${var.dev_bucket_name}-thumbnails"
+      workspace             = var.dev_workspace_name
+      role_suffix           = "dev"
+      table_name            = var.dev_bucket_name
+      function_name         = "${var.dev_bucket_name}-api"
     }
     prod = {
-      bucket        = var.prod_bucket_name
-      workspace     = var.prod_workspace_name
-      role_suffix   = "prod"
-      table_name    = var.prod_bucket_name
-      function_name = "${var.prod_bucket_name}-api"
+      bucket                = var.prod_bucket_name
+      thumbnail_bucket_name = "${var.prod_bucket_name}-thumbnails"
+      workspace             = var.prod_workspace_name
+      role_suffix           = "prod"
+      table_name            = var.prod_bucket_name
+      function_name         = "${var.prod_bucket_name}-api"
     }
   }
 }
@@ -65,6 +67,8 @@ data "aws_iam_policy_document" "tfc_permissions" {
     resources = [
       "arn:aws:s3:::${each.value.bucket}",
       "arn:aws:s3:::${each.value.bucket}/*",
+      "arn:aws:s3:::${each.value.thumbnail_bucket_name}",
+      "arn:aws:s3:::${each.value.thumbnail_bucket_name}/*",
     ]
   }
 

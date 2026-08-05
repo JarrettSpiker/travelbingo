@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState, type RefObject } from "react";
 import { toPng } from "html-to-image";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -25,6 +25,11 @@ interface CardViewProps {
   onCreateShareLink?: () => void;
   /** True when the user is signed out; the share item is shown disabled with a hint. */
   shareLinkDisabled?: boolean;
+  /**
+   * The rendered card's DOM node, owned by the editor so the save flow can
+   * generate a thumbnail from it. Also used here for PNG export.
+   */
+  cardRef: RefObject<HTMLDivElement | null>;
 }
 
 export function CardView({
@@ -36,10 +41,10 @@ export function CardView({
   onRandomize,
   onCreateShareLink,
   shareLinkDisabled,
+  cardRef,
 }: CardViewProps) {
   const [pngError, setPngError] = useState(false);
   const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
-  const cardRef = useRef<HTMLDivElement>(null);
 
   function closeMenu() {
     setMenuAnchorEl(null);

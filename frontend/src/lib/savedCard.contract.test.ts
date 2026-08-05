@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { MAX_THUMBNAIL_BYTES } from "./cardThumbnail";
 import { MAX_EMOJIS } from "./emojiScheme";
 import { FONT_OPTIONS } from "./fontScheme";
 import { fromSavedCardPayload, toSavedCardPayload } from "./savedCard";
@@ -67,7 +68,10 @@ describe("stored card wire shape", () => {
   });
 
   it("pins the shared bounds", () => {
+    // MAX_EMOJIS mirrors the backend's cardPayload.MAX_EMOJIS, and
+    // MAX_THUMBNAIL_BYTES mirrors the backend's cardPayload.MAX_THUMBNAIL_BYTES.
     expect(MAX_EMOJIS).toBe(5);
+    expect(MAX_THUMBNAIL_BYTES).toBe(100_000);
   });
 });
 

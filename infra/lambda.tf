@@ -63,7 +63,10 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = {
-      TABLE_NAME = aws_dynamodb_table.app.name
+      TABLE_NAME            = aws_dynamodb_table.app.name
+      THUMBNAIL_BUCKET_NAME = local.thumbnail_bucket_name
+      # AWS_REGION is implicit on Lambda and is what the S3 client + presigner
+      # use to build the regional endpoint for presigned GET URLs.
     }
   }
 

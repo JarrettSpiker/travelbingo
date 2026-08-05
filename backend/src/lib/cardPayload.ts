@@ -21,6 +21,13 @@ export const MAX_EMOJI_LENGTH = 16;
 /** Bounds the synchronous JSON.stringify cost and the stored item size. */
 export const MAX_PAYLOAD_BYTES = 40_000;
 
+/**
+ * Bounds a stored thumbnail's decoded size. The frontend targets far less than
+ * this (a downscaled PNG); the cap is a validation limit, not a target, and
+ * keeps an abusive payload from reaching S3. Pinned in both contract tests.
+ */
+export const MAX_THUMBNAIL_BYTES = 100_000;
+
 /** Accept only well-formed hex colors so untrusted values can't reach CSS. */
 const HEX_COLOR = /^#[0-9a-fA-F]{3,8}$/;
 
@@ -164,4 +171,38 @@ export function parseCardPayload(input: unknown): CardPayload {
 /** Titles are validated on their own for the rename path. */
 export function parseTitle(input: unknown): string {
   return requireString(input, "title", MAX_TITLE_LENGTH);
+}
+
+/**
+ * The only image content type the editor renders thumbnails as. The data-URL
+ * prefix is matched literally so a malformed value can't smuggle bytes past the
+ * content-type check by exploiting a lax parser.
+ */
+const THUMBNAIL_DATA_URL = /^data:image\/png;base64,([A-Za-z0-9+/=]+)$/;
+
+/**
+ * Validates an optional thumbnail supplied on a save request.
+ *
+ * Unlike {@link parseCardPayload}, an invalid thumbnail is *dropped* rather than
+ * rejected: the thumbnail is non-essential, and the spec requires the card's
+ * data to save intact when generation (or transport) produced something
+ * malformed. Returns the decoded bytes when valid, or null when absent or
+ * invalid. The route never logs the returned bytes.
+ */
+export function parseThumbnail(input: unknown): Buffer | null {
+  if (input === undefined || input === null) return null;
+  if (typeof input !== "string") return null;
+
+  const match = THUMBNAIL_DATA_URL.exec(input);
+  if (match?.[1] === undefined) return null;
+
+  let bytes: Buffer;
+  try {
+    bytes = Buffer.from(match[1], "base64");
+  } catch {
+    return null;
+  }
+  if (bytes.byteLength === 0 || bytes.byteLength > MAX_THUMBNAIL_BYTES) return null;
+
+  return bytes;
 }
