@@ -60,12 +60,30 @@ See `proposal.md` for motivation.
 - On the initial open, the in-memory handoff is still the fastest path (no
   refetch); the editor paints immediately exactly as today. The URL param is
   there purely so a reload can recover.
-- On reload, `location.state` is null but the URL carries the id; `EditorRoute`
-  fetches via `getCard` and feeds the result into `App` as the `initialCard`,
-  reusing the existing `cardStateFrom` path — no new state machine in `App`.
+- On reload, the URL carries the id; `EditorRoute` fetches via `getCard` and
+  feeds the result into `App` as the `initialCard`, reusing the existing
+  `cardStateFrom` path — no new state machine in `App`.
 - *Consequence:* `App` gains a brief loading state for the reload case only
   (spinner while the fetch is in flight). The initial-open and empty cases keep
   their current zero-latency first paint.
+- *Caveat (learned in implementation):* React Router persists `location.state`
+  in `history.state`, which the browser **retains across a reload** (even a hard
+  refresh). So `location.state` is *not* null on reload — it holds the snapshot
+  from the original navigation, stale by the time the user has edited and
+  re-saved. See the next decision for how the route distinguishes the two.
+
+### Decision: Trust `location.state` only for a fresh in-app navigation
+**Choice: Gate the instant-open path on `useNavigationType()`.**
+- `location.state` is dropped on a `POP` (reload, back, forward) and trusted only
+  on a `PUSH`/`REPLACE` (a real in-app navigation like the library's "open"
+  action). On a `POP`, `EditorRoute` falls through to the `?card=` URL and
+  re-fetches the current saved card.
+- Without this, a refresh after edit-and-resave re-paints the *stale* snapshot
+  (the pre-edit card carried in `history.state`) and never reaches the fetch —
+  the user's re-save appeared lost until they re-opened from the library.
+- *Alternative considered:* stop carrying the card in `location.state` and always
+  fetch. Rejected because it loses the instant first paint on every library open
+  (a fetch on each click) for a staleness problem that only affects reloads.
 
 ### Decision: Where to perform the reload-fetch
 **Choice: Fetch inside `EditorRoute` (or a thin wrapper), not inside `App`.**

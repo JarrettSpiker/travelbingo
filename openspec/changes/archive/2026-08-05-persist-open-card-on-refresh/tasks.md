@@ -32,4 +32,4 @@
 - [x] 6.3 Add a test asserting a signed-out visitor with `?card=<id>` triggers no API call
 - [x] 6.4 Add a test asserting a 404 / other-user's card id degrades without revealing existence
 - [x] 6.5 Run `npm run lint`, `npm test`, and `npm run build` in `frontend/`; confirm all pass (no backend changes)
-- [ ] 6.6 Manually verify: open a saved card → URL shows `?card=<id>`; reload restores it; "back to editor" clears the param and reload lands on empty editor; opening another user's card id does not reveal it
+- [x] 6.6 Manually verify: open a saved card → URL shows `?card=<id>`; reload restores it; "back to editor" clears the param and reload lands on empty editor; opening another user's card id does not reveal it
