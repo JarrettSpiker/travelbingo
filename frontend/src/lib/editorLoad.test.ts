@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { ApiError, createApiClient, type ApiClient } from "./apiClient";
-import { editorLoadMode, fetchCardForReload, shouldFetchCard } from "./editorLoad";
+import { editorLoadMode, fetchCardForReload, hasFreshNavigationState, shouldFetchCard } from "./editorLoad";
 import type { CardUrlData } from "./cardData";
 
 function input(overrides: {
@@ -14,6 +14,19 @@ function input(overrides: {
     status: overrides.status ?? "anonymous",
   };
 }
+
+describe("hasFreshNavigationState", () => {
+  it("trusts PUSH and REPLACE — fresh in-app navigations (the library's open action)", () => {
+    expect(hasFreshNavigationState("PUSH")).toBe(true);
+    expect(hasFreshNavigationState("REPLACE")).toBe(true);
+  });
+
+  it("does not trust POP — a reload/back/forward carries a stale card snapshot", () => {
+    // history.state survives a refresh, so location.state holds the card as it
+    // was when the state was set, not as it now exists on the server.
+    expect(hasFreshNavigationState("POP")).toBe(false);
+  });
+});
 
 describe("editorLoadMode", () => {
   it("is instant when a card was handed over in memory", () => {

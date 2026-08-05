@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Navigate, Route, Routes, useLocation } from "react-router";
+import { Navigate, Route, Routes, useLocation, useNavigationType } from "react-router";
 import CircularProgress from "@mui/material/CircularProgress";
 import Container from "@mui/material/Container";
 import Stack from "@mui/material/Stack";
@@ -9,7 +9,12 @@ import { SavedCardsPage } from "./pages/SavedCardsPage";
 import { SharedCardPage } from "./pages/SharedCardPage";
 import { useAuth } from "./auth/authContext";
 import { readCardParam } from "./lib/cardParam";
-import { editorLoadMode, fetchCardForReload, shouldFetchCard } from "./lib/editorLoad";
+import {
+  editorLoadMode,
+  fetchCardForReload,
+  hasFreshNavigationState,
+  shouldFetchCard,
+} from "./lib/editorLoad";
 import type { CardUrlData } from "./lib/cardData";
 
 interface EditorNavigationState {
@@ -47,9 +52,16 @@ function EditorLoading() {
  */
 function EditorRoute() {
   const location = useLocation();
+  const navigationType = useNavigationType();
   const { api, status } = useAuth();
   const state = (location.state ?? null) as EditorNavigationState | null;
-  const incoming = state?.card ?? null;
+  // location.state lives in history.state, which the browser retains across a
+  // reload — so on a refresh it holds the card snapshot from the ORIGINAL
+  // navigation, stale by the time the user has edited and re-saved. Only trust
+  // it for a fresh in-app navigation (PUSH/REPLACE); on a POP (reload/back),
+  // drop it and fall through to the ?card= URL, which re-fetches the current
+  // saved state.
+  const incoming = hasFreshNavigationState(navigationType) ? state?.card ?? null : null;
   const urlCardId = readCardParam(location.search);
 
   const loadInput = { incoming, urlCardId, status };

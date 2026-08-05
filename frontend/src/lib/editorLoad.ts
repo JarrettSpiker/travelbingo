@@ -14,6 +14,22 @@ export type EditorLoadStatus = "loading" | "anonymous" | "authenticated";
 
 export type EditorLoadMode = "instant" | "loading" | "empty";
 
+/**
+ * Whether `location.state` can be trusted as a fresh card snapshot.
+ *
+ * React Router persists location.state in the browser's `history.state`, which
+ * **survives a page reload** (even a hard refresh) and back/forward navigation.
+ * So a POP — a reload or history navigation — carries a STALE snapshot: the
+ * card as it was when the state was originally set, not as it now exists on the
+ * server (the user may have randomized and re-saved since). Only a PUSH or
+ * REPLACE — a fresh in-app navigation like the library's "open" action — carries
+ * state fresh enough to paint instantly without a refetch. On a POP the editor
+ * must fall through to the `?card=` URL and re-fetch.
+ */
+export function hasFreshNavigationState(navigationType: string): boolean {
+  return navigationType !== "POP";
+}
+
 export interface EditorLoadInput {
   /** A card handed over via in-memory navigation state (the instant-open path). */
   incoming: CardUrlData | null;
