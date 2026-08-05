@@ -8,6 +8,11 @@ import { createCard, deleteCard, getCard, listCards, renameCard, replaceCard } f
 
 const card = {
   slots: ["Airport", null, "Dog"],
+  entries: [
+    { text: "Airport", mandatory: false, enabled: true },
+    { text: "Dog", mandatory: false, enabled: true },
+    { text: "Beach", mandatory: true, enabled: true },
+  ],
   title: "Road trip",
   hasFreeSpace: true,
   freeSpaceText: "FREE",

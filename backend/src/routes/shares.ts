@@ -47,6 +47,7 @@ export async function createShare(deps: Deps, request: RouteRequest): Promise<Js
   const createdAt = deps.now();
   const snapshot: CardPayload = {
     slots: meta.slots,
+    entries: meta.entries,
     title: meta.title,
     hasFreeSpace: meta.hasFreeSpace,
     freeSpaceText: meta.freeSpaceText,

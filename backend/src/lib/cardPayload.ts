@@ -13,6 +13,8 @@ import { badRequest } from "../http.ts";
 
 /** The grid is a fixed 5x5 (25 cells); allow headroom, cap far below DoS territory. */
 export const MAX_SLOTS = 64;
+/** Bounds the entry pool count. The pool can legitimately exceed the grid, so it has its own cap; the byte cap remains the backstop. Mirrored in frontend. */
+export const MAX_ENTRIES = 256;
 export const MAX_SLOT_LENGTH = 200;
 export const MAX_TITLE_LENGTH = 200;
 export const MAX_FREE_SPACE_LENGTH = 200;
@@ -47,8 +49,17 @@ export const ALLOWED_FONTS: ReadonlySet<string> = new Set([
 
 export const PAYLOAD_VERSION = 1;
 
+/** The on-the-wire shape of a single entry. Mirrors frontend/src/lib/savedCard.ts StoredEntry. */
+export interface StoredEntry {
+  text: string;
+  mandatory: boolean;
+  enabled: boolean;
+}
+
 export interface CardPayload {
   slots: (string | null)[];
+  /** The full entry pool at save time (text + mandatory + enabled), including entries beyond the grid's capacity. */
+  entries: StoredEntry[];
   title: string;
   hasFreeSpace: boolean;
   freeSpaceText: string;
@@ -125,6 +136,21 @@ export function parseCardPayload(input: unknown): CardPayload {
     return text === "" ? null : text;
   });
 
+  if (!Array.isArray(raw.entries)) {
+    throw badRequest("entries must be an array");
+  }
+  if (raw.entries.length > MAX_ENTRIES) {
+    throw badRequest(`entries must contain at most ${MAX_ENTRIES} entries`);
+  }
+  const entries: StoredEntry[] = raw.entries.map((entry, index) => {
+    const obj = asRecord(entry, `entries[${index}]`);
+    return {
+      text: requireString(obj.text, `entries[${index}].text`, MAX_SLOT_LENGTH),
+      mandatory: requireBoolean(obj.mandatory, `entries[${index}].mandatory`),
+      enabled: requireBoolean(obj.enabled, `entries[${index}].enabled`),
+    };
+  });
+
   const colorScheme = asRecord(raw.colorScheme, "colorScheme");
   const fontScheme = asRecord(raw.fontScheme, "fontScheme");
   const emojiScheme = asRecord(raw.emojiScheme, "emojiScheme");
@@ -138,6 +164,7 @@ export function parseCardPayload(input: unknown): CardPayload {
 
   const payload: CardPayload = {
     slots,
+    entries,
     title: requireString(raw.title, "title", MAX_TITLE_LENGTH),
     hasFreeSpace: requireBoolean(raw.hasFreeSpace, "hasFreeSpace"),
     freeSpaceText: requireString(raw.freeSpaceText, "freeSpaceText", MAX_FREE_SPACE_LENGTH),

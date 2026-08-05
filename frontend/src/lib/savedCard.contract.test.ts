@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { MAX_THUMBNAIL_BYTES } from "./cardThumbnail";
 import { MAX_EMOJIS } from "./emojiScheme";
 import { FONT_OPTIONS } from "./fontScheme";
-import { fromSavedCardPayload, toSavedCardPayload } from "./savedCard";
+import { MAX_ENTRIES, fromSavedCardPayload, toSavedCardPayload } from "./savedCard";
 
 // The wire-shape contract between this package and backend/.
 //
@@ -12,6 +12,15 @@ import { fromSavedCardPayload, toSavedCardPayload } from "./savedCard";
 
 const WIRE_CARD = {
   slots: ["Airport", null, "Dog"],
+  // The full entry pool: larger than the 3-slot grid (Beach and Museum never
+  // appear on the rendered card), with a mandatory flag and a disabled entry.
+  // Mirrored verbatim in backend/src/lib/cardPayload.contract.test.ts.
+  entries: [
+    { text: "Airport", mandatory: false, enabled: true },
+    { text: "Dog", mandatory: false, enabled: true },
+    { text: "Beach", mandatory: true, enabled: true },
+    { text: "Museum", mandatory: false, enabled: false },
+  ],
   title: "Road trip",
   hasFreeSpace: true,
   freeSpaceText: "FREE",
@@ -42,11 +51,26 @@ describe("stored card wire shape", () => {
     expect(Object.keys(toSavedCardPayload(decoded)).sort()).toEqual([
       "colorScheme",
       "emojiScheme",
+      "entries",
       "fontScheme",
       "freeSpaceText",
       "hasFreeSpace",
       "slots",
       "title",
+    ]);
+  });
+
+  it("derives a pool from slots when the editor had no entries (share-copy / legacy path)", () => {
+    // CardUrlData without an entries field still produces a well-formed payload,
+    // so the backend's required-on-write contract is satisfied.
+    const { entries: _omit, ...wireWithoutEntries } = WIRE_CARD;
+    void _omit;
+    const decoded = fromSavedCardPayload(wireWithoutEntries)!;
+    expect(decoded.entries).toBeUndefined();
+    const payload = toSavedCardPayload(decoded);
+    expect(payload.entries).toEqual([
+      { text: "Airport", mandatory: false, enabled: true },
+      { text: "Dog", mandatory: false, enabled: true },
     ]);
   });
 
@@ -68,9 +92,11 @@ describe("stored card wire shape", () => {
   });
 
   it("pins the shared bounds", () => {
-    // MAX_EMOJIS mirrors the backend's cardPayload.MAX_EMOJIS, and
+    // MAX_EMOJIS mirrors the backend's cardPayload.MAX_EMOJIS,
+    // MAX_ENTRIES mirrors the backend's cardPayload.MAX_ENTRIES, and
     // MAX_THUMBNAIL_BYTES mirrors the backend's cardPayload.MAX_THUMBNAIL_BYTES.
     expect(MAX_EMOJIS).toBe(5);
+    expect(MAX_ENTRIES).toBe(256);
     expect(MAX_THUMBNAIL_BYTES).toBe(100_000);
   });
 });

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ALLOWED_FONTS,
   MAX_EMOJIS,
+  MAX_ENTRIES,
   MAX_SLOTS,
   MAX_THUMBNAIL_BYTES,
   parseCardPayload,
@@ -22,6 +23,15 @@ import {
 
 const WIRE_CARD = {
   slots: ["Airport", null, "Dog"],
+  // The full entry pool: larger than the 3-slot grid (Beach and Museum never
+  // appear on the rendered card), with a mandatory flag and a disabled entry.
+  // Mirrored verbatim in frontend/src/lib/savedCard.contract.test.ts.
+  entries: [
+    { text: "Airport", mandatory: false, enabled: true },
+    { text: "Dog", mandatory: false, enabled: true },
+    { text: "Beach", mandatory: true, enabled: true },
+    { text: "Museum", mandatory: false, enabled: false },
+  ],
   title: "Road trip",
   hasFreeSpace: true,
   freeSpaceText: "FREE",
@@ -49,6 +59,7 @@ describe("stored card wire shape", () => {
     expect(Object.keys(parseCardPayload(WIRE_CARD)).sort()).toEqual([
       "colorScheme",
       "emojiScheme",
+      "entries",
       "fontScheme",
       "freeSpaceText",
       "hasFreeSpace",
@@ -76,10 +87,12 @@ describe("stored card wire shape", () => {
 
   it("pins the shared bounds", () => {
     // MAX_EMOJIS must equal the frontend's emojiScheme.MAX_EMOJIS,
-    // MAX_SLOTS the frontend's cardUrl.MAX_SLOTS, and MAX_THUMBNAIL_BYTES the
-    // frontend's cardThumbnail.MAX_THUMBNAIL_BYTES.
+    // MAX_SLOTS the frontend's savedCard.MAX_SLOTS,
+    // MAX_ENTRIES the frontend's savedCard.MAX_ENTRIES, and
+    // MAX_THUMBNAIL_BYTES the frontend's cardThumbnail.MAX_THUMBNAIL_BYTES.
     expect(MAX_EMOJIS).toBe(5);
     expect(MAX_SLOTS).toBe(64);
+    expect(MAX_ENTRIES).toBe(256);
     expect(MAX_THUMBNAIL_BYTES).toBe(100_000);
   });
 });

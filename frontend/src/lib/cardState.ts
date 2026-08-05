@@ -41,15 +41,18 @@ export function emptyCardState(): CardState {
 /**
  * Builds editor state from decoded card data.
  *
- * Note it uses cardFromSlots, not buildCard: the grid is reconstructed in the
- * exact positions it was shared in, rather than being laid out afresh. That is
- * the whole point of sharing a card.
+ * The entry pool comes from {@link CardUrlData.entries} when present (a saved
+ * card carrying the full pool, flags intact), and otherwise falls back to
+ * deriving it from the grid slots (legacy cards, share snapshots). Either way
+ * the rendered grid is reconstructed from the slots via cardFromSlots — not
+ * re-laid-out from the pool — so an opened card is pixel-identical to how it was
+ * saved, including a randomized arrangement.
  */
 export function cardStateFrom(data: CardUrlData | null): CardState {
   if (!data) return emptyCardState();
 
   return {
-    entries: entriesFromSlots(data.slots),
+    entries: data.entries ?? entriesFromSlots(data.slots),
     title: data.title,
     hasFreeSpace: data.hasFreeSpace,
     freeSpaceText: data.freeSpaceText,

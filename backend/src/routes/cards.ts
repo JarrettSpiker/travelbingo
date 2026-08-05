@@ -55,6 +55,7 @@ interface CardMeta extends CardPayload {
 function toCardPayload(meta: CardMeta): CardPayload {
   return {
     slots: meta.slots,
+    entries: meta.entries,
     title: meta.title,
     hasFreeSpace: meta.hasFreeSpace,
     freeSpaceText: meta.freeSpaceText,
@@ -224,6 +225,7 @@ export async function replaceCard(deps: Deps, request: RouteRequest): Promise<Js
   // when no thumbnail is supplied the existing key is left untouched.
   const metaNames: Record<string, string> = {
     "#slots": "slots",
+    "#entries": "entries",
     "#title": "title",
     "#hasFreeSpace": "hasFreeSpace",
     "#freeSpaceText": "freeSpaceText",
@@ -235,6 +237,7 @@ export async function replaceCard(deps: Deps, request: RouteRequest): Promise<Js
   };
   const metaValues: Record<string, unknown> = {
     ":slots": payload.slots,
+    ":entries": payload.entries,
     ":title": payload.title,
     ":hasFreeSpace": payload.hasFreeSpace,
     ":freeSpaceText": payload.freeSpaceText,
@@ -262,7 +265,7 @@ export async function replaceCard(deps: Deps, request: RouteRequest): Promise<Js
           Update: {
             TableName: deps.tableName,
             Key: cardMetaKey(cardId),
-            UpdateExpression: `SET #slots = :slots, #title = :title, #hasFreeSpace = :hasFreeSpace, #freeSpaceText = :freeSpaceText, #colorScheme = :colorScheme, #fontScheme = :fontScheme, #emojiScheme = :emojiScheme, #payloadVersion = :payloadVersion, #updatedAt = :updatedAt${thumbnailSet}`,
+            UpdateExpression: `SET #slots = :slots, #entries = :entries, #title = :title, #hasFreeSpace = :hasFreeSpace, #freeSpaceText = :freeSpaceText, #colorScheme = :colorScheme, #fontScheme = :fontScheme, #emojiScheme = :emojiScheme, #payloadVersion = :payloadVersion, #updatedAt = :updatedAt${thumbnailSet}`,
             ExpressionAttributeNames: metaNames,
             ExpressionAttributeValues: metaValues,
           },

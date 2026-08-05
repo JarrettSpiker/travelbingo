@@ -118,6 +118,10 @@ function App({ initialCard = null, initialCardId = null }: AppProps = {}) {
   function currentCardData(): CardUrlData {
     return {
       slots: cardToSlots(card, hasFreeSpace),
+      // The full pool (with flags) is what makes a saved card non-lossy: it
+      // carries entries beyond the grid's capacity and disabled entries, which
+      // the grid slots alone cannot represent.
+      entries,
       title,
       hasFreeSpace,
       freeSpaceText,

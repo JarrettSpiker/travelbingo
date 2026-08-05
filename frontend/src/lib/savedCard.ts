@@ -1,4 +1,6 @@
+import type { BingoEntry } from "./bingo";
 import type { CardUrlData } from "./cardData";
+import { entriesFromSlots } from "./cardState";
 import { DEFAULT_COLOR_SCHEME, type ColorScheme } from "./colorScheme";
 import { MAX_EMOJIS } from "./emojiScheme";
 import { DEFAULT_FONT_SCHEME, FONT_OPTIONS, type FontScheme } from "./fontScheme";
@@ -18,12 +20,27 @@ import { DEFAULT_FONT_SCHEME, FONT_OPTIONS, type FontScheme } from "./fontScheme
 
 export interface SavedCardPayload {
   slots: (string | null)[];
+  /**
+   * The full entry pool at save time: every entry's text plus its mandatory and
+   * enabled flags, including entries beyond the grid's capacity and including
+   * disabled entries. The grid layout itself is still carried by {@link slots};
+   * this carries everything slots cannot.
+   */
+  entries: StoredEntry[];
   title: string;
   hasFreeSpace: boolean;
   freeSpaceText: string;
   colorScheme: ColorScheme;
   fontScheme: FontScheme;
   emojiScheme: { emojis: string[] };
+}
+
+/** The on-the-wire shape of a single entry. Mirrors backend/src/lib/cardPayload.ts. */
+export interface StoredEntry {
+  text: string;
+  mandatory: boolean;
+  /** Persisted explicitly on the wire (unlike the in-memory optional BingoEntry.enabled). */
+  enabled: boolean;
 }
 
 /** Summary row as returned by GET /api/cards. */
@@ -40,12 +57,24 @@ export interface SavedCardSummary {
 const HEX_COLOR = /^#[0-9a-fA-F]{3,8}$/;
 const ALLOWED_FONTS = new Set(FONT_OPTIONS.map((option) => option.value));
 const MAX_SLOTS = 64;
+/** Mirrors backend/src/lib/cardPayload.ts MAX_ENTRIES; pinned in both contract tests. */
+export const MAX_ENTRIES = 256;
 
 export function toSavedCardPayload(data: CardUrlData): SavedCardPayload {
+  // Derive the pool from the grid only when the editor did not supply one — the
+  // legacy / share-copy path, where CardUrlData carries slots but no entries.
+  // Every save the backend sees is well-formed with a full pool, so the backend
+  // can require the field without breaking that flow.
+  const pool = data.entries ?? entriesFromSlots(data.slots);
   return {
     // Normalized the same way the API will: "" and null both mean an empty
     // cell, so sending one consistently keeps a round-trip stable.
     slots: data.slots.map((slot) => (slot === null || slot === "" ? null : slot)),
+    entries: pool.map((entry) => ({
+      text: entry.text,
+      mandatory: entry.mandatory,
+      enabled: entry.enabled ?? true,
+    })),
     title: data.title,
     hasFreeSpace: data.hasFreeSpace,
     freeSpaceText: data.freeSpaceText,
@@ -85,10 +114,17 @@ export function fromSavedCardPayload(payload: unknown): CardUrlData | null {
     ? raw.emojiScheme
     : {}) as Record<string, unknown>;
 
+  // Optional on read: legacy cards and share snapshots taken from them predate
+  // the field. When absent, omit it so cardStateFrom falls back to deriving the
+  // pool from the slots. When present, coerce defensively — the API rejects
+  // malformed entries, but a card the user can still see beats a blank page.
+  const entries = readEntries(raw.entries);
+
   return {
     slots: raw.slots
       .slice(0, MAX_SLOTS)
       .map((slot) => (typeof slot === "string" && slot !== "" ? slot : null)),
+    ...(entries ? { entries } : {}),
     title: typeof raw.title === "string" ? raw.title : "",
     hasFreeSpace: typeof raw.hasFreeSpace === "boolean" ? raw.hasFreeSpace : true,
     freeSpaceText: typeof raw.freeSpaceText === "string" ? raw.freeSpaceText : "",
@@ -108,4 +144,22 @@ export function fromSavedCardPayload(payload: unknown): CardUrlData | null {
         : [],
     },
   };
+}
+
+/** Reads the optional entries pool, coercing defensively. Returns null when absent. */
+function readEntries(value: unknown): BingoEntry[] | null {
+  if (!Array.isArray(value)) return null;
+  const entries: BingoEntry[] = [];
+  for (const item of value) {
+    if (typeof item !== "object" || item === null) continue;
+    const entry = item as Record<string, unknown>;
+    if (typeof entry.text !== "string") continue;
+    entries.push({
+      text: entry.text,
+      mandatory: typeof entry.mandatory === "boolean" ? entry.mandatory : false,
+      enabled: typeof entry.enabled === "boolean" ? entry.enabled : true,
+    });
+    if (entries.length >= MAX_ENTRIES) break;
+  }
+  return entries;
 }

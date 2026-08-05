@@ -24,6 +24,7 @@ import MoreVertIcon from "@mui/icons-material/MoreVert";
 import ShareIcon from "@mui/icons-material/Share";
 import { useAuth } from "../auth/authContext";
 import { deleteCard, getCard, listCards, renameCard } from "../lib/cardsApi";
+import { editorPathWithCard } from "../lib/cardParam";
 import type { SavedCardSummary } from "../lib/savedCard";
 import { ShareLinkDialog } from "../components/ShareLinkDialog";
 
@@ -66,9 +67,10 @@ export function SavedCardsPage() {
         setError("That card could not be opened.");
         return;
       }
-      // Handed to the editor through navigation state; the editor route
-      // remounts on a fresh location key so its initializers see it.
-      void navigate("/", { state: { card, cardId } });
+      // Handed to the editor through navigation state for an instant first
+      // paint; the id is also in the URL (?card=<id>) so a reload, back/forward,
+      // or bookmark can restore the same card without the in-memory state.
+      void navigate(editorPathWithCard(cardId), { state: { card, cardId } });
     } catch {
       setError("That card could not be opened.");
     } finally {

@@ -1,9 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { HttpError } from "../http.ts";
-import { MAX_PAYLOAD_BYTES, MAX_SLOTS, parseCardPayload, parseTitle } from "./cardPayload.ts";
+import {
+  MAX_ENTRIES,
+  MAX_PAYLOAD_BYTES,
+  MAX_SLOTS,
+  parseCardPayload,
+  parseTitle,
+} from "./cardPayload.ts";
 
 const valid = {
   slots: ["Airport", "", null, "Dog"],
+  entries: [
+    { text: "Airport", mandatory: false, enabled: true },
+    { text: "Dog", mandatory: false, enabled: true },
+    { text: "Beach", mandatory: true, enabled: true },
+    { text: "Museum (off)", mandatory: false, enabled: false },
+  ],
   title: "Road trip",
   hasFreeSpace: true,
   freeSpaceText: "FREE",
@@ -37,6 +49,15 @@ describe("parseCardPayload", () => {
     expect(parsed.emojiScheme.emojis).toEqual(["🚗", "🌲"]);
   });
 
+  it("preserves the full entry pool, including entries beyond the grid and a disabled entry", () => {
+    const parsed = parseCardPayload(valid);
+    expect(parsed.entries).toEqual(valid.entries);
+    // Beach and Museum never appear in the 4-slot grid, yet they survive.
+    expect(parsed.entries.map((e) => e.text)).toEqual(["Airport", "Dog", "Beach", "Museum (off)"]);
+    const disabled = parsed.entries.find((e) => e.text === "Museum (off)");
+    expect(disabled?.enabled).toBe(false);
+  });
+
   it("normalizes empty slot strings to null", () => {
     expect(parseCardPayload(valid).slots).toEqual(["Airport", null, null, "Dog"]);
   });
@@ -68,6 +89,55 @@ describe("parseCardPayload", () => {
 
   it("bounds the number of emojis", () => {
     expect(rejects({ ...valid, emojiScheme: { emojis: ["1", "2", "3", "4", "5", "6"] } })).toBe(400);
+  });
+
+  it("rejects a missing entries array", () => {
+    const { entries: _omit, ...withoutEntries } = valid;
+    void _omit;
+    expect(rejects(withoutEntries)).toBe(400);
+  });
+
+  it("rejects a non-array entries field", () => {
+    expect(rejects({ ...valid, entries: "nope" })).toBe(400);
+    expect(rejects({ ...valid, entries: null })).toBe(400);
+  });
+
+  it("bounds the number of entries", () => {
+    const entries = Array.from({ length: MAX_ENTRIES + 1 }, () => ({
+      text: "x",
+      mandatory: false,
+      enabled: true,
+    }));
+    expect(rejects({ ...valid, entries })).toBe(400);
+  });
+
+  it("accepts exactly the entry count cap", () => {
+    const entries = Array.from({ length: MAX_ENTRIES }, () => ({
+      text: "x",
+      mandatory: false,
+      enabled: true,
+    }));
+    expect(rejects({ ...valid, entries })).toBe(200);
+  });
+
+  it("rejects malformed entries", () => {
+    expect(rejects({ ...valid, entries: [{ text: "ok", mandatory: false, enabled: true }, "nope"] })).toBe(400);
+    expect(rejects({ ...valid, entries: [{ mandatory: false, enabled: true }] })).toBe(400); // missing text
+    expect(rejects({ ...valid, entries: [{ text: 42, mandatory: false, enabled: true }] })).toBe(400);
+    expect(rejects({ ...valid, entries: [{ text: "ok", mandatory: "yes", enabled: true }] })).toBe(400);
+    expect(rejects({ ...valid, entries: [{ text: "ok", mandatory: false, enabled: 1 }] })).toBe(400);
+  });
+
+  it("counts the entry pool toward the payload byte cap", () => {
+    // The count cap alone permits a payload the byte cap rejects: a pathological
+    // pool of max-length texts. The byte cap is the real backstop here.
+    const entries = Array.from({ length: MAX_ENTRIES }, () => ({
+      text: "x".repeat(200),
+      mandatory: false,
+      enabled: true,
+    }));
+    expect(rejects({ ...valid, entries })).toBe(400);
+    expect(Buffer.byteLength(JSON.stringify({ ...valid, entries }))).toBeGreaterThan(MAX_PAYLOAD_BYTES);
   });
 
   it("bounds individual text lengths", () => {
