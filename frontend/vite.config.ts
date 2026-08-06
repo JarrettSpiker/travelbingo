@@ -8,6 +8,12 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     server: {
+      // Cognito's redirect URI is registered as exactly
+      // http://localhost:5173/auth/callback. Without strictPort, a port already
+      // in use makes Vite silently serve on 5174, and sign-in then fails with a
+      // redirect-mismatch error that reads like an auth bug. Fail loudly instead.
+      port: 5173,
+      strictPort: true,
       proxy: {
         // In production the API is same-origin: CloudFront routes /api/* to API
         // Gateway. This makes local dev match, so the app never needs a separate

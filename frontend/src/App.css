@@ -69,6 +69,41 @@
 }
 
 @media print {
+  /*
+    Opt-in isolation: hide everything, then reveal the card.
+
+    This replaces an opt-out rule (`.no-print { display: none }`), which was
+    correct only for as long as every author remembered the class. Any new
+    chrome — a header, a nav, a page background — leaked into the PDF by
+    default. Inverting it makes the exclusion structural: the printed page
+    contains the card because the card is what we opted in, not because
+    everything else happened to be marked.
+
+    `visibility` rather than `display`, so layout inside the card is preserved.
+    The card is then absolutely positioned because hiding an ancestor visually
+    does not reclaim the space it occupied.
+  */
+  body {
+    /* A page background paints outside the cascade that hides its elements. */
+    background: none !important;
+  }
+
+  /*
+    Hide every element except the card, the card's contents, and the card's
+    ancestors. Keeping the ancestors is what makes this layout-preserving: the
+    card stays in its normal flow position inside its container, so the printed
+    result is geometrically identical to the old opt-out rule — it is only the
+    *siblings* that collapse.
+
+    If `:has()` is ever unavailable, this selector simply matches nothing and
+    the `.no-print` rule below still hides the main chrome, degrading to the
+    previous behaviour rather than printing the whole page.
+  */
+  body *:not(:has(.bingo-card)):not(.bingo-card):not(.bingo-card *) {
+    display: none;
+  }
+
+  /* Retained as a belt-and-braces alias, and as the `:has()` fallback. */
   .no-print {
     display: none !important;
   }

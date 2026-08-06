@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigationType } from "react-router";
 import CircularProgress from "@mui/material/CircularProgress";
 import Container from "@mui/material/Container";
@@ -21,6 +21,16 @@ interface EditorNavigationState {
   card?: CardUrlData;
   cardId?: string;
 }
+
+/**
+ * The dev-only component gallery (see frontend/DESIGN.md).
+ *
+ * Vite replaces `import.meta.env.DEV` with the literal `false` at build time, so
+ * Rollup drops the dead branch and, with it, the dynamic import — meaning the
+ * gallery chunk is never emitted. That is verified rather than assumed: the
+ * build output is grepped for GALLERY_SENTINEL.
+ */
+const GalleryPage = import.meta.env.DEV ? lazy(() => import("./dev/GalleryPage")) : null;
 
 /** Non-blocking spinner shown only while the reload-restore fetch is in flight. */
 function EditorLoading() {
@@ -122,6 +132,16 @@ export function AppRoutes() {
       <Route path="/cards" element={<SavedCardsPage />} />
       <Route path="/s/:token" element={<SharedCardPage />} />
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
+      {GalleryPage && (
+        <Route
+          path="/ui"
+          element={
+            <Suspense fallback={<EditorLoading />}>
+              <GalleryPage />
+            </Suspense>
+          }
+        />
+      )}
       {/* Anything else lands on the editor rather than a dead end. */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

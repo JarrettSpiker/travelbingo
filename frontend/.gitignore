@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Screenshots and PDFs from scripts/capture.mjs — review artifacts, never committed.
+.captures/

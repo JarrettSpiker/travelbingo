@@ -39,6 +39,13 @@ Originally built from the OpenSpec change in
     `colorScheme.ts`, `fontScheme.ts`), each with a co-located `*.test.ts`.
   - `src/components/` — MUI v9 React components.
   - `src/theme.ts` — shared MUI theme.
+  - `src/dev/` — the component gallery at `/ui`. **Dev-only**: guarded by
+    `import.meta.env.DEV` behind a dynamic import, so it is dropped from
+    production builds. Never import it from application code.
+  - `scripts/capture.mjs` — screenshots and print-PDFs of the running dev
+    server, via headless Chrome over the DevTools Protocol. Node built-ins only.
+    `npm run capture -- /ui`.
+  - `DESIGN.md` — visual rules, the review loop, and the export checklist.
 - `backend/` — Node 22 TypeScript Lambda behind an API Gateway HTTP API. Owns
   saved cards and share links.
   - `src/auth.ts` — **the** authorization module (see the constraints below).
@@ -129,6 +136,17 @@ terraform apply -var="bucket_name=<globally-unique-bucket>"
   `cardUrl.ts` — persisted state must never be silently "corrected".
 - Keep card-generation and data logic **pure and in `src/lib/`** (in both
   packages) so it stays unit-testable and free of React/DOM dependencies.
+- **The card renderer is frozen.** `frontend/src/components/CardGrid.tsx` and the
+  `.bingo-*` rules in `frontend/src/App.css` render *user data* (the saved
+  colour, font, and emoji schemes) and feed four consumers: the screen preview,
+  `@media print`, the `html-to-image` PNG export, and `src/lib/cardThumbnail.ts`.
+  Restyling them changes what users have already saved and exported. No app
+  design tokens and no `oklch()` inside the card; the fixed `#ccc`/`#999` borders
+  are deliberate, not a dark-mode bug. See `frontend/DESIGN.md`;
+  `cardGrid.guard.test.ts` enforces the mechanical parts.
+- **`frontend/src/App.css` is deliberately unlayered CSS.** Unlayered rules beat
+  anything inside an `@layer`, which is what keeps the card immune to app-wide
+  styling. Don't wrap it in a layer.
 - **Auth effects live only in `frontend/src/auth/AuthProvider.tsx`**, never in
   `App.tsx`. The provider renders children immediately so authentication never
   gates first paint.
@@ -137,8 +155,12 @@ terraform apply -var="bucket_name=<globally-unique-bucket>"
 
 - New pure logic → `src/lib/`; new UI → `src/components/`.
 - Co-locate tests next to source: `foo.ts` ↔ `foo.test.ts`.
-- Styling via MUI + Emotion and `src/theme.ts`; follow the patterns in
-  `App.tsx` and the existing components.
+- Styling via MUI + Emotion and `src/theme.ts`. **Read `frontend/DESIGN.md`
+  before UI work** — it carries the visual rules, the review loop, and the
+  frozen-card-renderer constraint.
+- New components need a gallery entry in `frontend/src/dev/gallery/registry.tsx`;
+  `coverage.test.ts` fails without one. Add new *states* of an existing
+  component too — nothing mechanical catches those.
 - Prefer named exports and explicit `type`/`interface` declarations, matching
   the existing style.
 
@@ -161,6 +183,18 @@ npm run build
 All must pass. GitHub Actions runs the same three commands on deploy, so a
 failure here is a failed deploy.
 
+**Visual QA.** If you changed anything that renders, look at it — none of the
+three commands above can. With the dev server running:
+
+```bash
+npm run capture -- /ui        # plus each affected route
+```
+
+That writes light and dark captures at 390px and 1440px to `.captures/`, and
+reports any API request made on load. If you touched `CardGrid.tsx` or
+`App.css`, add `--pdf` and run the export regression checklist (print, PNG,
+thumbnail) in `frontend/DESIGN.md`. "It compiles" is not visual QA.
+
 If you touched the stored card shape, the two contract tests
 (`backend/src/lib/cardPayload.contract.test.ts` and
 `frontend/src/lib/savedCard.contract.test.ts`) must be updated together — they
@@ -176,6 +210,9 @@ source of intent for what the app should do.
 ## Gotchas
 
 - No root `package.json` — don't run `npm` at the repo root.
+- The dev server is pinned to port 5173 with `strictPort`, because Cognito's
+  redirect URI is registered as exactly `http://localhost:5173/auth/callback`.
+  If it fails to start, free the port rather than letting it move.
 - `.opencode/node_modules/`, `.claude/`, and `.pi/` are tooling, not app code;
   leave them alone unless intentionally changing the agent setup.
 - Single `main` branch. Pushing to it auto-deploys **dev**; prod is a manual,

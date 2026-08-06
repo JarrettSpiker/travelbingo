@@ -5,9 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && node scripts/check-bundle.mjs",
     "lint": "oxlint",
     "preview": "vite preview",
+    "capture": "node scripts/capture.mjs",
+    "export-check": "node scripts/export-check.mjs",
     "test": "vitest run"
   },
   "dependencies": {

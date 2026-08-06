@@ -38,4 +38,4 @@
 ## 6. Tests and verification
 
 - [x] 6.1 Run `npm run lint`, `npm test`, and `npm run build` in **both** `frontend/` and `backend/`; confirm all pass
-- [ ] 6.2 Manually verify: build a pool with >24 entries (some mandatory, some disabled), randomize, save, reload, reopen — every entry is present with flags intact and the rendered grid is unchanged; open a legacy card (or one saved before deploy) and confirm it opens without error via the slots fallback
+- [x] 6.2 Manually verify: build a pool with >24 entries (some mandatory, some disabled), randomize, save, reload, reopen — every entry is present with flags intact and the rendered grid is unchanged; open a legacy card (or one saved before deploy) and confirm it opens without error via the slots fallback
