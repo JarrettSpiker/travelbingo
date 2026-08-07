@@ -8,7 +8,7 @@
 //   CARD#<cardId>   MEMBER#<sub>    role, createdAt
 //   CARD#<cardId>   SHARE#<token>   createdAt                <- owner-facing pointer
 //   SHARE#<token>   META            cardId, ownerId, snapshot{}, createdAt
-//   USER#<sub>      PROFILE         email, googleSubject, createdAt, lastSeenAt
+//   USER#<sub>      PROFILE         displayName, createdAt, updatedAt
 
 export interface TableKey {
   PK: string;

@@ -20,6 +20,8 @@ locals {
     "GET /api/cards/{cardId}/shares"            = { authorized = true }
     "POST /api/cards/{cardId}/shares"           = { authorized = true }
     "DELETE /api/cards/{cardId}/shares/{token}" = { authorized = true }
+    "GET /api/me/profile"                       = { authorized = true }
+    "PUT /api/me/profile"                       = { authorized = true }
     (local.public_share_route)                  = { authorized = false }
   }
 }

@@ -1,5 +1,7 @@
 import { useRef, useState, type ReactNode } from "react";
+import { User } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { AuthMenu } from "../../components/AuthMenu";
 import { CardDetailsForm } from "../../components/CardDetailsForm";
 import { CardGrid } from "../../components/CardGrid";
@@ -8,6 +10,8 @@ import { ColorSchemeForm } from "../../components/ColorSchemeForm";
 import { EmojiSchemeForm } from "../../components/EmojiSchemeForm";
 import { EntryInput } from "../../components/EntryInput";
 import { FontSchemeForm } from "../../components/FontSchemeForm";
+import { Panel } from "../../components/Panel";
+import { MAX_DISPLAY_NAME_LENGTH } from "../../lib/profileApi";
 import { type BingoEntry } from "../../lib/bingo";
 import { type ColorScheme } from "../../lib/colorScheme";
 import { type EmojiScheme } from "../../lib/emojiScheme";
@@ -113,6 +117,41 @@ export function CardGridSample({
 
 export function AuthMenuSample() {
   return <AuthMenu onSaveCard={async () => "Saved"} />;
+}
+
+/**
+ * The display-name section of the settings page. The full page redirects signed
+ * out visitors, so the gallery renders the section in isolation — the same way
+ * the other samples wrap a real component with their own state.
+ */
+export function SettingsPageSample() {
+  const [value, setValue] = useState("Road Tripper");
+  return (
+    <Panel title="Display name" icon={User}>
+      <div className="grid gap-3">
+        <p className="text-sm text-muted-foreground">
+          Shown in place of your email wherever your identity appears to you. Leave it blank to use your
+          email instead.
+        </p>
+        <div className="grid gap-1.5">
+          <label htmlFor="gallery-display-name" className="text-sm font-medium">
+            Display name
+          </label>
+          <Input
+            id="gallery-display-name"
+            value={value}
+            onChange={(event) => setValue(event.target.value)}
+            maxLength={MAX_DISPLAY_NAME_LENGTH}
+          />
+          <p className="text-xs text-muted-foreground">Up to {MAX_DISPLAY_NAME_LENGTH} characters.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button>Save</Button>
+          <Button variant="ghost">Clear</Button>
+        </div>
+      </div>
+    </Panel>
+  );
 }
 
 /**

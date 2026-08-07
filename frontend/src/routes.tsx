@@ -5,6 +5,7 @@ import { AppShell } from "./components/AppShell";
 import { Spinner } from "./components/ui/spinner";
 import { AuthCallbackPage } from "./pages/AuthCallbackPage";
 import { SavedCardsPage } from "./pages/SavedCardsPage";
+import { SettingsPage } from "./pages/SettingsPage";
 import { SharedCardPage } from "./pages/SharedCardPage";
 import { useAuth } from "./auth/authContext";
 import { readCardParam } from "./lib/cardParam";
@@ -129,6 +130,7 @@ export function AppRoutes() {
     <Routes>
       <Route path="/" element={<EditorRoute />} />
       <Route path="/cards" element={<SavedCardsPage />} />
+      <Route path="/settings" element={<SettingsPage />} />
       <Route path="/s/:token" element={<SharedCardPage />} />
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
       {GalleryPage && (

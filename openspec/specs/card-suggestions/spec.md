@@ -40,7 +40,7 @@ The system SHALL append the user's selected suggested cells to the entry pool ra
 - **THEN** they SHALL be enabled and non-mandatory, like entries added manually
 
 ### Requirement: Suggested theme presets
-The system SHALL offer suggested themes, where each theme is a preset bundle of a color scheme, a font scheme, and an emoji scheme. Applying a theme SHALL set all three schemes at once. The user SHALL be able to apply a theme without adding any suggested cells.
+The system SHALL offer suggested themes, where each theme is a preset bundle of a color scheme, a font scheme, and an emoji scheme. Applying a theme SHALL set all three schemes at once. The user SHALL be able to apply a theme without adding any suggested cells. Suggested themes SHALL be reachable both from the suggestions dialog and directly from the card's customization controls.
 
 #### Scenario: Apply a theme
 - **WHEN** the user applies a suggested theme
@@ -49,6 +49,10 @@ The system SHALL offer suggested themes, where each theme is a preset bundle of 
 #### Scenario: Theme does not change entries
 - **WHEN** the user applies a suggested theme
 - **THEN** the entry pool SHALL be unchanged
+
+#### Scenario: Apply a theme from the customization controls
+- **WHEN** the user applies a suggested theme from the card's customization controls, without opening the suggestions dialog
+- **THEN** the system SHALL apply that theme's color, font, and emoji schemes exactly as it would from within the dialog
 
 ### Requirement: Suggestion content loaded from bundled data
 The system SHALL load the suggested cells and suggested themes from data files bundled with the app at build time, not via a network call. The data SHALL be authored separately from the component and logic code so it can be edited easily.

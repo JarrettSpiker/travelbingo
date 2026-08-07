@@ -1,5 +1,6 @@
 import { createContext, use } from "react";
 import type { ApiClient } from "../lib/apiClient";
+import type { Profile } from "../lib/profileApi";
 
 // Context and hook only, deliberately no components: frontend/.oxlintrc.json
 // enables react/only-export-components, and mixing the two here would trip it.
@@ -16,6 +17,17 @@ export interface AuthContextValue {
   status: AuthStatus;
   /** Display only, read from an unverified ID token. Never an authorization input. */
   email: string | null;
+  /**
+   * The display name on the caller's own profile, fetched once after auth
+   * resolves. `null` until that fetch completes or if none is set; the menu then
+   * falls back to {@link email}. Display only — never an authorization input.
+   */
+  displayName: string | null;
+  /**
+   * Updates the cached profile after a settings-page save, so the account menu
+   * reflects a new display name without a reload.
+   */
+  setProfile: (profile: Profile) => void;
   /** False when the build has no Cognito configuration; account UI is hidden. */
   accountsEnabled: boolean;
   signIn: (returnTo?: string) => void;

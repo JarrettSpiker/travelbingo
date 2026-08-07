@@ -30,7 +30,7 @@ interface AuthMenuProps {
  * accounts existed.
  */
 export function AuthMenu({ onSaveCard }: AuthMenuProps) {
-  const { status, email, accountsEnabled, signIn, signOut } = useAuth();
+  const { status, email, displayName, accountsEnabled, signIn, signOut } = useAuth();
   const navigate = useNavigate();
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -77,7 +77,7 @@ export function AuthMenu({ onSaveCard }: AuthMenuProps) {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="sm" className="max-w-40">
-            <span className="truncate">{email ?? "Account"}</span>
+            <span className="truncate">{displayName ?? email ?? "Account"}</span>
             <ChevronDown aria-hidden />
           </Button>
         </DropdownMenuTrigger>
@@ -85,6 +85,7 @@ export function AuthMenu({ onSaveCard }: AuthMenuProps) {
           <DropdownMenuItem onSelect={() => void navigate("/cards")}>
             My saved cards
           </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => void navigate("/settings")}>Settings</DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => signOut()}>Sign out</DropdownMenuItem>
         </DropdownMenuContent>

@@ -3,6 +3,7 @@ import type { Deps } from "./context.ts";
 import { badRequest, errorResponse, HttpError, json, type JsonResponse } from "./http.ts";
 import type { RouteRequest } from "./request.ts";
 import { createCard, deleteCard, getCard, listCards, renameCard, replaceCard } from "./routes/cards.ts";
+import { getProfile, updateProfile } from "./routes/profile.ts";
 import { createShare, listShares, resolveShare, revokeShare } from "./routes/shares.ts";
 
 /**
@@ -39,6 +40,8 @@ const ROUTES: Record<string, Route> = {
   "GET /api/cards/{cardId}/shares": { handler: listShares },
   "POST /api/cards/{cardId}/shares": { handler: createShare },
   "DELETE /api/cards/{cardId}/shares/{token}": { handler: revokeShare },
+  "GET /api/me/profile": { handler: getProfile },
+  "PUT /api/me/profile": { handler: updateProfile },
   "GET /api/shares/{token}": { handler: resolveShare, public: true },
 };
 

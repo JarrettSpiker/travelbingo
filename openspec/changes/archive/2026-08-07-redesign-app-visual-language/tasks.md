@@ -283,7 +283,13 @@ caught:
 - [x] 8.6 `dist/` contains no gallery sentinel and no `@mui` reference
 - [x] 8.7 Keyboard pass: focus rings everywhere; Radix dialogs trap focus, restore on close, close on Escape. **Restoration was broken and is now fixed** — see below
 - [x] 8.8 Confirm `document.fonts.ready` still resolves before print and PNG — it gates both (`CardView.tsx`, `cardThumbnail.ts`)
-- [ ] 8.9 **Post-deploy CSP check.** On the dev deploy, with the console open, exercise a Select, DropdownMenu, Popover, Dialog, and the emoji picker. Expect zero violations. **Cannot be done locally — CloudFront applies the policy and dev never sees it.** This is the one task that has to run after a deploy
+- [x] 8.9 **Post-deploy CSP check.** Run against `https://dev.travelbingo.ca`, driving the real deployed app so CloudFront's policy actually applied. All five exercised — Select, Popover, DropdownMenu, Dialog, and the emoji picker, which rendered, confirming `EmojiStyle.NATIVE` reaches no blocked CDN. **Zero** violations from the devtools log *and* from the page's own `securitypolicyviolation` listener, and zero other console errors.
+
+  Worth doing this way rather than by eye: a CSP violation logs and can leave no
+  visible trace, so "the page looks right" is not the same check. The deployed
+  header is unchanged from before the migration — `style-src 'self'
+  'unsafe-inline'` now satisfies Radix's inline positioning styles exactly as it
+  used to satisfy Emotion's, and `script-src` remains free of `'unsafe-inline'`.
 
 ### Phase 8 findings
 

@@ -12,6 +12,7 @@ import {
 import { clearSession, loadSession, savePending, saveSession } from "../lib/authSession";
 import { exchangeCodeForTokens, refreshTokens, type TokenSet } from "../lib/authTokens";
 import { createApiClient } from "../lib/apiClient";
+import { getProfile } from "../lib/profileApi";
 import { AuthContext, type AuthContextValue, type AuthStatus } from "./authContext";
 
 /**
@@ -29,6 +30,14 @@ import { AuthContext, type AuthContextValue, type AuthStatus } from "./authConte
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>(authConfig ? "loading" : "anonymous");
   const [email, setEmail] = useState<string | null>(null);
+  // The display name arrives from a one-shot profile fetch once authentication
+  // resolves (see the effect below). null means "not set or not loaded yet";
+  // the account menu falls back to the email in that case.
+  const [displayName, setDisplayName] = useState<string | null>(null);
+  // Bumped whenever the cached profile is updated directly (a settings-page
+  // save), so a still-in-flight one-shot GET cannot land afterwards and
+  // overwrite the newer value with a stale one.
+  const profileEpochRef = useRef(0);
 
   // Access and ID tokens are held in memory only; just the refresh token is
   // persisted. See authSession.ts for the trade-off.
@@ -53,6 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     tokensRef.current = null;
     clearSession();
     setEmail(null);
+    setDisplayName(null);
     setStatus("anonymous");
   }, []);
 
@@ -166,9 +176,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [getAccessToken, doRefresh],
   );
 
+  /**
+   * Called by the settings page after a successful save, so the account menu
+   * reflects the new display name without a reload — the scenario the spec
+   * pins. Only the cached field is touched; no network call. Bumps the epoch so
+   * a still-in-flight one-shot GET cannot overwrite this newer value.
+   */
+  const setProfile = useCallback((profile: { displayName: string | null }) => {
+    profileEpochRef.current += 1;
+    setDisplayName(profile.displayName);
+  }, []);
+
+  // The profile is fetched once per signed-in session, after authentication
+  // resolves — never when signed out or when the build has no Cognito config.
+  // It is non-blocking and non-fatal: until it resolves, or if it fails
+  // transiently, displayName stays null and the menu falls back to the email.
+  // On a token-refresh-driven re-auth within the same session status does not
+  // change (it stays "authenticated") and `api` is memoized, so this does not
+  // refetch on every 401 refresh. The epoch guard drops a response that lost a
+  // race against a settings-page save.
+  useEffect(() => {
+    if (status !== "authenticated") return;
+    const epoch = profileEpochRef.current;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const profile = await getProfile(api);
+        if (cancelled || profileEpochRef.current !== epoch) return;
+        setDisplayName(profile.displayName);
+      } catch {
+        // Non-fatal: leave displayName at null; the email fallback still shows.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [status, api]);
+
   const value = useMemo<AuthContextValue>(
-    () => ({ status, email, accountsEnabled: authConfig !== null, signIn, signOut, completeSignIn, api }),
-    [status, email, signIn, signOut, completeSignIn, api],
+    () => ({
+      status,
+      email,
+      displayName,
+      accountsEnabled: authConfig !== null,
+      setProfile,
+      signIn,
+      signOut,
+      completeSignIn,
+      api,
+    }),
+    [status, email, displayName, setProfile, signIn, signOut, completeSignIn, api],
   );
 
   // Children render on the first pass, whatever the status.

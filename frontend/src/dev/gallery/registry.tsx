@@ -26,6 +26,7 @@ import {
   EmojiSchemeFormSample,
   EntryInputSample,
   FontSchemeFormSample,
+  SettingsPageSample,
 } from "./samples";
 
 /**
@@ -172,6 +173,11 @@ export const GALLERY_ENTRIES: GalleryEntry[] = [
     source: "src/components/AuthMenu.tsx",
     title: "Auth menu",
     states: [{ label: "Current auth state", node: <AuthMenuSample /> }],
+  },
+  {
+    source: "src/pages/SettingsPage.tsx",
+    title: "Settings page",
+    states: [{ label: "Display name section", node: <SettingsPageSample /> }],
   },
   {
     source: "src/components/SuggestionsDialog.tsx",
