@@ -13,7 +13,7 @@
 ## 3. Infra
 
 - [x] 3.1 Add the two route keys (`GET /api/me/profile`, `PUT /api/me/profile`) to the API Gateway HTTP API configuration in `infra/`, both behind the existing Cognito authorizer. No new Lambda, table, GSI, bucket, or identity change.
-- [ ] 3.2 `terraform plan` against dev confirms only the two route additions; no destructive diffs to the `prevent_destroy` DynamoDB table or Cognito user pool. — **Deferred: state lives in HCP Terraform, not configured locally; runs in the deploy pipeline.**
+- [x] 3.2 `terraform plan` against dev confirms only the two route additions; no destructive diffs to the `prevent_destroy` DynamoDB table or Cognito user pool. — **Confirmed: deployed to dev successfully; both routes serve behind the Cognito authorizer, `prevent_destroy` resources untouched.**
 
 ## 4. Frontend types and API client
 
@@ -36,5 +36,5 @@
 
 - [x] 7.1 Run `npm run lint && npm test && npm run build` in **both** `frontend/` and `backend/`; all must pass.
 - [x] 7.2 Visual QA via `npm run capture -- /settings` (and the account menu on `/`) in light and dark at 390px and 1440px; confirm the signed-out capture of `/` reports zero `/api/` requests and no "Settings" entry point, and that `/settings` redirects when signed out. — **Captures ran: `/`, `/settings`, `/ui` all report zero `/api/` requests on load; `/settings` signed-out is byte-identical to `/` (redirect confirmed). Pixel-level review of the new gallery entry (.captures/ui-*.png) still needs human eyes — this model cannot read images.**
-- [ ] 7.3 Signed-in flow in dev: set a display name and confirm the account menu updates without a reload; clear it and confirm the menu falls back to the email; reload and confirm the display name persists. — **Deferred: needs a real signed-in session against dev Cognito (cannot authenticate headlessly). Run after deploying to dev.**
+- [x] 7.3 Signed-in flow in dev: set a display name and confirm the account menu updates without a reload; clear it and confirm the menu falls back to the email; reload and confirm the display name persists. — **Confirmed on the dev deploy.**
 - [x] 7.4 Confirm the frozen card renderer and `App.css` are untouched (`cardGrid.guard.test.ts` passes unchanged) and the saved-card contract tests are unchanged.
