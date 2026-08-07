@@ -13,13 +13,15 @@ import { CardView } from "./components/CardView";
 import { SuggestionsDialog } from "./components/SuggestionsDialog";
 import { AuthMenu } from "./components/AuthMenu";
 import { ShareLinkDialog } from "./components/ShareLinkDialog";
+import { UnsavedChangesDialog } from "./components/UnsavedChangesDialog";
 import { useAuth } from "./auth/authContext";
+import { useUnsavedChangesGuard } from "./hooks/useUnsavedChangesGuard";
 import { buildCard, cardToSlots, randomizeCard, type BingoCard, type BingoEntry } from "./lib/bingo";
 import { type ColorScheme } from "./lib/colorScheme";
 import { type EmojiScheme } from "./lib/emojiScheme";
 import { type FontScheme } from "./lib/fontScheme";
 import { type SuggestedTheme } from "./lib/suggestions";
-import { type CardUrlData } from "./lib/cardData";
+import { cardDataEquals, type CardUrlData } from "./lib/cardData";
 import { cardStateFrom } from "./lib/cardState";
 import { createCard, replaceCard } from "./lib/cardsApi";
 import { generateCardThumbnail } from "./lib/cardThumbnail";
@@ -52,9 +54,21 @@ function App({ initialCard = null, initialCardId = null }: AppProps = {}) {
   const [card, setCard] = useState<BingoCard>(() => initialState.card);
   const [savedCardId, setSavedCardId] = useState<string | null>(initialCardId);
   const [shareOpen, setShareOpen] = useState(false);
+  // Save state for the unsaved-changes dialog only. The header's Save button
+  // reports its own result through AuthMenu, and the two must not share a
+  // spinner: they are different actions with different consequences.
+  const [savingBeforeLeave, setSavingBeforeLeave] = useState(false);
+  const [saveAndLeaveError, setSaveAndLeaveError] = useState<string | null>(null);
   // Owned here so the save flow can render a thumbnail from the same node the
   // PNG export uses. Passed down to CardView.
   const cardRef = useRef<HTMLDivElement>(null);
+  /**
+   * The card as it was last saved — or, before any save, as the editor opened.
+   * Unsaved changes are derived by comparing the current snapshot against this,
+   * rather than by a flag every mutating handler must remember to set. Seeded
+   * lazily below, once the first render has state to snapshot.
+   */
+  const baselineRef = useRef<CardUrlData | null>(null);
 
   function handleAddEntry(text: string) {
     const next = [...entries, { text, mandatory: false }];
@@ -142,10 +156,15 @@ function App({ initialCard = null, initialCardId = null }: AppProps = {}) {
     try {
       if (savedCardId) {
         await replaceCard(api, savedCardId, data, thumbnail);
+        baselineRef.current = data;
         return savedCardId;
       }
       const created = await createCard(api, data, thumbnail);
       setSavedCardId(created.cardId);
+      // Only on success, and only the snapshot that was actually persisted: a
+      // failed save leaves the card dirty, and an edit made while the save was
+      // in flight is still an unsaved change.
+      baselineRef.current = data;
       return created.cardId;
     } catch {
       return null;
@@ -154,6 +173,37 @@ function App({ initialCard = null, initialCardId = null }: AppProps = {}) {
 
   async function handleSaveCard(): Promise<string> {
     return (await saveCurrentCard()) ? "Saved" : "Could not save";
+  }
+
+  // Derived during render, not inside a callback, so anything reading it (the
+  // navigation guard included) always sees the value for the current state.
+  const current = currentCardData();
+  baselineRef.current ??= current;
+  const isDirty = !cardDataEquals(current, baselineRef.current);
+  const blocker = useUnsavedChangesGuard(isDirty);
+
+  async function handleSaveAndLeave() {
+    setSaveAndLeaveError(null);
+    setSavingBeforeLeave(true);
+    // saveCurrentCard refreshes the baseline itself on success, so by the time
+    // the navigation proceeds the editor is already clean.
+    const saved = await saveCurrentCard();
+    setSavingBeforeLeave(false);
+    if (!saved) {
+      setSaveAndLeaveError("Could not save this card, so you are still here. Try again?");
+      return;
+    }
+    blocker.proceed?.();
+  }
+
+  function handleStay() {
+    setSaveAndLeaveError(null);
+    blocker.reset?.();
+  }
+
+  function handleLeaveWithoutSaving() {
+    setSaveAndLeaveError(null);
+    blocker.proceed?.();
   }
 
   return (
@@ -285,6 +335,21 @@ function App({ initialCard = null, initialCardId = null }: AppProps = {}) {
         entries={entries}
         onAddEntries={handleAddEntries}
         onApplyTheme={handleApplyTheme}
+      />
+
+      {/*
+        Rendered from the blocker's state, not from a flag set by whatever was
+        clicked: every navigation away from a dirty editor — header links, the
+        account menu, opening another card, back/forward — arrives here.
+      */}
+      <UnsavedChangesDialog
+        open={blocker.state === "blocked"}
+        canSave={accountsEnabled && status === "authenticated"}
+        saving={savingBeforeLeave}
+        error={saveAndLeaveError}
+        onSaveAndLeave={() => void handleSaveAndLeave()}
+        onLeaveWithoutSaving={handleLeaveWithoutSaving}
+        onStay={handleStay}
       />
     </AppShell>
   );

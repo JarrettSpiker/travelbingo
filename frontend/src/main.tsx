@@ -15,7 +15,7 @@ import '@fontsource/anton/400.css'
 import '@fontsource/pacifico/400.css'
 import '@fontsource/fredoka/400.css'
 import '@fontsource/fredoka/700.css'
-import { BrowserRouter } from 'react-router'
+import { createBrowserRouter, RouterProvider } from 'react-router'
 import { applyColorMode, readStoredColorMode } from './lib/colorMode'
 import { TooltipProvider } from './components/ui/tooltip'
 import { AuthProvider } from './auth/AuthProvider.tsx'
@@ -35,24 +35,42 @@ import { AppRoutes } from './routes.tsx'
 */
 applyColorMode(readStoredColorMode())
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    {/*
-      Radix tooltips need one provider above every trigger. This is the only
-      place that is true for both the app and the /ui gallery, which renders
-      components outside the shell.
-    */}
-    <TooltipProvider delayDuration={300}>
-      <BrowserRouter>
-        {/*
-          AuthProvider renders its children immediately at status "loading", so
-          it never gates first paint, and a visitor with no stored session makes
-          no network call at all.
-        */}
+/*
+  A data router with one catch-all route, whose element is the whole app.
+
+  Routing itself is still declarative and still lives in routes.tsx: the <Routes>
+  in there are descendant routes of this one. The data router is here for the
+  router-level APIs the declarative <BrowserRouter> does not provide — namely
+  useBlocker, which the unsaved-changes guard uses to intercept every navigation
+  away from a dirty editor at one point instead of per link. See
+  src/hooks/useUnsavedChangesGuard.ts.
+
+  The providers sit inside the route element rather than above the router, which
+  is where they used to be. That is safe because this route matches every path:
+  the element never changes across a navigation, so React keeps the providers —
+  and the session state in them — mounted. It is a static element rather than a
+  component so this file still exports nothing but its side effects.
+
+  Radix tooltips need one provider above every trigger, true for both the app and
+  the /ui gallery, which renders components outside the shell. AuthProvider
+  renders its children immediately at status "loading", so it never gates first
+  paint, and a visitor with no stored session makes no network call at all.
+*/
+const router = createBrowserRouter([
+  {
+    path: '*',
+    element: (
+      <TooltipProvider delayDuration={300}>
         <AuthProvider>
           <AppRoutes />
         </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
+      </TooltipProvider>
+    ),
+  },
+])
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <RouterProvider router={router} />
   </StrictMode>,
 )

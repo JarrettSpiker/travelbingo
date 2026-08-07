@@ -1,6 +1,7 @@
 import { type ReactNode } from "react";
 import { ShareLinkDialog } from "../../components/ShareLinkDialog";
 import { SuggestionsDialog } from "../../components/SuggestionsDialog";
+import { UnsavedChangesDialog } from "../../components/UnsavedChangesDialog";
 import { DEFAULT_COLOR_SCHEME } from "../../lib/colorScheme";
 import { DEFAULT_EMOJI_SCHEME } from "../../lib/emojiScheme";
 import {
@@ -213,6 +214,88 @@ export const GALLERY_ENTRIES: GalleryEntry[] = [
             label="Open share links"
             render={(close) => (
               <ShareLinkDialog open onClose={close} cardId={null} onSaveFirst={async () => null} />
+            )}
+          />
+        ),
+      },
+    ],
+  },
+  {
+    source: "src/components/UnsavedChangesDialog.tsx",
+    title: "Unsaved changes dialog",
+    states: [
+      {
+        label: "Signed in — three choices, with saving as the recommended one",
+        node: (
+          <DialogSample
+            label="Open unsaved changes (signed in)"
+            render={(close) => (
+              <UnsavedChangesDialog
+                open
+                canSave
+                saving={false}
+                error={null}
+                onSaveAndLeave={close}
+                onLeaveWithoutSaving={close}
+                onStay={close}
+              />
+            )}
+          />
+        ),
+      },
+      {
+        label: "Signed out — no save action, so staying is the primary choice",
+        node: (
+          <DialogSample
+            label="Open unsaved changes (signed out)"
+            render={(close) => (
+              <UnsavedChangesDialog
+                open
+                canSave={false}
+                saving={false}
+                error={null}
+                onSaveAndLeave={close}
+                onLeaveWithoutSaving={close}
+                onStay={close}
+              />
+            )}
+          />
+        ),
+      },
+      {
+        label: "Saving — every action disabled until the save settles",
+        node: (
+          <DialogSample
+            label="Open unsaved changes (saving)"
+            render={(close) => (
+              <UnsavedChangesDialog
+                open
+                canSave
+                saving
+                error={null}
+                onSaveAndLeave={close}
+                onLeaveWithoutSaving={close}
+                onStay={close}
+              />
+            )}
+          />
+        ),
+      },
+      {
+        label: "The save failed — still here, with the changes intact",
+        node: (
+          <DialogSample
+            label="Open unsaved changes (save failed)"
+            render={(close) => (
+              <UnsavedChangesDialog
+                open
+                canSave
+                saving={false}
+                error="Could not save this card, so you are still here. Try again?"
+                onSaveAndLeave={close}
+                onLeaveWithoutSaving={close}
+                onStay={close}
+              />
             )}
           />
         ),

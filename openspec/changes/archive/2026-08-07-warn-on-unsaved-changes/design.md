@@ -2,7 +2,9 @@
 
 The editor owns all card state in `frontend/src/App.tsx` as `useState` hooks (entries, title, free/has-free, the three schemes, the rendered `card`, and `savedCardId`). It already produces a complete, serializable snapshot via `currentCardData()` (`App.tsx:118`) and persists it via `saveCurrentCard()` (`App.tsx:135`), which updates `savedCardId` in place on a successful create. The editor route (`routes.tsx`) keys `<App>` by `location.key`, so opening another card remounts the editor with fresh initial state. There is currently no notion of "dirty" anywhere.
 
-Every navigation that could discard work originates while the editor is mounted: the header's wordmark and nav links (`SiteHeader.tsx:62,68`), the account menu's "My saved cards" (`AuthMenu.tsx:85`), the library's open action (`SavedCardsPage.tsx:70`), and in-app back/forward. The app uses React Router v8 with a `BrowserRouter` (`main.tsx:46`), so `useBlocker` is available and intercepts in-app and history navigation while the editor component is on screen — but it does **not** intercept reload/tab-close/external navigation, which need `beforeunload`.
+Every navigation that could discard work originates while the editor is mounted: the header's wordmark and nav links (`SiteHeader.tsx:62,68`), the account menu's "My saved cards" (`AuthMenu.tsx:85`), the library's open action (`SavedCardsPage.tsx:70`), and in-app back/forward. The app uses React Router v8, whose `useBlocker` intercepts in-app and history navigation while the editor component is on screen — but it does **not** intercept reload/tab-close/external navigation, which need `beforeunload`.
+
+**Correction, found during implementation:** this design originally assumed `useBlocker` worked under the declarative `<BrowserRouter>` the app mounted. It does not. `useBlocker` calls `useDataRouterContext("useBlocker")`, which `invariant`s unless a **data router** is above it, and only `RouterProvider` supplies that context — `<BrowserRouter>` renders the declarative `<Router>`, which does not. Calling it as written throws at runtime. See the router decision below.
 
 The existing `card-library` spec already declares an unimplemented "Opening a saved card would discard unsaved work" scenario; this change implements it and lifts the behavior into the new `unsaved-changes-guard` capability.
 
@@ -30,6 +32,13 @@ Dirty = the editor's `currentCardData()` differs from a **baseline** snapshot he
 **Alternative considered:** tracking a per-field "version" counter incremented on each setState. Rejected — it duplicates the comparison and is equally easy to forget in a new handler.
 
 The structural equality lives in a new pure helper `frontend/src/lib/cardData.ts` (e.g. `cardDataEquals(a, b)`), deep-comparing entries (text + mandatory + enabled), slots, title, free-space, and the three schemes, with a co-located `cardData.test.ts`. Keeping it in `src/lib/` preserves the framework-agnostic, unit-testable boundary.
+
+### Decision: `main.tsx` mounts a data router so `useBlocker` exists at all
+`createBrowserRouter` + `RouterProvider` replace `<BrowserRouter>`, with a single catch-all route (`path: "*"`) whose element is the provider tree (`TooltipProvider` → `AuthProvider` → `AppRoutes`). Routing stays declarative and stays in `routes.tsx`: those `<Routes>` are descendant routes of the catch-all, so no route definition moves and no page changes.
+
+**Why this over the alternatives:** hand-rolling interception under the declarative router means wrapping every navigation source (`SiteHeader`, `AuthMenu`, `SavedCardsPage`) plus a `popstate` sentinel for back/forward — the scattered, incomplete per-link instrumentation this design rejects below, and it would miss any navigation added later. Shipping only `beforeunload` would leave the header-link, open-card, and back/forward scenarios — the substance of the proposal — unimplemented.
+
+The providers moving inside the route element is safe precisely because the route matches every path: the element never changes across a navigation, so React keeps those instances, and the session state in them, mounted. It is written as a static element rather than a component so `main.tsx` still exports nothing (a component declaration there trips the fast-refresh lint rule).
 
 ### Decision: One `useBlocker` in `App` covers all in-app navigation; `beforeunload` covers the rest
 A hook (new `frontend/src/hooks/useUnsavedChangesGuard.ts`) calls React Router v8's `useBlocker(() => isDirty)` and registers a `beforeunload` listener that is armed only while dirty. Because every navigation that would discard work happens while the editor (`App`) is mounted, a single blocker in `App` intercepts header links, the account-menu item, the library's open action, and in-app back/forward — with no per-link instrumentation.
@@ -60,4 +69,4 @@ The confirm is a new `frontend/src/components/UnsavedChangesDialog.tsx` built on
 
 ## Migration Plan
 
-This is a frontend-only, additive change. Deployment is the standard push-to-`main` (dev) → reviewer-gated prod flow. No data migration, no backend or infra change, and no change to the saved-card shape — the contract tests are untouched. Rollback is reverting the frontend; there is no server-side state to unwind.
+This is a frontend-only change, additive except for the router swap in `main.tsx` (same URLs, same routes, same history behaviour). Deployment is the standard push-to-`main` (dev) → reviewer-gated prod flow. No data migration, no backend or infra change, and no change to the saved-card shape — the contract tests are untouched. Rollback is reverting the frontend; there is no server-side state to unwind.
