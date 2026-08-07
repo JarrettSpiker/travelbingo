@@ -109,8 +109,17 @@ resource "aws_cloudfront_response_headers_policy" "frontend" {
     content_security_policy {
       override = true
       # The primary mitigation for the refresh token held in localStorage.
-      # 'unsafe-inline' is required for style-src because Emotion (MUI) injects
-      # styles at runtime; it is deliberately absent from script-src.
+      #
+      # 'unsafe-inline' is required for style-src because Radix writes inline
+      # styles at runtime to position popovers, dropdowns, and dialogs. (It used
+      # to be Emotion, via MUI; the frontend moved to Tailwind + shadcn/ui and
+      # the requirement survived the change, so the value here did not.)
+      #
+      # It is deliberately absent from script-src, and that is load-bearing:
+      # `src/lib/colorMode.ts` applies the stored theme from main.tsx rather
+      # than from the inline <script> in index.html that would normally beat
+      # first paint, precisely because such a script would be blocked here — and
+      # blocked only in production, since this policy never applies in dev.
       #
       # img-src widens to the thumbnail bucket's S3 regional domain: card
       # thumbnails are read via short-lived presigned GET URLs that resolve

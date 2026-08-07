@@ -38,7 +38,13 @@ Cost: both libraries in the bundle for four phases. Temporary and measurable —
 Use `--background`, `--foreground`, `--card`, `--primary`, `--muted`, `--border`, `--ring`, `--radius`, and the rest exactly as shadcn names them, so `npx shadcn add` output works unmodified. Add `--warning` and `--info` (MUI's `Alert` has `info`/`warning`/`error` severities; shadcn's ships only `default`/`destructive`), plus `--paper`, `--stamp`, and `--shadow-postcard` for the travel treatment.
 
 ### Decision: `data-theme` on the root, shared by both systems
-The mode toggle writes `light` or `dark` to `data-theme` on `<html>`, and an inline script in `index.html` applies the stored value before first paint to avoid a flash. Tailwind reads it via `@custom-variant dark`.
+The mode toggle writes `light` or `dark` to `data-theme` on `<html>`. Tailwind reads it via `@custom-variant dark`.
+
+⚠️ **The usual inline script in `index.html` is not available here.** The production CSP is `script-src 'self'` — no `'unsafe-inline'`, no hash — so an inline script is blocked, and blocked *only* in production, since CloudFront applies the CSP and dev never sees it. Weakening `script-src` is not on the table, and a CSP hash would put the script in `index.html` and its digest in Terraform, where a mismatch surfaces as a broken page after deploy. Phase 1 therefore applies the stored mode from `main.tsx` before `createRoot`, which is enough while nothing outside the React tree paints from a token.
+
+**Phase 2 must revisit this**, because the shell will paint `bg-background`. Two CSP-clean options: a `@media (prefers-color-scheme: dark)` fallback in the token layer, which costs a duplicated token block but covers `system` (the default, and most users); or `public/theme-init.js` loaded as a normal same-origin script, which covers every case at the cost of one render-blocking request.
+
+An attribute also applies in **every medium**, which a media query does not — that is what put a near-black page into the PDF for dark-mode users in phase 1. See the print note under Risks.
 
 **Set `colorSchemeSelector: "data-theme"` in `theme.ts` during phase 1**, so MUI reads the same attribute. Otherwise MUI follows the OS while Tailwind follows the toggle, and every mixed screen disagrees with itself for four phases. `system` must resolve to a literal `light`/`dark` before being written — MUI understands only those two.
 
@@ -86,7 +92,9 @@ Add the `@/*` alias to `tsconfig.json`, `tsconfig.app.json`, and `vite.config.ts
 
 ## Risks / Trade-offs
 
-1. **The CSP is invisible locally.** It is applied by CloudFront, not in dev. The value needs no change, but that conclusion is only proven after deploy — so a post-deploy console check exercising Select, DropdownMenu, Popover, Dialog, and the emoji picker is a numbered task, not a note.
+1. **The CSP is invisible locally.** It is applied by CloudFront, not in dev. The value needs no change, but that conclusion is only proven after deploy — so a post-deploy console check exercising Select, DropdownMenu, Popover, Dialog, and the emoji picker is a numbered task, not a note. This risk paid out immediately: `script-src 'self'` ruled out the pre-paint inline script in phase 1 (see the `data-theme` decision above), and nothing local would have said so.
+
+8. **A themed attribute applies to print; a media query does not.** Realised in phase 1. The app's dark mode was previously invisible to the printer for free, because it lived in `@media (prefers-color-scheme: dark)`. Under `data-theme` it reaches the printed page, and `color-scheme: dark` darkens the *canvas* — which paints outside the cascade that hides everything else, so **no screenshot shows it**; only the PDF does. `@media print` now pins `color-scheme: light !important`. Treat "does it still print correctly in dark mode" as a real question for every later phase, and check the PDF rather than a screenshot.
 2. **`emoji-picker-react` looking foreign.** Mitigated above; the risk is forgetting entirely.
 3. **destructive vs primary.** Mitigated above; verify rather than assume.
 4. **The shadcn CLI vs a solution-style `tsconfig.json`.** `"files": []` + `references` is a shape the CLI is known to choke on. Budget for hand-writing `components.json` and copying a component or two from the registry. Don't fight the tool.
@@ -107,7 +115,9 @@ Six phases, each shippable.
 
 ## Sequencing
 
-After `add-ai-ui-workflow`, which provides the gallery, the baselines, the card-renderer guard, and the print isolation. `save-full-entry-pool` is archived, so the editor files are settled; keep this last in the queue anyway, since a restyle conflicts textually with almost any editor feature work.
+`add-ai-ui-workflow` is archived and provides the gallery, the baselines, the card-renderer guard, and the print isolation. `save-full-entry-pool` and `enhance-saved-cards-view` are archived too. Nothing is in flight; this change is unblocked.
+
+It runs to completion **before** `add-trips`, so the substantial trips UI is authored once in the final design system rather than written in MUI and immediately rewritten. See the proposal's Sequencing section for the full rationale.
 
 ## Open Questions
 

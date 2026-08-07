@@ -49,4 +49,12 @@ This change gives it a design system and a deliberate visual language, and moves
 
 **Depends on `add-ai-ui-workflow`, which must land first.** That change provides the component gallery this redesign is reviewed in, the pre-migration baselines its output is compared against, the card-renderer guard test, and the print isolation that keeps the new header and page background out of the PDF. Starting this change without those means restyling blind, which is the condition that produced the current state.
 
-`save-full-entry-pool` has since been archived, so `App.tsx` and `EntryInput.tsx` — two of the files this rewrites most — are settled. The remaining open changes are infra-only. A restyle conflicts textually with almost any feature work, so keep this last in the queue: land any queued editor feature before starting, not alongside.
+`add-ai-ui-workflow` is archived, so its gallery, baselines, card-renderer guard, and print isolation are all in place. `save-full-entry-pool` and `enhance-saved-cards-view` are archived too, so `App.tsx`, `EntryInput.tsx`, and `SavedCardsPage.tsx` are settled. **Nothing is in flight, so this change is unblocked and can start now.**
+
+**Decision: this change runs to completion before `add-trips`.**
+
+The earlier guidance here was to keep a restyle last in the queue, which is right when feature work is already in progress. It is the wrong call now. `add-trips` is a large UI addition — a trips listing, a trip view, invite redemption, card assignment — and it has not started. Building it first would mean authoring all of that in MUI and then immediately rewriting it here, and designing new screens against a visual language that is about to be replaced. Landing the redesign first means the trips UI is built once, in the final design system.
+
+The cost is that feature work waits for the migration. That is accepted deliberately: the rework it avoids is larger than the delay it introduces.
+
+The remaining open changes (`add-branch-protection`, `raise-lambda-concurrency-limit`) are infra-only and do not touch the frontend, so they can proceed in parallel.

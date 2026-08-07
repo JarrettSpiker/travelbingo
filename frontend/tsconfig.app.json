@@ -10,6 +10,16 @@
     "allowArbitraryExtensions": true,
     "skipLibCheck": true,
 
+    // `@/` is for new code only. Existing relative imports are deliberately left
+    // alone — a global rewrite changes no behaviour and conflicts with every
+    // in-flight branch. Must stay in step with `resolve.alias` in vite.config.ts.
+    //
+    // No `baseUrl`: TypeScript 6 deprecates it, and since 5.4 `paths` entries
+    // resolve relative to the config file, which is what we want anyway.
+    "paths": {
+      "@/*": ["./src/*"]
+    },
+
     /* Bundler mode */
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,

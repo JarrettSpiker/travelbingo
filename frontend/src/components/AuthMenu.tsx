@@ -1,16 +1,25 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
-import Button from "@mui/material/Button";
-import Divider from "@mui/material/Divider";
-import Menu from "@mui/material/Menu";
-import MenuItem from "@mui/material/MenuItem";
-import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
-import { useAuth } from "../auth/authContext";
+import { ChevronDown } from "lucide-react";
+import { useAuth } from "@/auth/authContext";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface AuthMenuProps {
-  /** Saves the card currently in the editor. Resolves to a status message. */
-  onSaveCard: () => Promise<string>;
+  /**
+   * Saves the card currently in the editor. Resolves to a status message.
+   *
+   * Optional because this lives in the shell's header on every page, and only
+   * the editor has a card to save. Omitting it drops the save action and leaves
+   * the account menu, so sign-in state is visible app-wide.
+   */
+  onSaveCard?: () => Promise<string>;
 }
 
 /**
@@ -18,23 +27,18 @@ interface AuthMenuProps {
  *
  * Renders nothing at all when accounts are not configured for this build, so a
  * local checkout with no .env.local shows the editor exactly as it was before
- * this change.
+ * accounts existed.
  */
 export function AuthMenu({ onSaveCard }: AuthMenuProps) {
   const { status, email, accountsEnabled, signIn, signOut } = useAuth();
   const navigate = useNavigate();
-  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   if (!accountsEnabled) return null;
 
-  function close() {
-    setAnchorEl(null);
-  }
-
   async function handleSave() {
-    close();
+    if (!onSaveCard) return;
     setSaving(true);
     setMessage(null);
     try {
@@ -48,46 +52,43 @@ export function AuthMenu({ onSaveCard }: AuthMenuProps) {
   // signed-out affordance meanwhile is honest and never blocks the page.
   if (status !== "authenticated") {
     return (
-      <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
-        <Button size="small" variant="text" onClick={() => signIn()} disabled={status === "loading"}>
-          Sign in
-        </Button>
-      </Stack>
+      <Button variant="ghost" size="sm" onClick={() => signIn()} disabled={status === "loading"}>
+        Sign in
+      </Button>
     );
   }
 
   return (
-    <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+    <div className="flex items-center gap-1">
       {message && (
-        <Typography variant="body2" color="text.secondary">
+        <span className="hidden text-sm text-muted-foreground sm:inline" role="status">
           {message}
-        </Typography>
+        </span>
       )}
-      <Button size="small" variant="outlined" onClick={() => void handleSave()} disabled={saving}>
-        {saving ? "Saving…" : "Save card"}
-      </Button>
-      <Button size="small" variant="text" onClick={(event) => setAnchorEl(event.currentTarget)}>
-        {email ?? "Account"}
-      </Button>
-      <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={close}>
-        <MenuItem
-          onClick={() => {
-            close();
-            void navigate("/cards");
-          }}
-        >
-          My saved cards
-        </MenuItem>
-        <Divider />
-        <MenuItem
-          onClick={() => {
-            close();
-            signOut();
-          }}
-        >
-          Sign out
-        </MenuItem>
-      </Menu>
-    </Stack>
+      {onSaveCard && (
+        <Button variant="outline" size="sm" onClick={() => void handleSave()} disabled={saving}>
+          {saving ? "Saving…" : "Save card"}
+        </Button>
+      )}
+      {/*
+        `anchorEl` state is gone: Radix's trigger is the anchor, so the open
+        state lives inside the menu rather than in this component.
+      */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="sm" className="max-w-40">
+            <span className="truncate">{email ?? "Account"}</span>
+            <ChevronDown aria-hidden />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onSelect={() => void navigate("/cards")}>
+            My saved cards
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={() => signOut()}>Sign out</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 }

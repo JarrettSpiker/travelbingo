@@ -18,6 +18,23 @@
 
 .bingo-card-title {
   margin: 0;
+  /*
+    These two are not a restyle — they are the values this <h3> was already
+    rendering with, pinned so it keeps rendering with them.
+
+    They used to come from the browser's UA stylesheet (h3 is 1.17em/bold), and
+    a UA rule loses to any author rule. Tailwind's preflight sets
+    `h1..h6 { font-size: inherit; font-weight: inherit }`, which silently
+    dropped the title to 16px/400 — in the app, and in the PNG, the PDF, and the
+    saved thumbnail with it. App.css being unlayered does NOT protect against
+    this: unlayered beats layered only where App.css actually declares the
+    property, and here it declared nothing.
+
+    Anything else in the card renderer that leans on a UA default is exposed the
+    same way. State it here rather than inherit it.
+  */
+  font-size: 1.17em;
+  font-weight: bold;
 }
 
 /* Body holds the emoji ring + grid, and is the positioning/stacking context for
@@ -79,12 +96,37 @@
     contains the card because the card is what we opted in, not because
     everything else happened to be marked.
 
-    `visibility` rather than `display`, so layout inside the card is preserved.
-    The card is then absolutely positioned because hiding an ancestor visually
-    does not reclaim the space it occupied.
+    Note what this deliberately is NOT: an earlier attempt hid siblings with
+    `visibility` and absolutely positioned the card, which escaped its
+    container's geometry and printed the card ~8% larger. Keeping the ancestors
+    in normal flow and collapsing only the siblings is what preserves it.
   */
+  :root {
+    /*
+      The printed card is a document. It has no dark mode — see DESIGN.md.
+
+      This used to be true by accident: the app's dark palette lived in a
+      `@media (prefers-color-scheme: dark)` block, and that query does not match
+      when printing, so a print was always light. Driving the theme from a
+      `data-theme` attribute instead removes that accident — an attribute
+      applies in every medium — and a dark-mode visitor would otherwise print a
+      near-black page, because `color-scheme: dark` darkens the canvas and the
+      canvas paints outside the cascade that hides everything else.
+
+      `!important` because the theme's own rule is `[data-theme="dark"]`, which
+      ties this selector on specificity and is injected into <head> later, so it
+      would otherwise win.
+    */
+    color-scheme: light !important;
+  }
+
+  html,
   body {
-    /* A page background paints outside the cascade that hides its elements. */
+    /*
+      A page background paints outside the cascade that hides its elements, so
+      both of these have to be cleared explicitly. `html` carries the app's page
+      colour (see index.css); `body` carried MUI's while it was present.
+    */
     background: none !important;
   }
 
@@ -95,22 +137,30 @@
     result is geometrically identical to the old opt-out rule — it is only the
     *siblings* that collapse.
 
-    If `:has()` is ever unavailable, this selector simply matches nothing and
-    the `.no-print` rule below still hides the main chrome, degrading to the
-    previous behaviour rather than printing the whole page.
+    `:has()` is required. It has been baseline in every current browser since
+    2023, and the opt-out `.no-print` class it replaced is gone — a class nobody
+    can forget to add is the whole point. If it were ever unavailable this
+    selector would match nothing and the page would print in full, which is
+    loud rather than silent, and is why the export checklist prints for real.
   */
   body *:not(:has(.bingo-card)):not(.bingo-card):not(.bingo-card *) {
     display: none;
   }
 
-  /* Retained as a belt-and-braces alias, and as the `:has()` fallback. */
-  .no-print {
-    display: none !important;
-  }
-
   .app {
     max-width: none;
-    padding: 0;
+    /*
+      24px, not 0, and not arbitrary: it is the gutter the printed card has
+      always had. This rule used to say `padding: 0` and never won — MUI's
+      Container carried 24px in an Emotion class of equal specificity, injected
+      later. Moving the class onto the shell's own <main> made `padding: 0`
+      effective for the first time and silently grew every printed card by ~9%.
+
+      Stated explicitly so the exported PDF keeps matching the ones users
+      already have. Changing it is a deliberate decision about the artifact, not
+      a side effect of a layout change.
+    */
+    padding: 24px;
   }
 
   .bingo-card,

@@ -1,8 +1,7 @@
-import Checkbox from "@mui/material/Checkbox";
-import FormControlLabel from "@mui/material/FormControlLabel";
-import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
-import Typography from "@mui/material/Typography";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Field } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 interface CardDetailsFormProps {
   title: string;
@@ -22,43 +21,46 @@ export function CardDetailsForm({
   onFreeSpaceChange,
 }: CardDetailsFormProps) {
   return (
-    <Stack component="section" spacing={2}>
-      <Typography variant="h6" component="h2">
-        Card details
-      </Typography>
-
-      <TextField
-        id="card-title"
-        label="Card title (optional)"
-        value={title}
-        onChange={(e) => onTitleChange(e.target.value)}
-        placeholder="e.g. Office Party Bingo"
-        size="small"
-        fullWidth
-      />
-
-      <FormControlLabel
-        control={
-          <Checkbox
-            id="has-free-space"
-            checked={hasFreeSpace}
-            onChange={(e) => onHasFreeSpaceChange(e.target.checked)}
+    <div className="grid gap-4">
+      <Field htmlFor="card-title" label="Card title (optional)">
+        {({ id }) => (
+          <Input
+            id={id}
+            value={title}
+            onChange={(e) => onTitleChange(e.target.value)}
+            placeholder="e.g. Office Party Bingo"
           />
-        }
-        label="Include a free space in the center"
-      />
+        )}
+      </Field>
+
+      {/*
+        Radix's Checkbox is a button, not an <input>, so the label has to be
+        associated by id rather than by wrapping — and clicking the text has to
+        work, which `htmlFor` gives us.
+      */}
+      <div className="flex items-center gap-2">
+        <Checkbox
+          id="has-free-space"
+          checked={hasFreeSpace}
+          onCheckedChange={(checked) => onHasFreeSpaceChange(checked === true)}
+        />
+        <Label htmlFor="has-free-space" className="font-normal">
+          Include a free space in the center
+        </Label>
+      </div>
 
       {hasFreeSpace && (
-        <TextField
-          id="free-space"
-          label="Free space text (optional)"
-          value={freeSpaceText}
-          onChange={(e) => onFreeSpaceChange(e.target.value)}
-          placeholder="FREE"
-          size="small"
-          fullWidth
-        />
+        <Field htmlFor="free-space" label="Free space text (optional)">
+          {({ id }) => (
+            <Input
+              id={id}
+              value={freeSpaceText}
+              onChange={(e) => onFreeSpaceChange(e.target.value)}
+              placeholder="FREE"
+            />
+          )}
+        </Field>
       )}
-    </Stack>
+    </div>
   );
 }

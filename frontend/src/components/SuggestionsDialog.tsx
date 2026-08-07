@@ -1,26 +1,31 @@
 import { useEffect, useState } from "react";
-import Alert from "@mui/material/Alert";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
-import Dialog from "@mui/material/Dialog";
-import DialogActions from "@mui/material/DialogActions";
-import DialogContent from "@mui/material/DialogContent";
-import DialogTitle from "@mui/material/DialogTitle";
-import Divider from "@mui/material/Divider";
-import FormControl from "@mui/material/FormControl";
-import InputLabel from "@mui/material/InputLabel";
-import MenuItem from "@mui/material/MenuItem";
-import Select from "@mui/material/Select";
-import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
-import type { BingoEntry } from "../lib/bingo";
+import { CircleCheck, TriangleAlert } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Field } from "@/components/ui/field";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import type { BingoEntry } from "@/lib/bingo";
 import {
   appendCells,
   SUGGESTED_CATEGORIES,
   SUGGESTED_THEMES,
   type SuggestedTheme,
-} from "../lib/suggestions";
+} from "@/lib/suggestions";
 
 interface SuggestionsDialogProps {
   open: boolean;
@@ -81,101 +86,115 @@ export function SuggestionsDialog({
   }
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle>Suggestions</DialogTitle>
-      <DialogContent>
-        <Stack spacing={3} sx={{ mt: 1 }}>
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Suggestions</DialogTitle>
+        </DialogHeader>
+
+        <div className="grid gap-6">
           {SUGGESTED_THEMES.length > 0 && (
-            <Stack spacing={1}>
-              <Typography variant="subtitle1" component="h3">
-                Themes
-              </Typography>
-              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+            <div className="grid gap-2">
+              <h3 className="font-display text-sm font-semibold">Themes</h3>
+              <div className="flex flex-wrap gap-2">
                 {SUGGESTED_THEMES.map((theme) => (
-                  <Button
-                    key={theme.id}
-                    variant="outlined"
-                    size="small"
-                    onClick={() => handleApplyTheme(theme)}
-                  >
-                    {theme.emojiScheme.emojis.length > 0
-                      ? `${theme.emojiScheme.emojis.join(" ")} ${theme.label}`
-                      : theme.label}
-                  </Button>
+                  <Chip key={theme.id} onClick={() => handleApplyTheme(theme)}>
+                    {theme.emojiScheme.emojis.length > 0 && (
+                      <span aria-hidden className="text-sm">
+                        {theme.emojiScheme.emojis.join(" ")}
+                      </span>
+                    )}
+                    {theme.label}
+                  </Chip>
                 ))}
-              </Box>
-            </Stack>
+              </div>
+            </div>
           )}
 
-          {SUGGESTED_THEMES.length > 0 && <Divider />}
+          {SUGGESTED_THEMES.length > 0 && <Separator />}
 
-          <Stack spacing={1}>
-            <Typography variant="subtitle1" component="h3">
-              Cells
-            </Typography>
+          <div className="grid gap-3">
+            <h3 className="font-display text-sm font-semibold">Cells</h3>
             {SUGGESTED_CATEGORIES.length === 0 ? (
-              <Typography variant="body2" color="text.secondary">
+              <p className="text-sm text-muted-foreground">
                 No suggested cells are available right now.
-              </Typography>
+              </p>
             ) : (
               <>
-                <FormControl size="small" fullWidth>
-                  <InputLabel id="suggestion-category-label">Category</InputLabel>
-                  <Select
-                    labelId="suggestion-category-label"
-                    id="suggestion-category"
-                    value={category?.id ?? ""}
-                    label="Category"
-                    onChange={(e) => {
-                      setCategoryId(e.target.value);
-                      setSelected(new Set());
-                    }}
-                  >
-                    {SUGGESTED_CATEGORIES.map((c) => (
-                      <MenuItem key={c.id} value={c.id}>
-                        {c.label}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
+                <Field htmlFor="suggestion-category" label="Category">
+                  {({ id }) => (
+                    <Select
+                      value={category?.id ?? ""}
+                      onValueChange={(value) => {
+                        setCategoryId(value);
+                        setSelected(new Set());
+                      }}
+                    >
+                      <SelectTrigger id={id} className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SUGGESTED_CATEGORIES.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </Field>
 
-                <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                {/*
+                  These are the chips the component exists for: each one is a
+                  toggle, so it carries `pressed` and reports `aria-pressed`.
+                */}
+                <div className="flex flex-wrap gap-2">
                   {category?.cells.map((cell) => (
                     <Chip
                       key={cell}
-                      label={cell}
+                      pressed={selected.has(cell)}
                       onClick={() => toggleCell(cell)}
-                      color={selected.has(cell) ? "primary" : "default"}
-                      variant={selected.has(cell) ? "filled" : "outlined"}
-                    />
+                      className="normal-case tracking-normal"
+                    >
+                      {cell}
+                    </Chip>
                   ))}
-                </Box>
+                </div>
 
                 <Button
-                  variant="contained"
-                  size="small"
+                  size="sm"
                   onClick={handleAdd}
                   disabled={selected.size === 0}
-                  sx={{ alignSelf: "flex-start" }}
+                  className="justify-self-start"
                 >
                   Add selected{selected.size > 0 ? ` (${selected.size})` : ""}
                 </Button>
 
                 {report && (
-                  <Alert severity={report.skipped > 0 ? "warning" : "success"}>
-                    Added {report.added} {report.added === 1 ? "cell" : "cells"}.
-                    {report.skipped > 0 &&
-                      ` ${report.skipped} ${report.skipped === 1 ? "was" : "were"} already in your list and skipped.`}
+                  <Alert variant={report.skipped > 0 ? "warning" : "default"}>
+                    {report.skipped > 0 ? (
+                      <TriangleAlert />
+                    ) : (
+                      <CircleCheck className="text-ocean" />
+                    )}
+                    <AlertDescription>
+                      Added {report.added} {report.added === 1 ? "cell" : "cells"}.
+                      {report.skipped > 0 &&
+                        ` ${report.skipped} ${report.skipped === 1 ? "was" : "were"} already in your list and skipped.`}
+                    </AlertDescription>
                   </Alert>
                 )}
               </>
             )}
-          </Stack>
-        </Stack>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Done
+          </Button>
+        </DialogFooter>
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Done</Button>
-      </DialogActions>
     </Dialog>
   );
 }

@@ -10,6 +10,13 @@ import {
   SUNSET_COLORS,
 } from "./sampleData";
 import {
+  AppShellSample,
+  PanelSample,
+  SiteHeaderSample,
+  ThemeToggleSample,
+  TokenStrip,
+} from "./designSamples";
+import {
   AuthMenuSample,
   CardDetailsFormSample,
   CardGridSample,
@@ -35,7 +42,12 @@ export interface GalleryState {
 }
 
 export interface GalleryEntry {
-  /** File in `src/components/` this entry covers, e.g. "EntryInput.tsx". */
+  /**
+   * Repo-relative file this entry covers, e.g. "src/components/EntryInput.tsx".
+   *
+   * A full path rather than a bare filename because not everything reviewable
+   * here is a component — the token strip covers `src/index.css`.
+   */
   source: string;
   title: string;
   states: GalleryState[];
@@ -43,12 +55,37 @@ export interface GalleryEntry {
 
 export const GALLERY_ENTRIES: GalleryEntry[] = [
   {
-    source: "CardDetailsForm.tsx",
+    source: "src/index.css",
+    title: "Design tokens",
+    states: [{ label: "Every token, in this presentation", node: <TokenStrip /> }],
+  },
+  {
+    source: "src/components/AppShell.tsx",
+    title: "App shell",
+    states: [{ label: "Header, background layers, and the main column", node: <AppShellSample /> }],
+  },
+  {
+    source: "src/components/Panel.tsx",
+    title: "Panel",
+    states: [{ label: "A control group as a surface", node: <PanelSample /> }],
+  },
+  {
+    source: "src/components/SiteHeader.tsx",
+    title: "Site header",
+    states: [{ label: "Sticky and translucent", node: <SiteHeaderSample /> }],
+  },
+  {
+    source: "src/components/ThemeToggle.tsx",
+    title: "Theme toggle",
+    states: [{ label: "Cycles light / dark / system", node: <ThemeToggleSample /> }],
+  },
+  {
+    source: "src/components/CardDetailsForm.tsx",
     title: "Card details",
     states: [{ label: "Default", node: <CardDetailsFormSample /> }],
   },
   {
-    source: "ColorSchemeForm.tsx",
+    source: "src/components/ColorSchemeForm.tsx",
     title: "Colour scheme",
     states: [
       { label: "Defaults", node: <ColorSchemeFormSample initial={DEFAULT_COLOR_SCHEME} /> },
@@ -56,12 +93,12 @@ export const GALLERY_ENTRIES: GalleryEntry[] = [
     ],
   },
   {
-    source: "FontSchemeForm.tsx",
+    source: "src/components/FontSchemeForm.tsx",
     title: "Font scheme",
     states: [{ label: "Default", node: <FontSchemeFormSample /> }],
   },
   {
-    source: "EmojiSchemeForm.tsx",
+    source: "src/components/EmojiSchemeForm.tsx",
     title: "Emoji scheme",
     states: [
       { label: "Empty", node: <EmojiSchemeFormSample initial={DEFAULT_EMOJI_SCHEME} /> },
@@ -72,7 +109,7 @@ export const GALLERY_ENTRIES: GalleryEntry[] = [
     ],
   },
   {
-    source: "EntryInput.tsx",
+    source: "src/components/EntryInput.tsx",
     title: "Entry input",
     states: [
       { label: "Empty", node: <EntryInputSample initial={[]} /> },
@@ -91,7 +128,7 @@ export const GALLERY_ENTRIES: GalleryEntry[] = [
     ],
   },
   {
-    source: "CardGrid.tsx",
+    source: "src/components/CardGrid.tsx",
     title: "Card grid — FROZEN, do not restyle",
     states: [
       {
@@ -127,17 +164,17 @@ export const GALLERY_ENTRIES: GalleryEntry[] = [
     ],
   },
   {
-    source: "CardView.tsx",
+    source: "src/components/CardView.tsx",
     title: "Card view",
     states: [{ label: "Default", node: <CardViewSample colorScheme={DEFAULT_COLOR_SCHEME} /> }],
   },
   {
-    source: "AuthMenu.tsx",
+    source: "src/components/AuthMenu.tsx",
     title: "Auth menu",
     states: [{ label: "Current auth state", node: <AuthMenuSample /> }],
   },
   {
-    source: "SuggestionsDialog.tsx",
+    source: "src/components/SuggestionsDialog.tsx",
     title: "Suggestions dialog",
     states: [
       {
@@ -160,7 +197,7 @@ export const GALLERY_ENTRIES: GalleryEntry[] = [
     ],
   },
   {
-    source: "ShareLinkDialog.tsx",
+    source: "src/components/ShareLinkDialog.tsx",
     title: "Share link dialog",
     states: [
       {

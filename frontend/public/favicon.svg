@@ -1,16 +1,33 @@
+<!--
+  The app's mark: the same terracotta tile and lucide "map-pin" glyph the header
+  wordmark uses, so a pinned tab and the page it opens agree.
+
+  Hex rather than tokens on purpose. This file is served as a static asset from
+  public/ and never sees the app's stylesheet, so it cannot read a CSS custom
+  property. The values are the primary / primary-foreground pair from
+  src/index.css resolved to sRGB; keep them in step by hand if the palette moves.
+
+  Sized for a 16px tab: the glyph fills ~62% of the tile rather than the ~57% it
+  takes in the header, because at favicon scale the padding is what disappears
+  first.
+
+  (Note for editors: XML forbids a double hyphen inside a comment, so avoid
+  writing CSS custom property names here. A malformed favicon still serves with
+  a 200 and an image/svg+xml type; it simply renders as a broken image.)
+-->
 <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
-  <circle cx="32" cy="32" r="30" fill="#03a9f4"/>
-  <g transform="translate(0 -2)">
-    <path d="M30 52c0-4 0-9 .5-14 .5-4 1.5-8 2.5-12" fill="none" stroke="#795548" stroke-width="4" stroke-linecap="round"/>
-    <path d="M33 52c0-4 0-9-.5-14-.5-4-1.5-8-2.5-12" fill="none" stroke="#6d4c41" stroke-width="4" stroke-linecap="round"/>
-    <g fill="#2e7d32">
-      <path d="M32 26c-3-7-10-12-18-12 4 6 10 10 18 12z"/>
-      <path d="M32 26c3-7 10-12 18-12-4 6-10 10-18 12z"/>
-      <path d="M32 26c-7-3-15-2-22 3 6 4 14 4 22-3z"/>
-      <path d="M32 26c7-3 15-2 22 3-6 4-14 4-22-3z"/>
-      <path d="M32 26c-2-8-7-14-15-16 1 7 6 13 15 16z"/>
-      <path d="M32 26c2-8 7-14 15-16-1 7-6 13-15 16z"/>
-    </g>
-    <circle cx="32" cy="25" r="2.5" fill="#1b5e20"/>
+  <rect width="64" height="64" rx="15" fill="#c74726"/>
+  <!--
+    lucide map-pin, authored on a 24x24 grid. Scaled by 1.65 and centred:
+    (64 - 24 * 1.65) / 2 = 12.2. The transform scales the stroke along with the
+    path, so this is lucide's own weight expressed on lucide's own grid: 2.4
+    against its default 2, deliberately heavier because the thing renders at
+    16px more often than at 64 and a hairline is the first casualty.
+  -->
+  <g transform="translate(12.2 12.2) scale(1.65)"
+     fill="none" stroke="#fefbf6" stroke-width="2.4"
+     stroke-linecap="round" stroke-linejoin="round">
+    <path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/>
+    <circle cx="12" cy="10" r="3"/>
   </g>
 </svg>

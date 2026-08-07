@@ -1,16 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
-import Alert from "@mui/material/Alert";
-import Button from "@mui/material/Button";
-import CircularProgress from "@mui/material/CircularProgress";
-import Container from "@mui/material/Container";
-import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
-import { CardGrid } from "../components/CardGrid";
-import { useAuth } from "../auth/authContext";
-import { cardStateFrom } from "../lib/cardState";
-import { createCard, resolveShare } from "../lib/cardsApi";
-import type { CardUrlData } from "../lib/cardData";
+import { Info, TriangleAlert } from "lucide-react";
+import { AppShell } from "@/components/AppShell";
+import { AuthMenu } from "@/components/AuthMenu";
+import { CardGrid } from "@/components/CardGrid";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
+import { useAuth } from "@/auth/authContext";
+import { cardStateFrom } from "@/lib/cardState";
+import { createCard, resolveShare } from "@/lib/cardsApi";
+import type { CardUrlData } from "@/lib/cardData";
 
 export function SharedCardPage() {
   const { token } = useParams<{ token: string }>();
@@ -70,66 +70,78 @@ export function SharedCardPage() {
 
   if (error) {
     return (
-      <Container component="main" maxWidth="sm" sx={{ py: 6 }}>
-        <Stack spacing={2}>
-          <Alert severity="warning">{error}</Alert>
-          <Button variant="contained" onClick={() => void navigate("/")}>
-            Make your own card
-          </Button>
-        </Stack>
-      </Container>
+      <AppShell size="narrow" headerActions={<AuthMenu />}>
+        <div className="grid justify-items-start gap-4">
+          <Alert variant="warning">
+            <TriangleAlert />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+          <Button onClick={() => void navigate("/")}>Make your own card</Button>
+        </div>
+      </AppShell>
     );
   }
 
   if (!card) {
     return (
-      <Container component="main" maxWidth="sm" sx={{ py: 6 }}>
-        <Stack spacing={2} sx={{ alignItems: "center" }}>
-          <CircularProgress />
-          <Typography>Opening the shared card…</Typography>
-        </Stack>
-      </Container>
+      <AppShell size="narrow" headerActions={<AuthMenu />}>
+        <div className="grid justify-items-center gap-3 py-12">
+          <Spinner label="Opening the shared card" />
+          <p className="text-sm text-muted-foreground">Opening the shared card…</p>
+        </div>
+      </AppShell>
     );
   }
 
   const state = cardStateFrom(card);
 
   return (
-    <Container component="main" maxWidth="md" sx={{ py: 4 }}>
-      <Stack spacing={2}>
-        <Typography variant="h5" component="h1">
-          {card.title || "A shared bingo card"}
-        </Typography>
-        <Typography color="text.secondary">
-          Someone shared a copy of this card with you. It is yours — changes you make will not affect
-          theirs.
-        </Typography>
+    <AppShell headerActions={<AuthMenu />}>
+      <div className="grid gap-4">
+        <header className="grid gap-1">
+          <h1 className="font-display text-2xl font-semibold">
+            {card.title || "A shared bingo card"}
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Someone shared a copy of this card with you. It is yours — changes you make will not
+            affect theirs.
+          </p>
+        </header>
 
-        {saveMessage && <Alert severity="info">{saveMessage}</Alert>}
+        {saveMessage && (
+          <Alert variant="info">
+            <Info />
+            <AlertDescription>{saveMessage}</AlertDescription>
+          </Alert>
+        )}
 
-        <Stack direction="row" spacing={1} className="no-print">
-          <Button variant="contained" onClick={handleOpenInEditor}>
-            Open in the editor
-          </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={handleOpenInEditor}>Open in the editor</Button>
           {status === "authenticated" ? (
-            <Button variant="outlined" onClick={() => void handleSaveCopy()} disabled={busy}>
+            <Button variant="outline" onClick={() => void handleSaveCopy()} disabled={busy}>
               {busy ? "Saving…" : "Save a copy"}
             </Button>
           ) : (
-            <Button variant="outlined" onClick={() => signIn(window.location.pathname)}>
+            <Button variant="outline" onClick={() => signIn(window.location.pathname)}>
               Sign in to save a copy
             </Button>
           )}
-        </Stack>
+        </div>
 
-        <CardGrid
-          card={state.card}
-          title={card.title}
-          colorScheme={card.colorScheme}
-          fontScheme={card.fontScheme}
-          emojiScheme={card.emojiScheme}
-        />
-      </Stack>
-    </Container>
+        {/*
+          Same panel as the editor's preview, minus the perforated edge — that
+          motif belongs to exactly one surface, and this is not it.
+        */}
+        <div className="inline-block justify-self-start bg-paper p-4 shadow-postcard print:block print:bg-transparent print:p-0 print:shadow-none">
+          <CardGrid
+            card={state.card}
+            title={card.title}
+            colorScheme={card.colorScheme}
+            fontScheme={card.fontScheme}
+            emojiScheme={card.emojiScheme}
+          />
+        </div>
+      </div>
+    </AppShell>
   );
 }

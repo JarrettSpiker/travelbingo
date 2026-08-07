@@ -4,5 +4,23 @@
   "rules": {
     "react/rules-of-hooks": "error",
     "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
+  },
+  "overrides": [
+    {
+      "files": ["src/components/ui/**"],
+      "rules": {
+        // shadcn components ship their cva variants as a named export beside the
+        // component — `buttonVariants`, `badgeVariants`, and so on. That is the
+        // shape the registry generates and the shape every consumer expects, so
+        // splitting them out would mean hand-editing every file the CLI writes
+        // and re-editing it on every update. `allowConstantExport` does not
+        // cover them because a cva() call is not a constant expression.
+        //
+        // The cost is a Fast Refresh miss on these files during development.
+        // They are vendored primitives that change rarely; the app code that
+        // does change keeps the rule.
+        "react/only-export-components": "off"
+      }
+    }
+  ]
 }

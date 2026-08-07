@@ -1,9 +1,8 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigationType } from "react-router";
-import CircularProgress from "@mui/material/CircularProgress";
-import Container from "@mui/material/Container";
-import Stack from "@mui/material/Stack";
 import App from "./App";
+import { AppShell } from "./components/AppShell";
+import { Spinner } from "./components/ui/spinner";
 import { AuthCallbackPage } from "./pages/AuthCallbackPage";
 import { SavedCardsPage } from "./pages/SavedCardsPage";
 import { SharedCardPage } from "./pages/SharedCardPage";
@@ -35,11 +34,11 @@ const GalleryPage = import.meta.env.DEV ? lazy(() => import("./dev/GalleryPage")
 /** Non-blocking spinner shown only while the reload-restore fetch is in flight. */
 function EditorLoading() {
   return (
-    <Container component="main" maxWidth="sm" sx={{ py: 6 }}>
-      <Stack spacing={2} sx={{ alignItems: "center" }}>
-        <CircularProgress />
-      </Stack>
-    </Container>
+    <AppShell size="narrow">
+      <div className="flex justify-center py-12">
+        <Spinner label="Loading your card" />
+      </div>
+    </AppShell>
   );
 }
 

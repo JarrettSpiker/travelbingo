@@ -38,10 +38,11 @@ describe("gallery coverage", () => {
   });
 
   it.each(componentFiles)("has a gallery entry for %s", (file) => {
+    const source = `src/components/${file}`;
     expect(
       registrySource,
       `${file} has no gallery entry. Add one to src/dev/gallery/registry.tsx ` +
-        `with source: "${file}" so the component stays visually reviewable.`,
-    ).toContain(`source: "${file}"`);
+        `with source: "${source}" so the component stays visually reviewable.`,
+    ).toContain(`source: "${source}"`);
   });
 });

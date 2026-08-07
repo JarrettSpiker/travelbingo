@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
-import Alert from "@mui/material/Alert";
-import Button from "@mui/material/Button";
-import CircularProgress from "@mui/material/CircularProgress";
-import Container from "@mui/material/Container";
-import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
+import { TriangleAlert } from "lucide-react";
+import { AppShell } from "@/components/AppShell";
+import { AuthMenu } from "@/components/AuthMenu";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { useAuth } from "../auth/authContext";
 import { parseCallback } from "../lib/auth";
 import { clearPending, loadPending } from "../lib/authSession";
@@ -62,20 +62,24 @@ export function AuthCallbackPage() {
   }, [completeSignIn, navigate]);
 
   return (
-    <Container component="main" maxWidth="sm" sx={{ py: 6 }}>
+    <AppShell size="narrow" headerActions={<AuthMenu />}>
+      <h1 className="sr-only">Signing in</h1>
       {error ? (
-        <Stack spacing={2}>
-          <Alert severity="error">{error}</Alert>
-          <Button variant="contained" onClick={() => void navigate("/", { replace: true })}>
+        <div className="grid gap-4 justify-items-start">
+          <Alert variant="destructive">
+            <TriangleAlert />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+          <Button onClick={() => void navigate("/", { replace: true })}>
             Back to the card editor
           </Button>
-        </Stack>
+        </div>
       ) : (
-        <Stack spacing={2} sx={{ alignItems: "center" }}>
-          <CircularProgress />
-          <Typography>Signing you in…</Typography>
-        </Stack>
+        <div className="grid justify-items-center gap-3 py-12">
+          <Spinner label="Signing you in" />
+          <p className="text-sm text-muted-foreground">Signing you in…</p>
+        </div>
       )}
-    </Container>
+    </AppShell>
   );
 }

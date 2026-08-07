@@ -1,72 +1,84 @@
-import FormControl from "@mui/material/FormControl";
-import InputLabel from "@mui/material/InputLabel";
-import ListSubheader from "@mui/material/ListSubheader";
-import MenuItem from "@mui/material/MenuItem";
-import Select from "@mui/material/Select";
-import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
-import { GOOGLE_FONT_OPTIONS, SYSTEM_FONT_OPTIONS, type FontScheme } from "../lib/fontScheme";
+import { Field } from "@/components/ui/field";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { GOOGLE_FONT_OPTIONS, SYSTEM_FONT_OPTIONS, type FontScheme } from "@/lib/fontScheme";
 
 interface FontSchemeFormProps {
   fontScheme: FontScheme;
   onChange: (fontScheme: FontScheme) => void;
 }
 
-function renderFontMenuItems() {
-  return [
-    <ListSubheader key="system-header" onKeyDown={(e) => e.stopPropagation()}>
-      System fonts
-    </ListSubheader>,
-    ...SYSTEM_FONT_OPTIONS.map((option) => (
-      <MenuItem key={option.value} value={option.value} sx={{ fontFamily: option.value }}>
-        {option.label}
-      </MenuItem>
-    )),
-    <ListSubheader key="google-header" onKeyDown={(e) => e.stopPropagation()}>
-      Google fonts
-    </ListSubheader>,
-    ...GOOGLE_FONT_OPTIONS.map((option) => (
-      <MenuItem key={option.value} value={option.value} sx={{ fontFamily: option.value }}>
-        {option.label}
-      </MenuItem>
-    )),
-  ];
+/**
+ * Each option previews itself in its own typeface — the only way to choose a
+ * font is to see it. `style` rather than a class, because the values are font
+ * stacks from `lib/fontScheme.ts`, not design tokens.
+ */
+function FontOptions() {
+  return (
+    <>
+      <SelectGroup>
+        <SelectLabel>System fonts</SelectLabel>
+        {SYSTEM_FONT_OPTIONS.map((option) => (
+          <SelectItem key={option.value} value={option.value} style={{ fontFamily: option.value }}>
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectGroup>
+      <SelectGroup>
+        <SelectLabel>Google fonts</SelectLabel>
+        {GOOGLE_FONT_OPTIONS.map((option) => (
+          <SelectItem key={option.value} value={option.value} style={{ fontFamily: option.value }}>
+            {option.label}
+          </SelectItem>
+        ))}
+      </SelectGroup>
+    </>
+  );
 }
 
 export function FontSchemeForm({ fontScheme, onChange }: FontSchemeFormProps) {
   return (
-    <Stack component="section" spacing={2}>
-      <Typography variant="h6" component="h2">
-        Fonts
-      </Typography>
+    <div className="grid gap-4">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field htmlFor="title-font" label="Title font">
+          {({ id }) => (
+            <Select
+              value={fontScheme.titleFont}
+              onValueChange={(value) => onChange({ ...fontScheme, titleFont: value })}
+            >
+              <SelectTrigger id={id} className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <FontOptions />
+              </SelectContent>
+            </Select>
+          )}
+        </Field>
 
-      <Stack direction="row" spacing={2}>
-        <FormControl size="small" sx={{ minWidth: 160 }}>
-          <InputLabel id="title-font-label">Title font</InputLabel>
-          <Select
-            labelId="title-font-label"
-            id="title-font"
-            value={fontScheme.titleFont}
-            label="Title font"
-            onChange={(e) => onChange({ ...fontScheme, titleFont: e.target.value })}
-          >
-            {renderFontMenuItems()}
-          </Select>
-        </FormControl>
-
-        <FormControl size="small" sx={{ minWidth: 160 }}>
-          <InputLabel id="cell-font-label">Cell font</InputLabel>
-          <Select
-            labelId="cell-font-label"
-            id="cell-font"
-            value={fontScheme.cellFont}
-            label="Cell font"
-            onChange={(e) => onChange({ ...fontScheme, cellFont: e.target.value })}
-          >
-            {renderFontMenuItems()}
-          </Select>
-        </FormControl>
-      </Stack>
-    </Stack>
+        <Field htmlFor="cell-font" label="Cell font">
+          {({ id }) => (
+            <Select
+              value={fontScheme.cellFont}
+              onValueChange={(value) => onChange({ ...fontScheme, cellFont: value })}
+            >
+              <SelectTrigger id={id} className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <FontOptions />
+              </SelectContent>
+            </Select>
+          )}
+        </Field>
+      </div>
+    </div>
   );
 }

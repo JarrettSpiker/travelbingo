@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactNode } from "react";
-import Button from "@mui/material/Button";
+import { Button } from "@/components/ui/button";
 import { AuthMenu } from "../../components/AuthMenu";
 import { CardDetailsForm } from "../../components/CardDetailsForm";
 import { CardGrid } from "../../components/CardGrid";
@@ -38,7 +38,7 @@ export function CardDetailsFormSample() {
 
 export function ColorSchemeFormSample({ initial }: { initial: ColorScheme }) {
   const [colorScheme, setColorScheme] = useState(initial);
-  return <ColorSchemeForm colorScheme={colorScheme} onChange={setColorScheme} />;
+  return <ColorSchemeForm colorScheme={colorScheme} onChange={setColorScheme} onApplyTheme={(t) => setColorScheme(t.colorScheme)} onSeeMoreThemes={() => {}} />;
 }
 
 export function FontSchemeFormSample() {
@@ -72,7 +72,6 @@ export function EntryInputSample({ initial }: { initial: BingoEntry[] }) {
         )
       }
       onRemove={(index) => setEntries((prev) => prev.filter((_, i) => i !== index))}
-      onOpenSuggestions={() => {}}
     />
   );
 }
@@ -131,7 +130,7 @@ export function DialogSample({
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Button variant="outlined" onClick={() => setOpen(true)}>
+      <Button variant="outline" onClick={() => setOpen(true)}>
         {label}
       </Button>
       {open && render(() => setOpen(false))}

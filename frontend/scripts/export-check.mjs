@@ -39,14 +39,39 @@ const INSTALL_INTERCEPT = `(() => {
   return true;
 })()`;
 
-/** Clicks the first element whose trimmed text matches exactly. */
-const clickByText = (text, selector) => `(() => {
+/** Viewport centre of the first element whose trimmed text matches exactly. */
+const centerOfText = (text, selector) => `(() => {
   const nodes = [...document.querySelectorAll(${JSON.stringify(selector)})];
   const el = nodes.find((n) => n.textContent.trim() === ${JSON.stringify(text)});
-  if (!el) return false;
-  el.click();
-  return true;
+  if (!el) return null;
+  el.scrollIntoView({ block: "center" });
+  const r = el.getBoundingClientRect();
+  return JSON.stringify({ x: r.left + r.width / 2, y: r.top + r.height / 2 });
 })()`;
+
+/**
+ * Clicks with real input events rather than `element.click()`.
+ *
+ * Radix opens a dropdown on `pointerdown` and selects an item on `pointerup`;
+ * a synthetic `click()` dispatches neither, so it silently does nothing. Real
+ * events also mean this exercises the same path a user's mouse does, which is
+ * the entire point of driving the UI instead of calling `toPng` directly.
+ */
+async function clickByText(cdp, text, selector) {
+  const raw = await evaluate(cdp, centerOfText(text, selector));
+  if (!raw) return false;
+  const { x, y } = JSON.parse(raw);
+  for (const type of ["mousePressed", "mouseReleased"]) {
+    await cdp.send("Input.dispatchMouseEvent", {
+      type,
+      x,
+      y,
+      button: "left",
+      clickCount: 1,
+    });
+  }
+  return true;
+}
 
 const { cdp, dispose } = await launch(outDir);
 let failed = false;
@@ -69,12 +94,12 @@ try {
 
   await evaluate(cdp, INSTALL_INTERCEPT);
 
-  if (!(await evaluate(cdp, clickByText("Export", "button")))) {
+  if (!(await clickByText(cdp, "Export", "button"))) {
     throw new Error("could not find the Export button on /ui");
   }
   await sleep(600);
 
-  if (!(await evaluate(cdp, clickByText("PNG", '[role="menuitem"]')))) {
+  if (!(await clickByText(cdp, "PNG", '[role="menuitem"]'))) {
     throw new Error("could not find the PNG menu item");
   }
 

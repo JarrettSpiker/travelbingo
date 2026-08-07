@@ -1,18 +1,21 @@
 import { useState, type RefObject } from "react";
 import { toPng } from "html-to-image";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import Menu from "@mui/material/Menu";
-import MenuItem from "@mui/material/MenuItem";
-import Stack from "@mui/material/Stack";
-import Tooltip from "@mui/material/Tooltip";
-import Typography from "@mui/material/Typography";
-import type { BingoCard } from "../lib/bingo";
-import type { ColorScheme } from "../lib/colorScheme";
-import { buildImageFilename } from "../lib/imageExport";
-import type { EmojiScheme } from "../lib/emojiScheme";
-import type { FontScheme } from "../lib/fontScheme";
-import { CardGrid } from "./CardGrid";
+import { Download, Shuffle, TriangleAlert } from "lucide-react";
+import { useAuth } from "@/auth/authContext";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import type { BingoCard } from "@/lib/bingo";
+import type { ColorScheme } from "@/lib/colorScheme";
+import { buildImageFilename } from "@/lib/imageExport";
+import type { EmojiScheme } from "@/lib/emojiScheme";
+import type { FontScheme } from "@/lib/fontScheme";
+import { CardGrid } from "@/components/CardGrid";
 
 interface CardViewProps {
   card: BingoCard;
@@ -23,7 +26,7 @@ interface CardViewProps {
   onRandomize: () => void;
   /** Opens the revocable server-side share dialog. Omitted when accounts are off. */
   onCreateShareLink?: () => void;
-  /** True when the user is signed out; the share item is shown disabled with a hint. */
+  /** True when the user is signed out; the share item becomes a sign-in prompt. */
   shareLinkDisabled?: boolean;
   /**
    * The rendered card's DOM node, owned by the editor so the save flow can
@@ -44,11 +47,7 @@ export function CardView({
   cardRef,
 }: CardViewProps) {
   const [pngError, setPngError] = useState(false);
-  const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null);
-
-  function closeMenu() {
-    setMenuAnchorEl(null);
-  }
+  const { signIn } = useAuth();
 
   function handlePrint() {
     document.fonts.ready.then(() => window.print());
@@ -75,83 +74,82 @@ export function CardView({
   }
 
   return (
-    <Box component="section" className="card-view">
-      <Stack
-        className="no-print"
-        direction={{ xs: "column", sm: "row" }}
-        spacing={1}
-        sx={{ mb: 2, alignItems: { sm: "center" }, justifyContent: "space-between" }}
-      >
-        <Typography variant="h6" component="h2">
-          Your card
-        </Typography>
-        <Stack direction="row" spacing={1}>
-          <Button type="button" variant="outlined" size="small" onClick={onRandomize}>
+    <section className="card-view">
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="font-display text-lg font-semibold">Your card</h2>
+        <div className="flex gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={onRandomize}>
+            <Shuffle aria-hidden />
             Randomize card
           </Button>
-          <Button
-            type="button"
-            variant="outlined"
-            size="small"
-            onClick={(event) => setMenuAnchorEl(event.currentTarget)}
-          >
-            Export
-          </Button>
-          <Menu anchorEl={menuAnchorEl} open={Boolean(menuAnchorEl)} onClose={closeMenu}>
-            {onCreateShareLink && (
-              shareLinkDisabled ? (
-                // A disabled MenuItem doesn't receive pointer events, so the
-                // Tooltip has to wrap a block-level element to show the hint.
-                <Tooltip title="Sign in to share this card" placement="left">
-                  <Box component="span" sx={{ display: "block" }}>
-                    <MenuItem disabled>Create share link (short, revocable)</MenuItem>
-                  </Box>
-                </Tooltip>
-              ) : (
-                <MenuItem
-                  onClick={() => {
-                    closeMenu();
-                    onCreateShareLink();
-                  }}
-                >
-                  Create share link (short, revocable)
-                </MenuItem>
-              )
-            )}
-            <MenuItem
-              onClick={() => {
-                closeMenu();
-                handlePrint();
-              }}
-            >
-              PDF
-            </MenuItem>
-            <MenuItem
-              onClick={() => {
-                closeMenu();
-                void handlePng();
-              }}
-            >
-              PNG
-            </MenuItem>
-          </Menu>
-        </Stack>
-      </Stack>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" variant="outline" size="sm">
+                <Download aria-hidden />
+                Export
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {onCreateShareLink &&
+                (shareLinkDisabled ? (
+                  // Previously a disabled item wrapped in a Box so a tooltip
+                  // could fire on it — disabled items receive no pointer events,
+                  // in Radix as in MUI. An enabled item that does the thing the
+                  // user needs next is better than an explanation of why they
+                  // cannot have it.
+                  <DropdownMenuItem onSelect={() => signIn()}>Sign in to share</DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem onSelect={() => onCreateShareLink()}>
+                    Create share link (short, revocable)
+                  </DropdownMenuItem>
+                ))}
+              <DropdownMenuItem onSelect={() => handlePrint()}>PDF</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => void handlePng()}>PNG</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
 
       {pngError && (
-        <Typography className="no-print" color="error" variant="body2" sx={{ mb: 2, maxWidth: 420 }}>
-          Sorry, the PNG could not be generated. Please try again.
-        </Typography>
+        <Alert variant="destructive" className="mb-4 max-w-md">
+          <TriangleAlert />
+          <AlertDescription>
+            Sorry, the PNG could not be generated. Please try again.
+          </AlertDescription>
+        </Alert>
       )}
 
-      <CardGrid
-        ref={cardRef}
-        card={card}
-        title={title}
-        colorScheme={colorScheme}
-        fontScheme={fontScheme}
-        emojiScheme={emojiScheme}
-      />
-    </Box>
+      {/*
+        The card preview panel — and the single surface allowed the perforated
+        postcard edge (DESIGN.md's one-motif-per-surface rule). Nothing else in
+        the app gets `edge-perf`.
+
+        Every `print:` reset here is load-bearing. This element is an ancestor of
+        `.bingo-card`, so the print isolation deliberately keeps it — and its
+        padding, mask, and shadow would otherwise reach the page. The card is a
+        document; the panel it sits on in the app is not part of it.
+
+        `print:block` matters most: on screen this panel is a fixed-width block,
+        but the print rule sizes the card with `width: 100%` and the printed
+        page is a different width entirely — `print:w-auto` hands that back.
+
+        The width is fixed rather than shrink-to-fit. `.bingo-card` is capped at
+        420px but is otherwise as wide as its content, so a panel that hugged it
+        grew and shrank with the longest entry — the preview jumped sideways on
+        every keystroke. Pinning the panel makes the card a constant 420px, which
+        also makes the PNG export a constant size. `max-w-full` so a 390px screen
+        still wins. The 2rem is this element's own `p-4`, both sides.
+      */}
+      <div className="edge-perf w-[calc(420px+2rem)] max-w-full bg-paper p-4 shadow-postcard print:w-auto print:bg-transparent print:p-0 print:shadow-none print:[mask-image:none]">
+        <CardGrid
+          ref={cardRef}
+          card={card}
+          title={title}
+          colorScheme={colorScheme}
+          fontScheme={fontScheme}
+          emojiScheme={emojiScheme}
+        />
+      </div>
+    </section>
   );
 }

@@ -31,6 +31,7 @@
 - [x] 3.3 Leave every `.bingo-*` rule and the print-specific card sizing overrides unchanged
 - [x] 3.4 Verified by printing: exactly one page, card only, on both Letter and A4. `/ui` (deliberately unmarked chrome) drops from 10 printed pages to 4 — one per card instance — proving the isolation is structural rather than dependent on `.no-print`
 - [x] 3.5 Printed result is **pixel-identical** to the baseline when composited over white (0 of 484,704 pixels differ). The only delta is that the PDF no longer paints a redundant white background layer, which is invisible on paper
+- [x] 3.6 Cross-browser check: print verified on the deployed dev site in Firefox as well as Chrome, covering both `:has()` implementations. Safari deliberately not checked
 
 ## 4. Card-renderer guard test
 

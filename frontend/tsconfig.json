@@ -3,5 +3,14 @@
   "references": [
     { "path": "./tsconfig.app.json" },
     { "path": "./tsconfig.node.json" }
-  ]
+  ],
+  // A solution file compiles nothing, so these options do no typechecking here.
+  // They exist because the shadcn CLI reads THIS file to work out the alias and
+  // refuses to run without it. tsconfig.app.json carries the copy that counts.
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  }
 }

@@ -1,12 +1,24 @@
+import { fileURLToPath } from 'node:url'
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
 
   return {
-    plugins: [react()],
+    // Tailwind v4 is configured entirely in CSS (see src/index.css) — there is
+    // deliberately no tailwind.config.js and no PostCSS pipeline.
+    plugins: [react(), tailwindcss()],
+    resolve: {
+      alias: {
+        // Must stay in step with `paths` in tsconfig.app.json; TypeScript
+        // resolves imports for typechecking, Vite resolves them for the bundle,
+        // and neither reads the other's config.
+        '@': fileURLToPath(new URL('./src', import.meta.url)),
+      },
+    },
     server: {
       // Cognito's redirect URI is registered as exactly
       // http://localhost:5173/auth/callback. Without strictPort, a port already

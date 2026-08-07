@@ -1,20 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
-import Alert from "@mui/material/Alert";
-import Button from "@mui/material/Button";
-import Dialog from "@mui/material/Dialog";
-import DialogActions from "@mui/material/DialogActions";
-import DialogContent from "@mui/material/DialogContent";
-import DialogContentText from "@mui/material/DialogContentText";
-import DialogTitle from "@mui/material/DialogTitle";
-import IconButton from "@mui/material/IconButton";
-import List from "@mui/material/List";
-import ListItem from "@mui/material/ListItem";
-import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
-import Typography from "@mui/material/Typography";
-import DeleteIcon from "@mui/icons-material/Delete";
-import { useAuth } from "../auth/authContext";
-import { createShare, listShares, revokeShare, shareUrl, type ShareLink } from "../lib/cardsApi";
+import { Info, Trash2, TriangleAlert } from "lucide-react";
+import { useAuth } from "@/auth/authContext";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { createShare, listShares, revokeShare, shareUrl, type ShareLink } from "@/lib/cardsApi";
 
 interface ShareLinkDialogProps {
   open: boolean;
@@ -81,45 +79,55 @@ export function ShareLinkDialog({ open, onClose, cardId, onSaveFirst }: ShareLin
   }
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
-      <DialogTitle>Share a copy of this card</DialogTitle>
-      <DialogContent>
-        <Stack spacing={2}>
-          <DialogContentText>
-            Anyone with the link gets their own copy of this card as it is now. Later edits you
-            make will not change their copy.
-          </DialogContentText>
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Share a copy of this card</DialogTitle>
+          <DialogDescription>
+            Anyone with the link gets their own copy of this card as it is now. Later edits you make
+            will not change their copy.
+          </DialogDescription>
+        </DialogHeader>
 
+        <div className="grid gap-4">
           {/*
-            Stated plainly and not only in the spec: this is the one thing
-            about share links that will surprise people.
+            Stated plainly and not only in the spec: this is the one thing about
+            share links that will surprise people.
           */}
-          <Alert severity="info">
-            Revoking a link stops anyone new from opening it. It cannot take back a copy someone
-            has already made.
+          <Alert variant="info">
+            <Info />
+            <AlertDescription>
+              Revoking a link stops anyone new from opening it. It cannot take back a copy someone
+              has already made.
+            </AlertDescription>
           </Alert>
 
-          {error && <Alert severity="error">{error}</Alert>}
+          {error && (
+            <Alert variant="destructive">
+              <TriangleAlert />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
-          <Button variant="contained" onClick={() => void handleCreate()} disabled={busy}>
+          <Button onClick={() => void handleCreate()} disabled={busy} className="justify-self-start">
             Create a share link
           </Button>
 
           {shares.length > 0 && (
-            <>
-              <Typography variant="subtitle2">Active links</Typography>
-              <List dense disablePadding>
+            <div className="grid gap-2">
+              <p className="text-sm font-medium">Active links</p>
+              <ul className="grid gap-2">
                 {shares.map((share) => (
-                  <ListItem key={share.token} disableGutters sx={{ gap: 1 }}>
-                    <TextField
+                  <li key={share.token} className="flex items-center gap-2">
+                    <Input
                       value={shareUrl(share.token)}
-                      size="small"
-                      fullWidth
-                      slotProps={{ htmlInput: { readOnly: true } }}
+                      readOnly
                       onFocus={(event) => event.target.select()}
+                      className="font-mono text-xs"
                     />
                     <Button
-                      size="small"
+                      variant="secondary"
+                      size="sm"
                       onClick={() => {
                         navigator.clipboard?.writeText(shareUrl(share.token)).catch(() => {
                           // Clipboard access can fail; the field above is
@@ -129,23 +137,35 @@ export function ShareLinkDialog({ open, onClose, cardId, onSaveFirst }: ShareLin
                     >
                       Copy
                     </Button>
-                    <IconButton
+                    {/*
+                      Ghost, not a solid destructive fill: the palette's
+                      terracotta primary and crimson destructive are close
+                      enough in hue that two solid buttons side by side would be
+                      easy to confuse — and this one revokes access.
+                    */}
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
                       aria-label="Revoke this link"
                       onClick={() => void handleRevoke(share.token)}
                       disabled={busy}
+                      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
                     >
-                      <DeleteIcon />
-                    </IconButton>
-                  </ListItem>
+                      <Trash2 aria-hidden />
+                    </Button>
+                  </li>
                 ))}
-              </List>
-            </>
+              </ul>
+            </div>
           )}
-        </Stack>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>
+            Close
+          </Button>
+        </DialogFooter>
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Close</Button>
-      </DialogActions>
     </Dialog>
   );
 }

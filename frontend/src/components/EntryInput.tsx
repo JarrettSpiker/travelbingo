@@ -1,19 +1,13 @@
 import { useState, type FormEvent } from "react";
-import Alert from "@mui/material/Alert";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import FormControlLabel from "@mui/material/FormControlLabel";
-import IconButton from "@mui/material/IconButton";
-import List from "@mui/material/List";
-import ListItem from "@mui/material/ListItem";
-import Stack from "@mui/material/Stack";
-import Switch from "@mui/material/Switch";
-import TextField from "@mui/material/TextField";
-import Tooltip from "@mui/material/Tooltip";
-import Typography from "@mui/material/Typography";
-import DeleteIcon from "@mui/icons-material/Delete";
-import EditIcon from "@mui/icons-material/Edit";
-import { getCardSlotCount, getUniqueEntries, type BingoEntry } from "../lib/bingo";
+import { Pencil, Pin, Trash2, TriangleAlert } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Field } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { getCardSlotCount, getUniqueEntries, type BingoEntry } from "@/lib/bingo";
+import { cn } from "@/lib/utils";
 
 interface EntryInputProps {
   entries: BingoEntry[];
@@ -23,7 +17,6 @@ interface EntryInputProps {
   onToggleMandatory: (index: number) => void;
   onToggleEnabled: (index: number) => void;
   onRemove: (index: number) => void;
-  onOpenSuggestions?: () => void;
 }
 
 function normalize(text: string): string {
@@ -43,7 +36,6 @@ export function EntryInput({
   onToggleMandatory,
   onToggleEnabled,
   onRemove,
-  onOpenSuggestions,
 }: EntryInputProps) {
   const [draft, setDraft] = useState("");
   const [duplicateError, setDuplicateError] = useState<string | null>(null);
@@ -100,162 +92,181 @@ export function EntryInput({
   }
 
   return (
-    <Stack component="section" spacing={2}>
-      <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between" }}>
-        <Typography variant="h6" component="h2">
-          Entries
-        </Typography>
-        {onOpenSuggestions && (
-          <Button variant="outlined" size="small" onClick={onOpenSuggestions}>
-            See suggestions
-          </Button>
-        )}
-      </Stack>
-
-      <Stack component="form" direction="row" spacing={1} onSubmit={handleSubmit} sx={{ alignItems: "flex-start" }}>
-        <TextField
-          id="entry-draft"
-          label="Add an entry"
-          value={draft}
-          onChange={(e) => {
-            setDraft(e.target.value);
-            setDuplicateError(null);
-          }}
-          placeholder="e.g. Says 'synergy'"
-          size="small"
-          fullWidth
-        />
-        <Button type="submit" variant="contained" sx={{ flexShrink: 0 }}>
+    // No heading and no "See suggestions" button: both belong to the panel
+    // around this, so the section is titled once and the suggestions dialog
+    // stays the editor's concern rather than the entry list's.
+    <div className="grid gap-4">
+      <form onSubmit={handleSubmit} className="flex items-end gap-2">
+        <Field htmlFor="entry-draft" label="Add an entry" className="flex-1">
+          {({ id }) => (
+            <Input
+              id={id}
+              value={draft}
+              onChange={(e) => {
+                setDraft(e.target.value);
+                setDuplicateError(null);
+              }}
+              placeholder="e.g. Says 'synergy'"
+            />
+          )}
+        </Field>
+        <Button type="submit" className="shrink-0">
           Add
         </Button>
-      </Stack>
-      {duplicateError && <Alert severity="error">{duplicateError}</Alert>}
-
-      <Typography variant="body2">
-        {filledCount} / {slotCount} cells filled
-        {uniqueCount > slotCount && <> ({uniqueCount - slotCount} extra, used on randomize)</>}
-      </Typography>
-
-      {mandatoryCount > slotCount && (
-        <Alert severity="warning">
-          {mandatoryCount} entries are marked mandatory, but only {slotCount} cells are available — not all of
-          them can appear.
+      </form>
+      {duplicateError && (
+        <Alert variant="destructive">
+          <TriangleAlert />
+          <AlertDescription>{duplicateError}</AlertDescription>
         </Alert>
       )}
 
-      <List
-        disablePadding
-        sx={{
-          display: "grid",
-          gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
-          columnGap: 3,
-        }}
-      >
+      <p className="text-sm text-muted-foreground">
+        {filledCount} / {slotCount} cells filled
+        {uniqueCount > slotCount && <> ({uniqueCount - slotCount} extra, used on randomize)</>}
+      </p>
+
+      {mandatoryCount > slotCount && (
+        <Alert variant="warning">
+          <TriangleAlert />
+          <AlertDescription>
+            {mandatoryCount} entries are marked mandatory, but only {slotCount} cells are available —
+            not all of them can appear.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <ul className="grid gap-1 sm:grid-cols-2 sm:gap-x-6">
         {entries.map((entry, index) =>
           editingIndex === index ? (
-            <ListItem
-              key={index}
-              disableGutters
-              sx={{ display: "block", py: 0.5, gridColumn: { sm: "1 / -1" } }}
-            >
-              <Stack component="form" direction="row" spacing={1} onSubmit={(e) => handleEditSubmit(e, index)}>
-                <TextField
+            <li key={index} className="py-1 sm:col-span-full">
+              <form onSubmit={(e) => handleEditSubmit(e, index)} className="flex gap-2">
+                <Input
                   value={editDraft}
                   onChange={(e) => {
                     setEditDraft(e.target.value);
                     setEditError(null);
                   }}
-                  slotProps={{ htmlInput: { "aria-label": `Edit entry ${entry.text}` } }}
+                  aria-label={`Edit entry ${entry.text}`}
                   autoFocus
-                  size="small"
-                  fullWidth
                 />
-                <Button type="submit" size="small" sx={{ flexShrink: 0 }}>
+                <Button type="submit" size="sm" className="shrink-0">
                   Save
                 </Button>
-                <Button type="button" size="small" sx={{ flexShrink: 0 }} onClick={cancelEditing}>
+                <Button type="button" variant="ghost" size="sm" className="shrink-0" onClick={cancelEditing}>
                   Cancel
                 </Button>
-              </Stack>
+              </form>
               {editError && (
-                <Alert severity="error" sx={{ mt: 0.5 }}>
-                  {editError}
+                <Alert variant="destructive" className="mt-1">
+                  <TriangleAlert />
+                  <AlertDescription>{editError}</AlertDescription>
                 </Alert>
               )}
-            </ListItem>
+            </li>
           ) : (
-            <ListItem
+            // `group` drives the hover reveal below. The row is a group rather
+            // than the buttons being always-visible because two icon buttons per
+            // entry, times 24 entries, is 48 competing targets on the screen.
+            <li
               key={index}
-              disableGutters
-              sx={{
-                py: 0.5,
-                borderColor: "divider",
-                borderLeftStyle: "solid",
-                borderLeftWidth: { xs: 0, sm: index % 2 === 1 ? 1 : 0 },
-                pl: { xs: 0, sm: index % 2 === 1 ? 2 : 0 },
-              }}
+              className={cn(
+                "group flex items-center gap-2 rounded-md px-2 py-1 transition-colors hover:bg-secondary/60",
+                index % 2 === 1 && "sm:border-l sm:border-border sm:pl-4",
+              )}
             >
-              <Stack direction="row" spacing={1} sx={{ width: "100%", alignItems: "center" }}>
-                <Box
-                  sx={{
-                    flex: 1,
-                    textDecoration: entry.enabled === false ? "line-through" : "none",
-                    opacity: entry.enabled === false ? 0.5 : 1,
-                  }}
-                >
-                  {entry.text}
-                </Box>
-                <FormControlLabel
-                  control={
-                    <Switch
-                      size="small"
-                      checked={entry.enabled !== false}
-                      onChange={() => onToggleEnabled(index)}
-                      slotProps={{ input: { "aria-label": `Toggle ${entry.text} active` } }}
-                    />
-                  }
-                  label="Active"
-                  slotProps={{ typography: { variant: "body2", sx: { whiteSpace: "nowrap" } } }}
-                />
-                <FormControlLabel
-                  control={
-                    <Switch
-                      size="small"
-                      checked={entry.mandatory}
-                      onChange={() => onToggleMandatory(index)}
-                      slotProps={{ input: { "aria-label": `Mark ${entry.text} as mandatory` } }}
-                    />
-                  }
-                  label="Mandatory"
-                  disabled={entry.enabled === false}
-                  slotProps={{ typography: { variant: "body2", sx: { whiteSpace: "nowrap" } } }}
-                />
-                <Tooltip title="Edit">
-                  <IconButton
-                    type="button"
-                    size="small"
-                    onClick={() => startEditing(index)}
-                    aria-label={`Edit ${entry.text}`}
-                  >
-                    <EditIcon fontSize="small" />
-                  </IconButton>
+              <Checkbox
+                checked={entry.enabled !== false}
+                onCheckedChange={() => onToggleEnabled(index)}
+                aria-label={`Toggle ${entry.text} active`}
+              />
+
+              <span
+                className={cn(
+                  "flex-1 text-sm",
+                  entry.enabled === false && "text-muted-foreground line-through",
+                )}
+              >
+                {entry.text}
+              </span>
+
+              {/*
+                Mandatory was a labelled switch; it is now a pin. A pinned entry
+                is one that always appears, which is what a pin means everywhere
+                else, and it costs a fifth of the row width.
+
+                Not rendered at all for an inactive, unpinned entry: the button
+                base carries `disabled:opacity-50`, which beats the hover-reveal
+                `opacity-0` and left dead controls sitting visible on exactly the
+                rows that had nothing to offer. A pinned-but-inactive entry keeps
+                its pin, because that state is worth seeing.
+              */}
+              {(entry.mandatory || entry.enabled !== false) && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-pressed={entry.mandatory}
+                      disabled={entry.enabled === false}
+                      onClick={() => onToggleMandatory(index)}
+                      aria-label={`Mark ${entry.text} as mandatory`}
+                      className={cn(
+                        entry.mandatory
+                          ? "text-primary hover:text-primary"
+                          : "text-muted-foreground opacity-0 group-hover:opacity-100 group-focus-within:opacity-100",
+                      )}
+                    >
+                      <Pin className={cn(entry.mandatory && "fill-current")} aria-hidden />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {entry.mandatory ? "Always include this entry" : "Always include"}
+                  </TooltipContent>
                 </Tooltip>
-                <Tooltip title="Remove">
-                  <IconButton
-                    type="button"
-                    size="small"
-                    color="error"
-                    onClick={() => onRemove(index)}
-                    aria-label={`Remove ${entry.text}`}
-                  >
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
+              )}
+
+              {/*
+                Revealed on hover, but only visually: opacity keeps them in the
+                tab order, and `group-focus-within` brings them back for anyone
+                arriving by keyboard.
+              */}
+              <div className="flex opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => startEditing(index)}
+                      aria-label={`Edit ${entry.text}`}
+                    >
+                      <Pencil aria-hidden />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Edit</TooltipContent>
                 </Tooltip>
-              </Stack>
-            </ListItem>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => onRemove(index)}
+                      aria-label={`Remove ${entry.text}`}
+                      className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    >
+                      <Trash2 aria-hidden />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Remove</TooltipContent>
+                </Tooltip>
+              </div>
+            </li>
           ),
         )}
-      </List>
-    </Stack>
+      </ul>
+    </div>
   );
 }

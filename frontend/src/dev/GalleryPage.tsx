@@ -1,8 +1,3 @@
-import Box from "@mui/material/Box";
-import Container from "@mui/material/Container";
-import Divider from "@mui/material/Divider";
-import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
 import { GALLERY_ENTRIES } from "./gallery/registry";
 
 /**
@@ -21,44 +16,48 @@ export const GALLERY_SENTINEL = "__TRAVELBINGO_DEV_GALLERY__";
  *
  * Its purpose is to make a single screenshot cover the whole UI surface, so a
  * visual change can be reviewed rather than assumed. See frontend/DESIGN.md.
+ *
+ * Deliberately NOT wrapped in `AppShell`: the gallery is a contact sheet, and
+ * the shell is one of the things on it.
  */
 export default function GalleryPage() {
   return (
-    <Container component="main" maxWidth="lg" sx={{ py: 4 }} data-gallery={GALLERY_SENTINEL}>
-      <Stack spacing={1} sx={{ mb: 4 }}>
-        <Typography variant="h4" component="h1">
-          Component gallery
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
+    <main
+      className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6"
+      data-gallery={GALLERY_SENTINEL}
+    >
+      <div className="mb-8 grid gap-1">
+        <h1 className="font-display text-3xl font-semibold tracking-tight">Component gallery</h1>
+        <p className="text-sm text-muted-foreground">
           Development only — every component in its meaningful states. Review this page in light and
           dark, at 390px and 1440px wide, before considering a UI change done.
-        </Typography>
-      </Stack>
+        </p>
+      </div>
 
-      <Stack spacing={6}>
+      <div className="grid gap-12">
         {GALLERY_ENTRIES.map((galleryEntry) => (
-          <Box component="section" key={galleryEntry.source}>
-            <Typography variant="h5" component="h2" gutterBottom>
-              {galleryEntry.title}
-            </Typography>
-            <Typography variant="caption" color="text.secondary" component="p" sx={{ mb: 2 }}>
-              src/components/{galleryEntry.source}
-            </Typography>
-            <Divider sx={{ mb: 3 }} />
+          // `min-w-0`: a grid item defaults to `min-width: auto`, so it refuses
+          // to shrink below its content. The card preview panel has a fixed
+          // width, which was enough to push the whole gallery wider than a
+          // 390px viewport and give the page a horizontal scrollbar.
+          <section key={galleryEntry.source} className="min-w-0 overflow-x-auto">
+            <h2 className="font-display text-xl font-semibold">{galleryEntry.title}</h2>
+            <p className="mt-1 font-mono text-xs text-muted-foreground">{galleryEntry.source}</p>
+            <hr className="my-4 border-border" />
 
-            <Stack spacing={4}>
+            <div className="grid gap-8">
               {galleryEntry.states.map((state) => (
-                <Box key={state.label}>
-                  <Typography variant="overline" color="text.secondary" component="p">
+                <div key={state.label}>
+                  <p className="text-xs tracking-widest text-muted-foreground uppercase">
                     {state.label}
-                  </Typography>
-                  <Box sx={{ mt: 1 }}>{state.node}</Box>
-                </Box>
+                  </p>
+                  <div className="mt-2">{state.node}</div>
+                </div>
               ))}
-            </Stack>
-          </Box>
+            </div>
+          </section>
         ))}
-      </Stack>
-    </Container>
+      </div>
+    </main>
   );
 }

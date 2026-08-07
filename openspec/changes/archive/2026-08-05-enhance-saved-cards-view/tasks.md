@@ -44,4 +44,4 @@
 ## 8. Tests and verification
 
 - [x] 8.1 Run `npm run lint`, `npm test`, and `npm run build` from both `frontend/` and `backend/`; confirm all pass
-- [ ] 8.2 Manually verify: saving a card produces a thumbnail visible in the grid; re-saving updates it; an existing card without a thumbnail shows a placeholder; the per-card menu creates/lists/copies/revokes share links without opening the editor; deleting a card removes its thumbnail; a thumbnail fetch by a non-owner is refused
+- [x] 8.2 Manually verify: saving a card produces a thumbnail visible in the grid; re-saving updates it; an existing card without a thumbnail shows a placeholder; the per-card menu creates/lists/copies/revokes share links without opening the editor; deleting a card removes its thumbnail; a thumbnail fetch by a non-owner is refused

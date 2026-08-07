@@ -37,8 +37,9 @@ Originally built from the OpenSpec change in
   rendering logic lives here.
   - `src/lib/` — pure, framework-agnostic logic (`bingo.ts`, `cardUrl.ts`,
     `colorScheme.ts`, `fontScheme.ts`), each with a co-located `*.test.ts`.
-  - `src/components/` — MUI v9 React components.
-  - `src/theme.ts` — shared MUI theme.
+  - `src/components/` — React components. `src/components/ui/` is generated
+    shadcn/ui code, treated as vendored.
+  - `src/index.css` — the design token layer and the Tailwind config.
   - `src/dev/` — the component gallery at `/ui`. **Dev-only**: guarded by
     `import.meta.env.DEV` behind a dynamic import, so it is dropped from
     production builds. Never import it from application code.
@@ -61,7 +62,13 @@ Originally built from the OpenSpec change in
 ## Tech stack
 
 - **Runtime:** Node.js 20+ (developed against Node 22).
-- **Frontend:** React 19, Vite, TypeScript, MUI v9 + Emotion, React Router.
+- **Frontend:** React 19, Vite, TypeScript, React Router, Tailwind v4 +
+  shadcn/ui (Radix), `lucide-react` for icons. Style from the tokens in
+  `frontend/src/index.css`; **never put a raw hex value in a component**.
+  `src/components/ui/` is generated shadcn code — editable, but reviewed as
+  vendored, and local edits carry a comment saying they diverge from the
+  registry. Tailwind is configured in CSS: there is no `tailwind.config.js` and
+  no PostCSS pipeline, deliberately.
 - **Backend:** Node 22 Lambda (arm64), esbuild, AWS SDK v3, DynamoDB.
 - **Auth:** AWS Cognito user pool, Google as the only identity provider.
 - **Lint/format:** Oxlint.
@@ -146,7 +153,12 @@ terraform apply -var="bucket_name=<globally-unique-bucket>"
   `cardGrid.guard.test.ts` enforces the mechanical parts.
 - **`frontend/src/App.css` is deliberately unlayered CSS.** Unlayered rules beat
   anything inside an `@layer`, which is what keeps the card immune to app-wide
-  styling. Don't wrap it in a layer.
+  styling. Don't wrap it in a layer. But note the limit: unlayered wins only
+  where `App.css` *declares the property*. Anything the card gets from the
+  browser's default stylesheet is unprotected — Tailwind's preflight silently
+  reset the card title's size and weight in the app, the PDF, the PNG, and the
+  thumbnail at once. **The card must declare every property its appearance
+  depends on.**
 - **Auth effects live only in `frontend/src/auth/AuthProvider.tsx`**, never in
   `App.tsx`. The provider renders children immediately so authentication never
   gates first paint.
@@ -155,9 +167,14 @@ terraform apply -var="bucket_name=<globally-unique-bucket>"
 
 - New pure logic → `src/lib/`; new UI → `src/components/`.
 - Co-locate tests next to source: `foo.ts` ↔ `foo.test.ts`.
-- Styling via MUI + Emotion and `src/theme.ts`. **Read `frontend/DESIGN.md`
-  before UI work** — it carries the visual rules, the review loop, and the
-  frozen-card-renderer constraint.
+- Styling via Tailwind utilities and the tokens in `src/index.css`; use `@/…`
+  imports in new files. **Read `frontend/DESIGN.md` before UI work** — it carries
+  the token table, the spacing and type scales, the travel-motif inventory, the
+  component-choice table, the review loop, and the frozen-card-renderer
+  constraint.
+- **`--accent` is shadcn's hover/active surface, not a brand colour.** Every
+  `ghost` and `outline` button and every menu item is `hover:bg-accent`. The
+  app's second brand colour is `--ocean`, used by name and sparingly.
 - New components need a gallery entry in `frontend/src/dev/gallery/registry.tsx`;
   `coverage.test.ts` fails without one. Add new *states* of an existing
   component too — nothing mechanical catches those.
