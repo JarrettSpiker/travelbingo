@@ -11,15 +11,15 @@
 
 ## 3. Clear the GitHub Environment gate
 
-- [ ] 3.1 (manual) Settings → Environments → `dev` → "Deployment branches": if it is restricted to `main`, switch to "All branches" (or add `dev`). A restriction pinned to `main` blocks a `dev`-branch run at the `environment:` step before any AWS call
-- [ ] 3.2 (manual) Confirm `dev` has no required reviewers configured (a manual gate here would defeat an auto-deploy trigger)
+- [x] 3.1 (manual) Settings → Environments → `dev` → "Deployment branches": if it is restricted to `main`, switch to "All branches" (or add `dev`). A restriction pinned to `main` blocks a `dev`-branch run at the `environment:` step before any AWS call
+- [x] 3.2 (manual) Confirm `dev` has no required reviewers configured (a manual gate here would defeat an auto-deploy trigger)
 
 ## 4. End-to-end verification
 
-- [ ] 4.1 Create the `dev` branch off the current `main` (it does not need to exist yet for the trigger; the branch filter just has to match the pushed ref)
-- [ ] 4.2 Push a trivial, non-destructive change to `dev` and confirm a `deploy-dev` run fires from the `dev` ref (check the run's triggering branch in the Actions UI)
-- [ ] 4.3 Confirm the run assumes the dev role via OIDC, ships the backend, then the frontend, and invalidates CloudFront — i.e. behaves identically to a `main`-triggered run
-- [ ] 4.4 Push a second change to `main` while a `dev` run is in flight and confirm the existing `deploy-dev` concurrency group serializes them (neither is cancelled; last to finish is what dev serves)
+- [x] 4.1 Create the `dev` branch off the current `main` (it does not need to exist yet for the trigger; the branch filter just has to match the pushed ref)
+- [x] 4.2 Push a trivial, non-destructive change to `dev` and confirm a `deploy-dev` run fires from the `dev` ref (check the run's triggering branch in the Actions UI)
+- [x] 4.3 Confirm the run assumes the dev role via OIDC, ships the backend, then the frontend, and invalidates CloudFront — i.e. behaves identically to a `main`-triggered run
+- [x] 4.4 Push a second change to `main` while a `dev` run is in flight and confirm the existing `deploy-dev` concurrency group serializes them (neither is cancelled; last to finish is what dev serves)
 
 ## 5. Rollback (only if needed)
 

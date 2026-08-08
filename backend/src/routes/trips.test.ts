@@ -3,6 +3,7 @@ import { HttpError } from "../http.ts";
 import {
   cardMetaKey,
   inviteKey,
+  profileKey,
   tripCardKey,
   tripInvitePointerKey,
   tripMemberKey,
@@ -25,6 +26,7 @@ import {
   MAX_MEMBERS_PER_TRIP,
   MAX_TRIP_CARDS_PER_TRIP,
   MAX_TRIPS_PER_USER,
+  MAX_INVITES_PER_TRIP,
   redeemInvite,
   removeMember,
   removeTripCard,
@@ -209,6 +211,29 @@ describe("getTrip", () => {
     expect(await statusOf(getTrip(deps, request({ userId: "user-b", params: { tripId } })))).toBe(404);
   });
 
+  it("surfaces each member's display name and self-reported email (null when unset)", async () => {
+    const deps = makeTestDeps();
+    const tripId = await createTrip(
+      deps,
+      request({ userId: "user-a", body: { title: "T", mode: "cooperative", email: "alex@example.com" } }),
+    ).then((r) => JSON.parse(r.body).tripId as string);
+    deps.ddb.seed({ ...profileKey("user-a"), displayName: "Alex", createdAt: "t", updatedAt: "t" });
+    const token = await mintInvite(deps, tripId);
+    await redeemInvite(deps, request({ userId: "user-b", body: { email: "sam@example.com" }, params: { token } }));
+    // user-b has no profile item — display name falls back to null, but the
+    // email they self-reported on join is still surfaced so trip-mates can
+    // identify them.
+
+    const body = JSON.parse((await getTrip(deps, request({ params: { tripId } }))).body);
+    const members: Array<{ userId: string; displayName: string | null; email: string | null }> = body.members;
+    const userA = members.find((m) => m.userId === "user-a");
+    const userB = members.find((m) => m.userId === "user-b");
+    expect(userA?.displayName).toBe("Alex");
+    expect(userA?.email).toBe("alex@example.com");
+    expect(userB?.displayName).toBeNull();
+    expect(userB?.email).toBe("sam@example.com");
+  });
+
   it("shows outstanding invites only to the administrator", async () => {
     const deps = makeTestDeps();
     const tripId = await seedTrip(deps, "user-a");
@@ -334,6 +359,15 @@ describe("invites", () => {
     // The redemption record and the admin-facing pointer both exist.
     expect(deps.ddb.get(inviteKey(token).PK, inviteKey(token).SK)).toBeDefined();
     expect(deps.ddb.get(tripInvitePointerKey(tripId, token).PK, tripInvitePointerKey(tripId, token).SK)).toBeDefined();
+  });
+
+  it("bounds the outstanding invites per trip", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps, "user-a");
+    for (let i = 0; i < MAX_INVITES_PER_TRIP; i += 1) {
+      deps.ddb.seed({ ...tripInvitePointerKey(tripId, `inv-${i}`), createdAt: "t" });
+    }
+    expect(await statusOf(createInvite(deps, request({ params: { tripId } })))).toBe(400);
   });
 
   it("refuses minting by a non-administrator with the same 404 as a non-member", async () => {
@@ -462,6 +496,26 @@ describe("removeMember", () => {
     const tripId = await seedTrip(deps, "user-a");
 
     expect(await statusOf(removeMember(deps, request({ params: { tripId, userId: "user-a" } })))).toBe(400);
+  });
+
+  it("removes one of two administrators, but conditions the write on the other surviving", async () => {
+    // Admin transfer isn't a feature, so a trip normally has exactly one admin.
+    // This seeds a second admin mirror directly to exercise the multi-admin
+    // guard: removing one admin must succeed when another remains, and the
+    // write is conditioned on that other admin's mirror still existing.
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps, "user-a");
+    deps.ddb.seed({ ...tripMembershipKey("user-b", tripId), role: "admin", title: "T", updatedAt: "t" });
+    deps.ddb.seed({ ...tripMemberKey(tripId, "user-b"), role: "admin", createdAt: "t" });
+
+    expect((await removeMember(deps, request({ params: { tripId, userId: "user-a" } }))).statusCode).toBe(204);
+    // user-a is gone; user-b remains and the trip is still administrable.
+    expect(deps.ddb.get(tripMembershipKey("user-a", tripId).PK, tripMembershipKey("user-a", tripId).SK)).toBeUndefined();
+    expect(deps.ddb.get(tripMemberKey(tripId, "user-b").PK, tripMemberKey(tripId, "user-b").SK)).toBeDefined();
+
+    // Now user-b is the only admin: removing them is refused, leaving the trip
+    // administrable rather than stranded.
+    expect(await statusOf(removeMember(deps, request({ userId: "user-b", params: { tripId, userId: "user-b" } })))).toBe(400);
   });
 
   it("returns 404 for a non-member target", async () => {

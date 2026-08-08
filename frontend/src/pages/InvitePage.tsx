@@ -25,7 +25,7 @@ type Phase = "loading" | "not_found" | "ready" | "redeeming" | "done" | "error";
  */
 export function InvitePage() {
   const { token = "" } = useParams();
-  const { api, status, signIn, accountsEnabled } = useAuth();
+  const { api, status, signIn, accountsEnabled, email } = useAuth();
   const navigate = useNavigate();
 
   const [phase, setPhase] = useState<Phase>("loading");
@@ -58,13 +58,13 @@ export function InvitePage() {
     setPhase("redeeming");
     void (async () => {
       try {
-        const { tripId } = await redeemInvite(api, token);
+        const { tripId } = await redeemInvite(api, token, email);
         navigate(`/trips/${tripId}`, { replace: true });
       } catch {
         setPhase("error");
       }
     })();
-  }, [api, navigate, status, phase, token]);
+  }, [api, navigate, status, phase, token, email]);
 
   function handleSignIn() {
     // Preserve the full invite URL so the OAuth callback returns here, now

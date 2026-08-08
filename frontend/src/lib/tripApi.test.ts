@@ -64,7 +64,7 @@ describe("tripApi routing", () => {
 
   it("POSTs a new trip", async () => {
     const { client, calls } = makeClient([jsonResponse(201, { tripId: "t1" })]);
-    await createTrip(client, { title: "Trip", mode: "cooperative" });
+    await createTrip(client, { title: "Trip", mode: "cooperative" }, "you@example.com");
     expect(calls[0].url).toBe("/api/trips");
     expect(calls[0].init.method).toBe("POST");
   });
@@ -125,7 +125,7 @@ describe("tripApi routing", () => {
 
   it("redeems an invite with authentication", async () => {
     const { client, calls } = makeClient([jsonResponse(201, { tripId: "t1" })]);
-    await redeemInvite(client, "tok");
+    await redeemInvite(client, "tok", "you@example.com");
     expect(calls[0].url).toBe("/api/invites/tok/redeem");
     expect(calls[0].init.method).toBe("POST");
     expect(headersOf(calls[0]).Authorization).toBe("Bearer token");

@@ -4,6 +4,7 @@ import {
   CalendarDays,
   Compass,
   Copy,
+  LayoutGrid,
   Link2,
   Pencil,
   Plus,
@@ -51,16 +52,56 @@ import {
   removeTripCard,
   revokeInvite,
 } from "@/lib/tripApi";
-import type { TripCard, TripDetail } from "@/lib/tripTypes";
+import { formatTripRange, formatTripTimestamp } from "@/lib/tripDates";
+import type { TripCard, TripDetail, TripMember } from "@/lib/tripTypes";
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+/** The detail page names specific days, so unlike the list it carries the year. */
+const DATE_FORMAT: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", year: "numeric" };
+
+/**
+ * A label that identifies a member, never a raw user id.
+ *
+ * Both `displayName` and `email` are optional — a profile has no display name
+ * until its owner visits Settings — so the fallback has to stay *distinct* per
+ * member rather than reading "Unknown member" for everyone. Two identical rows
+ * each with a Remove button, or two identical entries in the assign dropdown,
+ * leave the admin no way to tell who they are acting on.
+ *
+ * The disambiguator is the member's position in the trip's roster, which the
+ * server returns in join order. A slice of the user id would also be unique,
+ * but ids are opaque only in production — anywhere they carry a readable
+ * suffix, "Member arol" reads as a corrupted name rather than a placeholder.
+ */
+function memberLabel(
+  member: TripMember,
+  index: number,
+  currentUserId: string | null,
+  email: string | null,
+  displayName: string | null,
+): string {
+  // For the caller, their own auth-cached name/email is the freshest source.
+  if (member.userId === currentUserId) {
+    return member.displayName ?? displayName ?? member.email ?? email ?? `Member ${index + 1}`;
+  }
+  return member.displayName ?? member.email ?? `Member ${index + 1}`;
 }
 
-function formatRange(startDate?: string, endDate?: string): string | null {
-  if (!startDate && !endDate) return null;
-  const fmt = (iso?: string) => (iso ? formatDate(iso) : "…");
-  return `${fmt(startDate)} – ${fmt(endDate)}`;
+/**
+ * The label for a card's assignee. "Unassigned" when nobody holds the card;
+ * "Unknown member" only when the assignment points at someone no longer in the
+ * member list, which is the one genuinely unresolvable case.
+ */
+function assigneeLabel(
+  trip: TripDetail,
+  assignedMemberId: string | undefined,
+  currentUserId: string | null,
+  email: string | null,
+  displayName: string | null,
+): string {
+  if (!assignedMemberId) return "Unassigned";
+  const index = trip.members.findIndex((m) => m.userId === assignedMemberId);
+  if (index === -1) return "Unknown member";
+  return memberLabel(trip.members[index], index, currentUserId, email, displayName);
 }
 
 /** Builds an editable card from a frozen snapshot, deriving the entry pool from the grid. */
@@ -79,7 +120,7 @@ function snapshotToCardData(card: TripCard): CardUrlData {
 
 export function TripDetailPage() {
   const { tripId = "" } = useParams();
-  const { api, status, accountsEnabled } = useAuth();
+  const { api, status, accountsEnabled, email, displayName, userId: currentUserId } = useAuth();
   const navigate = useNavigate();
 
   const [trip, setTrip] = useState<TripDetail | null | undefined>(undefined);
@@ -87,6 +128,8 @@ export function TripDetailPage() {
   const [busy, setBusy] = useState(false);
   const [copiedCardId, setCopiedCardId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  /** The tripCardId currently being assigned, so that card alone shows a spinner. */
+  const [assigningId, setAssigningId] = useState<string | null>(null);
 
   const [confirm, setConfirm] = useState<{
     title: string;
@@ -97,6 +140,8 @@ export function TripDetailPage() {
   // Add-card dialog state.
   const [addCardOpen, setAddCardOpen] = useState(false);
   const [library, setLibrary] = useState<SavedCardSummary[] | null>(null);
+  /** CardIds whose thumbnail failed to load, so a placeholder is shown instead. */
+  const [failedThumbs, setFailedThumbs] = useState<Set<string>>(new Set());
 
   const isAdmin = trip?.role === "admin";
   const isCompetitive = trip?.mode === "competitive";
@@ -152,10 +197,20 @@ export function TripDetailPage() {
     if (library === null) {
       try {
         setLibrary(await listCards(api));
+        setFailedThumbs(new Set());
       } catch {
         setLibrary([]);
       }
     }
+  }
+
+  function markThumbFailed(cardId: string) {
+    setFailedThumbs((prev) => {
+      if (prev.has(cardId)) return prev;
+      const next = new Set(prev);
+      next.add(cardId);
+      return next;
+    });
   }
 
   async function handleAddCard(cardId: string) {
@@ -191,7 +246,18 @@ export function TripDetailPage() {
     // server only when a member is chosen. (Clearing on member removal is the
     // server's job; the admin picks a new member to reassign.)
     if (value === "unassigned" || value === card.assignedMemberId) return;
-    await run(() => assignTripCard(api, tripId, card.tripCardId, value), "Could not assign that card.");
+    // Scoped loading state: only this card shows a spinner while the assignment
+    // round-trip is in flight, so the rest of the page stays interactive.
+    setAssigningId(card.tripCardId);
+    setError(null);
+    try {
+      await assignTripCard(api, tripId, card.tripCardId, value);
+      await load();
+    } catch {
+      setError("Could not assign that card.");
+    } finally {
+      setAssigningId(null);
+    }
   }
 
   if (!accountsEnabled || status === "anonymous") {
@@ -232,7 +298,7 @@ export function TripDetailPage() {
     );
   }
 
-  const range = formatRange(trip.startDate, trip.endDate);
+  const range = formatTripRange(trip.startDate, trip.endDate, DATE_FORMAT);
 
   return (
     <AppShell headerActions={<AuthMenu />}>
@@ -298,35 +364,32 @@ export function TripDetailPage() {
         )}
 
         {/* Members */}
-        <Panel
-          title="Members"
-          icon={Users}
-          actions={
-            <Button variant="outline" size="sm" onClick={() => void handleOpenAddCard()} disabled={busy}>
-              <Plus aria-hidden /> Add a card
-            </Button>
-          }
-        >
+        <Panel title="Members" icon={Users}>
           <ul className="grid gap-2">
-            {trip.members.map((member) => {
-              // Memberships carry only user ids — no display name — so a member
-              // is shown by role plus a short id. The admin's is identifiable by
-              // role; everyone else by their id.
+            {trip.members.map((member, index) => {
+              const isSelf = member.userId === currentUserId;
+              const name = memberLabel(member, index, currentUserId, email, displayName);
               return (
                 <li
                   key={member.userId}
                   className="flex items-center justify-between gap-3 rounded-md border border-border bg-background/40 p-3"
                 >
-                  <span className="grid gap-0.5">
-                    <span className="text-sm font-medium">
+                  {/* `min-w-0` so a long email truncates instead of widening
+                      the row past the panel and taking Remove off-screen. */}
+                  <span className="grid min-w-0 gap-0.5">
+                    <span className="truncate text-sm font-medium">
+                      {name}
+                      {isSelf && <span className="text-muted-foreground"> (you)</span>}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
                       {member.role === "admin" ? "Administrator" : "Member"}
                     </span>
-                    <span className="font-mono text-xs text-muted-foreground">{member.userId}</span>
                   </span>
                   {isAdmin && member.role !== "admin" && (
                     <Button
                       variant="ghost"
                       size="sm"
+                      className="shrink-0"
                       disabled={busy}
                       onClick={() =>
                         setConfirm({
@@ -346,7 +409,15 @@ export function TripDetailPage() {
         </Panel>
 
         {/* Cards */}
-        <Panel title="Cards" icon={Compass}>
+        <Panel
+          title="Cards"
+          icon={Compass}
+          actions={
+            <Button variant="outline" size="sm" onClick={() => void handleOpenAddCard()} disabled={busy}>
+              <Plus aria-hidden /> Add a card
+            </Button>
+          }
+        >
           {trip.cards.length === 0 ? (
             <p className="text-sm text-muted-foreground">No cards yet. Add one from your library.</p>
           ) : (
@@ -357,7 +428,11 @@ export function TripDetailPage() {
                   freeSpaceText: card.snapshot.freeSpaceText,
                 });
                 return (
-                  <li key={card.tripCardId} className="grid gap-3">
+                  // `1fr auto`: a card with a title renders taller than one
+                  // without, so without this the meta boxes in a row start and
+                  // end at different heights and read as a rendering glitch.
+                  // The preview takes the slack; the controls stay aligned.
+                  <li key={card.tripCardId} className="grid grid-rows-[1fr_auto] gap-3">
                     <div className="mx-auto w-full max-w-sm">
                       <CardGrid
                         card={bingoCard}
@@ -369,12 +444,14 @@ export function TripDetailPage() {
                     </div>
                     <div className="grid gap-2 rounded-md border border-border bg-background/40 p-3 text-sm">
                       <span className="text-muted-foreground">
-                        Added {formatDate(card.createdAt)}
+                        Added {formatTripTimestamp(card.createdAt, DATE_FORMAT)}
                       </span>
                       {isCompetitive && (
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="text-muted-foreground">Assigned to</span>
-                          {isAdmin ? (
+                          {isAdmin && assigningId === card.tripCardId ? (
+                            <Spinner label="Assigning" className="size-4" />
+                          ) : isAdmin ? (
                             <Select
                               value={card.assignedMemberId ?? "unassigned"}
                               onValueChange={(value) => void handleAssign(card, value)}
@@ -384,16 +461,17 @@ export function TripDetailPage() {
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="unassigned">Unassigned</SelectItem>
-                                {trip.members.map((member) => (
+                                {trip.members.map((member, index) => (
                                   <SelectItem key={member.userId} value={member.userId}>
-                                    {member.role === "admin" ? "Admin" : "Member"} · {member.userId}
+                                    {memberLabel(member, index, currentUserId, email, displayName)}
+                                    {member.userId === currentUserId ? " (you)" : ""}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
                             </Select>
                           ) : (
                             <Badge variant="secondary">
-                              {card.assignedMemberId ? card.assignedMemberId : "Unassigned"}
+                              {assigneeLabel(trip, card.assignedMemberId, currentUserId, email, displayName)}
                             </Badge>
                           )}
                         </div>
@@ -454,11 +532,21 @@ export function TripDetailPage() {
                     key={invite.token}
                     className="flex items-center justify-between gap-3 rounded-md border border-border bg-background/40 p-3"
                   >
-                    <span className="grid gap-0.5">
-                      <span className="font-mono text-xs">{inviteUrl(invite.token)}</span>
-                      <span className="text-xs text-muted-foreground">Created {formatDate(invite.createdAt)}</span>
+                    {/*
+                      An invite URL has no break opportunities, so without
+                      `min-w-0` + `truncate` its min-content width becomes a
+                      floor that propagates out through the panel to the page
+                      grid — widening every panel and pushing Copy and Revoke,
+                      the only way to share or kill a link, off a 390px screen.
+                      Nothing is lost to truncation: Copy carries the full URL.
+                    */}
+                    <span className="grid min-w-0 gap-0.5">
+                      <span className="truncate font-mono text-xs">{inviteUrl(invite.token)}</span>
+                      <span className="text-xs text-muted-foreground">
+                        Created {formatTripTimestamp(invite.createdAt, DATE_FORMAT)}
+                      </span>
                     </span>
-                    <div className="flex gap-1">
+                    <div className="flex shrink-0 gap-1">
                       <Button
                         variant="ghost"
                         size="sm"
@@ -535,22 +623,43 @@ export function TripDetailPage() {
               You have no saved cards. Build one in the editor first.
             </p>
           ) : (
-            <ul className="max-h-80 overflow-auto grid gap-1">
-              {library.map((card) => (
-                <li key={card.cardId}>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => void handleAddCard(card.cardId)}
-                    className="grid w-full gap-0.5 rounded-md border border-transparent p-3 text-left transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-50"
-                  >
-                    <span className="text-sm font-medium">{card.title || "Untitled card"}</span>
-                    <span className="text-xs text-muted-foreground">
-                      Updated {formatDate(card.updatedAt)}
-                    </span>
-                  </button>
-                </li>
-              ))}
+            <ul className="max-h-96 overflow-auto grid gap-1">
+              {library.map((card) => {
+                const showThumb = Boolean(card.thumbnailUrl) && !failedThumbs.has(card.cardId);
+                return (
+                  <li key={card.cardId}>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void handleAddCard(card.cardId)}
+                      className="flex w-full items-center gap-3 rounded-md border border-transparent p-2 text-left transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-50"
+                    >
+                      {showThumb && card.thumbnailUrl ? (
+                        <img
+                          src={card.thumbnailUrl}
+                          alt=""
+                          loading="lazy"
+                          onError={() => markThumbFailed(card.cardId)}
+                          className="size-14 shrink-0 rounded-md border border-border bg-muted object-contain"
+                        />
+                      ) : (
+                        <span
+                          className="flex size-14 shrink-0 items-center justify-center rounded-md border border-border bg-muted"
+                          aria-hidden="true"
+                        >
+                          <LayoutGrid className="size-6 text-muted-foreground/50" />
+                        </span>
+                      )}
+                      <span className="grid min-w-0 gap-0.5">
+                        <span className="truncate text-sm font-medium">{card.title || "Untitled card"}</span>
+                        <span className="text-xs text-muted-foreground">
+                          Updated {formatTripTimestamp(card.updatedAt, DATE_FORMAT)}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           )}
           <DialogFooter>

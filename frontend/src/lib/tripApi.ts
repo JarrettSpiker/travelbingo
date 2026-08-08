@@ -18,8 +18,20 @@ export async function listTrips(api: ApiClient): Promise<TripSummary[]> {
   return body.trips ?? [];
 }
 
-export async function createTrip(api: ApiClient, input: TripInput): Promise<{ tripId: string }> {
-  return api.request<{ tripId: string }>("/api/trips", { method: "POST", body: input });
+/**
+ * Creates a trip. `email` is the caller's own, sent so trip-mates can identify
+ * them before a display name is set — display only, never authoritative (the
+ * backend still derives identity from the verified `sub`).
+ */
+export async function createTrip(
+  api: ApiClient,
+  input: TripInput,
+  email: string | null,
+): Promise<{ tripId: string }> {
+  return api.request<{ tripId: string }>("/api/trips", {
+    method: "POST",
+    body: { ...input, ...(email ? { email } : {}) },
+  });
 }
 
 export async function getTrip(api: ApiClient, tripId: string): Promise<TripDetail> {
@@ -96,9 +108,14 @@ export async function resolveInvite(
   );
 }
 
-export async function redeemInvite(api: ApiClient, token: string): Promise<{ tripId: string }> {
+export async function redeemInvite(
+  api: ApiClient,
+  token: string,
+  email: string | null,
+): Promise<{ tripId: string }> {
   return api.request<{ tripId: string }>(`/api/invites/${encodeURIComponent(token)}/redeem`, {
     method: "POST",
+    body: email ? { email } : {},
   });
 }
 

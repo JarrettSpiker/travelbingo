@@ -20,6 +20,9 @@ export type TripMode = "cooperative" | "competitive";
 
 const TRIP_MODES: ReadonlySet<TripMode> = new Set(["cooperative", "competitive"]);
 
+/** Bounds a client-supplied display email (RFC 5321's practical max). */
+export const MAX_EMAIL_LENGTH = 320;
+
 /**
  * A frozen, render-only snapshot of a card. This is a strict subset of
  * {@link CardPayload} — it carries everything the renderer, the print/PNG
@@ -49,6 +52,25 @@ export interface TripCardSnapshot {
 
 /** A well-formed calendar date in ISO order, so dates compare lexicographically. */
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Parses an optional display email supplied by the client on join. The backend
+ * cannot read email from the (access) JWT, so the caller self-reports it for
+ * display only — exactly like a display name. It is never an authorization
+ * input (identity still comes solely from the verified `sub`). Bounded, never
+ * silently corrected: a non-string is rejected.
+ */
+export function parseOptionalEmail(value: unknown): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "string") {
+    throw badRequest("email must be a string");
+  }
+  if (value.length > MAX_EMAIL_LENGTH) {
+    throw badRequest(`email must be at most ${MAX_EMAIL_LENGTH} characters`);
+  }
+  const trimmed = value.trim();
+  return trimmed === "" ? null : trimmed;
+}
 
 export interface TripInput {
   title: string;

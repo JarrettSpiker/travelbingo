@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Save, UserRound } from "lucide-react";
 import { useAuth } from "@/auth/authContext";
 import { Button } from "@/components/ui/button";
 import {
@@ -65,9 +65,17 @@ export function AuthMenu({ onSaveCard }: AuthMenuProps) {
           {message}
         </span>
       )}
+      {/*
+        Icon-only below `sm` for the same reason as the account name: the
+        editor is the one route carrying this button *and* three nav links, and
+        with both spelled out the row cannot fit 390px. The nav can scroll, but
+        a link clipped mid-word reads as breakage rather than as an affordance.
+      */}
       {onSaveCard && (
         <Button variant="outline" size="sm" onClick={() => void handleSave()} disabled={saving}>
-          {saving ? "Saving…" : "Save card"}
+          <Save aria-hidden className="sm:hidden" />
+          <span className="hidden sm:inline">{saving ? "Saving…" : "Save card"}</span>
+          <span className="sr-only sm:hidden">{saving ? "Saving card" : "Save card"}</span>
         </Button>
       )}
       {/*
@@ -76,9 +84,18 @@ export function AuthMenu({ onSaveCard }: AuthMenuProps) {
       */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
+          {/*
+            Below `sm` the name is an icon: an email at `max-w-40` costs 160px
+            of a 390px header that also carries three nav links, and it is the
+            one thing in the row that can be dropped without losing a
+            destination. The name stays in the accessible name either way.
+          */}
           <Button variant="ghost" size="sm" className="max-w-40">
-            <span className="truncate">{displayName ?? email ?? "Account"}</span>
-            <ChevronDown aria-hidden />
+            <UserRound aria-hidden className="sm:hidden" />
+            <span className="hidden truncate sm:inline">{displayName ?? email ?? "Account"}</span>
+            <span className="sr-only sm:hidden">{displayName ?? email ?? "Account"}</span>
+            {/* The chevron is pure decoration next to an icon-only trigger. */}
+            <ChevronDown aria-hidden className="hidden sm:block" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">

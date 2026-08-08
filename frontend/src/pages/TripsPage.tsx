@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-import { Compass, Info, Plus, TriangleAlert, Users } from "lucide-react";
+import { Compass, Info, Plus, RotateCw, TriangleAlert, Users } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { AuthMenu } from "@/components/AuthMenu";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -8,19 +8,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { useAuth } from "@/auth/authContext";
+import { formatTripRange } from "@/lib/tripDates";
 import { listTrips } from "@/lib/tripApi";
 import type { TripSummary } from "@/lib/tripTypes";
 
-/** A compact "Aug 1 – Aug 9" or "Aug 1 – …" range, omitting the year when it's this year. */
-function formatRange(startDate?: string, endDate?: string): string | null {
-  if (!startDate && !endDate) return null;
-  const fmt = (iso?: string) => {
-    if (!iso) return "…";
-    const d = new Date(`${iso}T00:00:00`);
-    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-  };
-  return `${fmt(startDate)} – ${fmt(endDate)}`;
-}
+/** The list is compact and scanned in bulk, so it drops the year. */
+const RANGE_FORMAT: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
 
 export function TripsPage() {
   const { api, status, signIn, accountsEnabled } = useAuth();
@@ -35,9 +28,18 @@ export function TripsPage() {
       setError(null);
     } catch {
       setError("Could not load your trips.");
-      setTrips([]);
+      // Deliberately not `[]`: an empty array is indistinguishable from "you
+      // have no trips", and the empty-state copy would render under the
+      // failure telling the user their trips do not exist.
+      setTrips(null);
     }
   }, [api]);
+
+  const retry = useCallback(() => {
+    setError(null);
+    setTrips(null);
+    void load();
+  }, [load]);
 
   useEffect(() => {
     if (status !== "authenticated") return;
@@ -105,11 +107,18 @@ export function TripsPage() {
         {error && (
           <Alert variant="destructive">
             <TriangleAlert />
-            <AlertDescription>{error}</AlertDescription>
+            <AlertDescription>
+              {error}
+              <Button variant="outline" size="sm" onClick={retry}>
+                <RotateCw aria-hidden /> Try again
+              </Button>
+            </AlertDescription>
           </Alert>
         )}
 
-        {trips === null && (
+        {/* A failed load leaves `trips` null too, so both the spinner and the
+            empty state stand down until the retry resolves. */}
+        {trips === null && !error && (
           <div className="flex justify-center py-12">
             <Spinner label="Loading your trips" />
           </div>
@@ -123,7 +132,7 @@ export function TripsPage() {
 
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {trips?.map((trip) => {
-            const range = formatRange(trip.startDate, trip.endDate);
+            const range = formatTripRange(trip.startDate, trip.endDate, RANGE_FORMAT);
             return (
               <li key={trip.tripId}>
                 <button

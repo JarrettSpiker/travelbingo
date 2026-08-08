@@ -1,4 +1,5 @@
 import {
+  BatchGetCommand,
   DeleteCommand,
   GetCommand,
   PutCommand,
@@ -16,6 +17,7 @@ import {
   INVITE_SK_PREFIX,
   inviteKey,
   MEMBER_SK_PREFIX,
+  profileKey,
   tokenFromInvitePointerSk,
   tripCardKey,
   tripIdFromMembershipSk,
@@ -28,7 +30,7 @@ import {
   TRIPCARD_SK_PREFIX,
   userPartition,
 } from "../lib/keys.ts";
-import { parseTripCardSnapshot, parseTripInput, parseTripUpdate, type TripCardSnapshot } from "../lib/tripPayload.ts";
+import { parseOptionalEmail, parseTripCardSnapshot, parseTripInput, parseTripUpdate, type TripCardSnapshot } from "../lib/tripPayload.ts";
 import { putWithUniqueToken } from "../lib/shareToken.ts";
 import type { RouteRequest } from "../request.ts";
 
@@ -88,6 +90,30 @@ async function getTripMeta(deps: Deps, tripId: string): Promise<TripMeta | undef
     new GetCommand({ TableName: deps.tableName, Key: tripMetaKey(tripId) }),
   );
   return result.Item as TripMeta | undefined;
+}
+
+/**
+ * Fetches the display name for each given user id in one BatchGet. Profiles are
+ * written lazily, so an absent item (no name set) maps to null rather than
+ * missing the user. Used to surface member names in a trip without storing them
+ * on the membership (which would drift on rename).
+ */
+async function fetchDisplayNames(deps: Deps, userIds: string[]): Promise<Map<string, string | null>> {
+  const names = new Map<string, string | null>();
+  if (userIds.length === 0) return names;
+
+  const result = await deps.ddb.send(
+    new BatchGetCommand({
+      RequestItems: { [deps.tableName]: { Keys: userIds.map((uid) => profileKey(uid)) } },
+    }),
+  );
+
+  for (const item of (result.Responses?.[deps.tableName] ?? []) as { PK: string; displayName?: string }[]) {
+    // PK is USER#<sub>; recover the id it was fetched by.
+    const sub = String(item.PK).startsWith("USER#") ? String(item.PK).slice("USER#".length) : null;
+    if (sub !== null) names.set(sub, item.displayName ?? null);
+  }
+  return names;
 }
 
 /** Pages a (PK, begins_with(SK)) query to completion. */
@@ -181,6 +207,9 @@ export async function listTrips(deps: Deps, request: RouteRequest): Promise<Json
 export async function createTrip(deps: Deps, request: RouteRequest): Promise<JsonResponse> {
   const userId = requireUser(request);
   const input = parseTripInput(request.body);
+  // The caller's display email, self-reported (the access JWT carries no email
+  // claim). Display only — identity still comes solely from the verified `sub`.
+  const memberEmail = parseOptionalEmail((request.body as Record<string, unknown> | null)?.email);
 
   const existing = await queryByPrefix(deps, userPartition(userId), TRIP_SK_PREFIX);
   if (existing.length >= MAX_TRIPS_PER_USER) {
@@ -221,8 +250,16 @@ export async function createTrip(deps: Deps, request: RouteRequest): Promise<Jso
         {
           Put: {
             TableName: deps.tableName,
-            // Mirror of the membership, hanging off the trip, for cascade deletes.
-            Item: { ...tripMemberKey(tripId, userId), role: "admin", createdAt: timestamp },
+            // Mirror of the membership, hanging off the trip, for cascade deletes
+            // and member reads. Carries the member's email as a display fallback
+            // for trip-mates (captured from the verified JWT, never trusted from
+            // the request body).
+            Item: {
+              ...tripMemberKey(tripId, userId),
+              role: "admin",
+              email: memberEmail,
+              createdAt: timestamp,
+            },
           },
         },
       ],
@@ -254,7 +291,12 @@ export async function getTrip(deps: Deps, request: RouteRequest): Promise<JsonRe
     if (sk === "META") {
       meta = item;
     } else if (sk.startsWith(MEMBER_SK_PREFIX)) {
-      members.push({ userId: sk.slice(MEMBER_SK_PREFIX.length), role: item.role, createdAt: item.createdAt });
+      members.push({
+        userId: sk.slice(MEMBER_SK_PREFIX.length),
+        role: item.role,
+        email: item.email ?? null,
+        createdAt: item.createdAt,
+      });
     } else if (sk.startsWith(TRIPCARD_SK_PREFIX)) {
       cards.push(tripCardResponse(item));
     } else if (sk.startsWith(INVITE_SK_PREFIX)) {
@@ -264,6 +306,17 @@ export async function getTrip(deps: Deps, request: RouteRequest): Promise<JsonRe
   }
 
   if (!meta) throw notFound();
+
+  // Resolve each member's display name from their profile (one BatchGet, since
+  // the membership rows carry only the user id). A profile is written lazily, so
+  // a member who never set a name has none; null falls through to the client.
+  const memberNames = await fetchDisplayNames(
+    deps,
+    members.map((m) => String(m.userId)),
+  );
+  for (const member of members) {
+    member.displayName = memberNames.get(String(member.userId)) ?? null;
+  }
 
   const response: Record<string, unknown> = {
     tripId,
@@ -588,6 +641,8 @@ export async function resolveInvite(deps: Deps, request: RouteRequest): Promise<
 export async function redeemInvite(deps: Deps, request: RouteRequest): Promise<JsonResponse> {
   const userId = requireUser(request);
   const token = request.params.token ?? "";
+  // Self-reported display email for the new membership (display only).
+  const memberEmail = parseOptionalEmail((request.body as Record<string, unknown> | null)?.email);
 
   const result = await deps.ddb.send(
     new GetCommand({ TableName: deps.tableName, Key: inviteKey(token) }),
@@ -632,7 +687,12 @@ export async function redeemInvite(deps: Deps, request: RouteRequest): Promise<J
         {
           Put: {
             TableName: deps.tableName,
-            Item: { ...tripMemberKey(tripId, userId), role: "member", createdAt: timestamp },
+            Item: {
+              ...tripMemberKey(tripId, userId),
+              role: "member",
+              email: memberEmail,
+              createdAt: timestamp,
+            },
           },
         },
       ],

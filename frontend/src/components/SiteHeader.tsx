@@ -44,7 +44,7 @@ export function SiteHeader({ actions }: SiteHeaderProps) {
       <div className="mx-auto flex h-14 w-full max-w-6xl items-center gap-2 px-4 sm:px-6">
         <NavLink
           to="/"
-          className="mr-1 flex items-center gap-2 rounded-md focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
+          className="mr-1 flex shrink-0 items-center gap-2 rounded-md focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none"
         >
           {/* The luggage-tag pin is this surface's one travel motif. The header
               gets a mark; it does not also get a perforated edge or a stamp. */}
@@ -58,7 +58,20 @@ export function SiteHeader({ actions }: SiteHeaderProps) {
           </span>
         </NavLink>
 
-        <nav className="flex items-center gap-1 whitespace-nowrap" aria-label="Main">
+        {/*
+          The nav is the row's only flexible part, and it scrolls rather than
+          pushes: three links plus the account affordances exceed 390px, and a
+          row that grows past the viewport takes the theme toggle off-screen
+          and drags the page's background wash — which only paints to viewport
+          width — into view beside every panel. `min-w-0` is what lets it
+          shrink at all; without it the nav's content width is a floor the
+          whole header inherits. The negative margin gives focus rings room to
+          draw outside the scroll box.
+        */}
+        <nav
+          className="-mx-1 flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-1 whitespace-nowrap"
+          aria-label="Main"
+        >
           <NavLink to="/" end className={linkClasses}>
             Editor
           </NavLink>
@@ -78,7 +91,9 @@ export function SiteHeader({ actions }: SiteHeaderProps) {
           )}
         </nav>
 
-        <div className="ml-auto flex items-center gap-1">
+        {/* `shrink-0`: the account menu and theme toggle are the row's fixed
+            anchor. Whatever else has to give, these stay on screen. */}
+        <div className="ml-auto flex shrink-0 items-center gap-1">
           {actions}
           <ThemeToggle />
         </div>

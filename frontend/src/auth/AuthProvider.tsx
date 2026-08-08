@@ -30,6 +30,8 @@ import { AuthContext, type AuthContextValue, type AuthStatus } from "./authConte
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>(authConfig ? "loading" : "anonymous");
   const [email, setEmail] = useState<string | null>(null);
+  // The caller's `sub`, exposed so account UI can identify "you" among user ids.
+  const [userId, setUserId] = useState<string | null>(null);
   // The display name arrives from a one-shot profile fetch once authentication
   // resolves (see the effect below). null means "not set or not loaded yet";
   // the account menu falls back to the email in that case.
@@ -50,7 +52,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     tokensRef.current = { ...set, refreshToken };
 
     const claims = set.idToken ? decodeIdToken(set.idToken) : null;
-    if (claims) setEmail(claims.email);
+    if (claims) {
+      setEmail(claims.email);
+      setUserId(typeof claims.sub === "string" ? claims.sub : null);
+    }
 
     if (refreshToken) {
       saveSession({ refreshToken, email: claims?.email ?? null });
@@ -62,6 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     tokensRef.current = null;
     clearSession();
     setEmail(null);
+    setUserId(null);
     setDisplayName(null);
     setStatus("anonymous");
   }, []);
@@ -217,6 +223,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       status,
       email,
+      userId,
       displayName,
       accountsEnabled: authConfig !== null,
       setProfile,
@@ -225,7 +232,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       completeSignIn,
       api,
     }),
-    [status, email, displayName, setProfile, signIn, signOut, completeSignIn, api],
+    [status, email, userId, displayName, setProfile, signIn, signOut, completeSignIn, api],
   );
 
   // Children render on the first pass, whatever the status.

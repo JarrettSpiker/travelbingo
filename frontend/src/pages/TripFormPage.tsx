@@ -37,10 +37,18 @@ function isValidDate(value: string): boolean {
 export function TripFormPage() {
   const { tripId } = useParams();
   const isEdit = Boolean(tripId);
-  const { api, status, accountsEnabled } = useAuth();
+  const { api, status, accountsEnabled, email } = useAuth();
   const navigate = useNavigate();
 
   const [title, setTitle] = useState("");
+  /**
+   * Whether the title field has been left yet. A new trip starts with an empty
+   * title, and surfacing the error immediately greets the user by telling them
+   * they did something wrong — and makes the invalid styling carry no
+   * information, since it is present in the initial state too. The submit
+   * button stays disabled meanwhile, so nothing invalid can be sent.
+   */
+  const [titleTouched, setTitleTouched] = useState(false);
   const [mode, setMode] = useState<TripMode>("cooperative");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -48,6 +56,8 @@ export function TripFormPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
+  /** Set when a signed-in non-admin reaches /trips/:id/edit — they're bounced back. */
+  const [notAdmin, setNotAdmin] = useState(false);
 
   useEffect(() => {
     if (!isEdit || status !== "authenticated") return;
@@ -56,6 +66,12 @@ export function TripFormPage() {
       try {
         const trip = await getTrip(api, tripId!);
         if (cancelled) return;
+        // Only the administrator may edit; redirect members before they fill the
+        // form (the server would 403 on save anyway).
+        if (trip.role !== "admin") {
+          if (!cancelled) setNotAdmin(true);
+          return;
+        }
         setTitle(trip.title);
         setMode(trip.mode);
         setStartDate(trip.startDate ?? "");
@@ -101,7 +117,16 @@ export function TripFormPage() {
     );
   }
 
-  const titleError = title.trim() === "" ? "Give the trip a name." : undefined;
+  // A signed-in non-admin who lands on /trips/:id/edit is bounced to the detail
+  // page. (The server would 403 the PATCH anyway; this avoids the dead-end.)
+  if (notAdmin) {
+    return <Navigate to={`/trips/${tripId}`} replace />;
+  }
+
+  const titleMissing = title.trim() === "";
+  // Shown only once the user has left the field: the value gates submission
+  // either way, but the *message* waits until there is something to correct.
+  const titleError = titleTouched && titleMissing ? "Give the trip a name." : undefined;
   const startBad = startDate !== "" && !isValidDate(startDate);
   const endBad = endDate !== "" && !isValidDate(endDate);
   const outOfOrder =
@@ -113,7 +138,7 @@ export function TripFormPage() {
       : outOfOrder
         ? "End date can't be before the start date."
         : undefined;
-  const canSubmit = !saving && !titleError && !dateError;
+  const canSubmit = !saving && !titleMissing && !dateError;
 
   async function submit() {
     if (!canSubmit) return;
@@ -128,7 +153,7 @@ export function TripFormPage() {
         await updateTrip(api, tripId!, { title: title.trim(), ...dates });
         navigate(`/trips/${tripId}`, { replace: true });
       } else {
-        const { tripId: newId } = await createTrip(api, { title: title.trim(), mode, ...dates });
+        const { tripId: newId } = await createTrip(api, { title: title.trim(), mode, ...dates }, email);
         navigate(`/trips/${newId}`, { replace: true });
       }
     } catch {
@@ -166,6 +191,7 @@ export function TripFormPage() {
                   aria-describedby={describedBy}
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
+                  onBlur={() => setTitleTouched(true)}
                   maxLength={MAX_TITLE_LENGTH}
                   aria-invalid={Boolean(titleError)}
                   autoFocus

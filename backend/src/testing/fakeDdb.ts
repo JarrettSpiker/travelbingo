@@ -84,6 +84,14 @@ export class FakeDdb {
         return { UnprocessedItems: {} };
       }
 
+      case "BatchGetCommand": {
+        const [tableName, req] = Object.entries(input.RequestItems)[0] as [string, { Keys: Item[] }];
+        const items = (req.Keys as Item[])
+          .map((k) => this.items.get(itemKey(k.PK, k.SK)))
+          .filter((x): x is Item => x !== undefined);
+        return { Responses: { [tableName]: items }, UnprocessedKeys: {} };
+      }
+
       default:
         throw new Error(`FakeDdb: unsupported command ${name}`);
     }

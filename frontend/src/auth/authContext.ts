@@ -18,6 +18,13 @@ export interface AuthContextValue {
   /** Display only, read from an unverified ID token. Never an authorization input. */
   email: string | null;
   /**
+   * The caller's user id (the Cognito `sub`), read from the ID token after auth
+   * resolves. Display/identity only — never an authorization input (the backend
+   * derives identity from the verified JWT). Exposed so account UI can identify
+   * "you" among a list of user ids (e.g. trip members).
+   */
+  userId: string | null;
+  /**
    * The display name on the caller's own profile, fetched once after auth
    * resolves. `null` until that fetch completes or if none is set; the menu then
    * falls back to {@link email}. Display only — never an authorization input.

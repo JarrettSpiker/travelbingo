@@ -40,6 +40,13 @@ export interface TripMember {
   userId: string;
   role: TripRole;
   createdAt: string;
+  /** Display name resolved from the member's profile; null when none is set. */
+  displayName: string | null;
+  /**
+   * The member's email (captured from their verified JWT at join). Display
+   * fallback so trip-mates can identify someone who hasn't set a display name.
+   */
+  email: string | null;
 }
 
 export interface Invite {
