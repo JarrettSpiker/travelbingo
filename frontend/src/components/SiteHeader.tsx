@@ -30,7 +30,7 @@ interface SiteHeaderProps {
  * separately hand-rolled screens.
  */
 export function SiteHeader({ actions }: SiteHeaderProps) {
-  const { accountsEnabled } = useAuth();
+  const { accountsEnabled, status } = useAuth();
 
   return (
     <header
@@ -67,6 +67,13 @@ export function SiteHeader({ actions }: SiteHeaderProps) {
           {accountsEnabled && (
             <NavLink to="/cards" className={linkClasses}>
               My cards
+            </NavLink>
+          )}
+          {/* Trips are account-only and gated to signed-in visitors, so the
+              entry point never appears for a signed-out first paint. */}
+          {accountsEnabled && status === "authenticated" && (
+            <NavLink to="/trips" className={linkClasses}>
+              Trips
             </NavLink>
           )}
         </nav>

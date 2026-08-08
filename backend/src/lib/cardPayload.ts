@@ -30,8 +30,12 @@ export const MAX_PAYLOAD_BYTES = 40_000;
  */
 export const MAX_THUMBNAIL_BYTES = 100_000;
 
-/** Accept only well-formed hex colors so untrusted values can't reach CSS. */
-const HEX_COLOR = /^#[0-9a-fA-F]{3,8}$/;
+/**
+ * Accept only well-formed hex colors so untrusted values can't reach CSS.
+ * Exported so the trip-card snapshot validator can re-apply the exact same rule
+ * without duplicating the pattern (which would let the two drift).
+ */
+export const HEX_COLOR = /^#[0-9a-fA-F]{3,8}$/;
 
 /** Kept byte-identical to FONT_OPTIONS in frontend/src/lib/fontScheme.ts. */
 export const ALLOWED_FONTS: ReadonlySet<string> = new Set([

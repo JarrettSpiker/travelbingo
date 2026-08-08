@@ -3,15 +3,8 @@ import { OWNER_ONLY, requireCardRole } from "../auth.ts";
 import type { Deps } from "../context.ts";
 import { json, noContent, notFound, unauthorized, type JsonResponse } from "../http.ts";
 import type { CardPayload } from "../lib/cardPayload.ts";
-import {
-  cardMetaKey,
-  cardPartition,
-  cardSharePointerKey,
-  SHARE_SK_PREFIX,
-  shareKey,
-  tokenFromSharePointerSk,
-} from "../lib/keys.ts";
-import { putShareWithUniqueToken } from "../lib/shareToken.ts";
+import { cardMetaKey, cardPartition, cardSharePointerKey, shareKey, SHARE_SK_PREFIX, tokenFromSharePointerSk } from "../lib/keys.ts";
+import { putWithUniqueToken } from "../lib/shareToken.ts";
 import type { RouteRequest } from "../request.ts";
 
 function requireUser(request: RouteRequest): string {
@@ -56,7 +49,7 @@ export async function createShare(deps: Deps, request: RouteRequest): Promise<Js
     emojiScheme: meta.emojiScheme,
   };
 
-  const token = await putShareWithUniqueToken(deps, () => ({
+  const token = await putWithUniqueToken(deps, shareKey, () => ({
     cardId,
     ownerId: userId,
     snapshot,

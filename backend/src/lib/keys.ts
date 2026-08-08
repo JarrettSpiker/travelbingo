@@ -9,6 +9,13 @@
 //   CARD#<cardId>   SHARE#<token>   createdAt                <- owner-facing pointer
 //   SHARE#<token>   META            cardId, ownerId, snapshot{}, createdAt
 //   USER#<sub>      PROFILE         displayName, createdAt, updatedAt
+//
+//   TRIP#<tripId>   META            ownerId, title, mode, startDate?, endDate?, createdAt, updatedAt
+//   USER#<sub>      TRIP#<tripId>   role(admin|member), title, startDate?, endDate?, updatedAt   <- "my trips" listing row
+//   TRIP#<tripId>   MEMBER#<sub>    role, createdAt                              <- cascade-delete mirror
+//   TRIP#<tripId>   TRIPCARD#<id>   snapshot{}, ownerId, assignedMemberId?, createdAt   <- render-only snapshot
+//   TRIP#<tripId>   INVITE#<token>  createdAt                                    <- admin-facing pointer (list/revoke)
+//   INVITE#<token>  META            tripId, title, createdAt, revokedAt?        <- redemption record
 
 export interface TableKey {
   PK: string;
@@ -18,6 +25,9 @@ export interface TableKey {
 export const CARD_SK_PREFIX = "CARD#";
 export const MEMBER_SK_PREFIX = "MEMBER#";
 export const SHARE_SK_PREFIX = "SHARE#";
+export const TRIP_SK_PREFIX = "TRIP#";
+export const TRIPCARD_SK_PREFIX = "TRIPCARD#";
+export const INVITE_SK_PREFIX = "INVITE#";
 
 export function cardMetaKey(cardId: string): TableKey {
   return { PK: `CARD#${cardId}`, SK: "META" };
@@ -67,4 +77,54 @@ export function cardIdFromMembershipSk(sk: string): string | null {
 /** Recovers the token from a share pointer's sort key. */
 export function tokenFromSharePointerSk(sk: string): string | null {
   return sk.startsWith(SHARE_SK_PREFIX) ? sk.slice(SHARE_SK_PREFIX.length) : null;
+}
+
+// --- Trips -----------------------------------------------------------------
+
+export function tripMetaKey(tripId: string): TableKey {
+  return { PK: `TRIP#${tripId}`, SK: "META" };
+}
+
+/**
+ * A user's membership of a trip. Doubles as the "my trips" listing row, which
+ * is why `title` and the optional dates are denormalized onto it — mirroring the
+ * card membership row, so listing a user's trips stays a single Query with no
+ * per-trip lookup.
+ */
+export function tripMembershipKey(userId: string, tripId: string): TableKey {
+  return { PK: `USER#${userId}`, SK: `${TRIP_SK_PREFIX}${tripId}` };
+}
+
+/** The mirror of a trip membership, hanging off the trip, for cascade deletes. */
+export function tripMemberKey(tripId: string, userId: string): TableKey {
+  return { PK: `TRIP#${tripId}`, SK: `${MEMBER_SK_PREFIX}${userId}` };
+}
+
+/** A frozen, render-only card snapshot within a trip. */
+export function tripCardKey(tripId: string, tripCardId: string): TableKey {
+  return { PK: `TRIP#${tripId}`, SK: `${TRIPCARD_SK_PREFIX}${tripCardId}` };
+}
+
+/** Admin-facing pointer, so a trip's invite links can be listed and revoked. */
+export function tripInvitePointerKey(tripId: string, token: string): TableKey {
+  return { PK: `TRIP#${tripId}`, SK: `${INVITE_SK_PREFIX}${token}` };
+}
+
+/** The invite itself, resolvable without an account to show the trip title. */
+export function inviteKey(token: string): TableKey {
+  return { PK: `INVITE#${token}`, SK: "META" };
+}
+
+export function tripPartition(tripId: string): string {
+  return `TRIP#${tripId}`;
+}
+
+/** Recovers the trip id from a membership item's sort key. */
+export function tripIdFromMembershipSk(sk: string): string | null {
+  return sk.startsWith(TRIP_SK_PREFIX) ? sk.slice(TRIP_SK_PREFIX.length) : null;
+}
+
+/** Recovers the token from a trip invite pointer's sort key. */
+export function tokenFromInvitePointerSk(sk: string): string | null {
+  return sk.startsWith(INVITE_SK_PREFIX) ? sk.slice(INVITE_SK_PREFIX.length) : null;
 }

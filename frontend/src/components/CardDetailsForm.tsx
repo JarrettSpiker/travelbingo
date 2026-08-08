@@ -28,7 +28,7 @@ export function CardDetailsForm({
             id={id}
             value={title}
             onChange={(e) => onTitleChange(e.target.value)}
-            placeholder="e.g. Office Party Bingo"
+            placeholder="e.g. Our Cross Country Road Trip"
           />
         )}
       </Field>

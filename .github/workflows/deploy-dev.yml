@@ -1,10 +1,10 @@
 name: deploy-dev
 
-# Deploys the dev frontend on every push to main (and manually).
+# Deploys the dev frontend on every push to main and dev (and manually).
 # Infrastructure for dev is applied separately by HCP Terraform (auto-apply).
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   workflow_dispatch:
 
 permissions:

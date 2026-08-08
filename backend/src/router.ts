@@ -5,6 +5,22 @@ import type { RouteRequest } from "./request.ts";
 import { createCard, deleteCard, getCard, listCards, renameCard, replaceCard } from "./routes/cards.ts";
 import { getProfile, updateProfile } from "./routes/profile.ts";
 import { createShare, listShares, resolveShare, revokeShare } from "./routes/shares.ts";
+import {
+  addTripCard,
+  assignTripCard,
+  createInvite,
+  createTrip,
+  deleteTrip,
+  getTrip,
+  listInvites,
+  listTrips,
+  redeemInvite,
+  removeMember,
+  removeTripCard,
+  resolveInvite,
+  revokeInvite,
+  updateTrip,
+} from "./routes/trips.ts";
 
 /**
  * The reachable bound on request size. The per-field limits in cardPayload.ts
@@ -43,6 +59,20 @@ const ROUTES: Record<string, Route> = {
   "GET /api/me/profile": { handler: getProfile },
   "PUT /api/me/profile": { handler: updateProfile },
   "GET /api/shares/{token}": { handler: resolveShare, public: true },
+  "GET /api/trips": { handler: listTrips },
+  "POST /api/trips": { handler: createTrip },
+  "GET /api/trips/{tripId}": { handler: getTrip },
+  "PATCH /api/trips/{tripId}": { handler: updateTrip },
+  "DELETE /api/trips/{tripId}": { handler: deleteTrip },
+  "POST /api/trips/{tripId}/invites": { handler: createInvite },
+  "GET /api/trips/{tripId}/invites": { handler: listInvites },
+  "DELETE /api/trips/{tripId}/invites/{token}": { handler: revokeInvite },
+  "DELETE /api/trips/{tripId}/members/{userId}": { handler: removeMember },
+  "POST /api/trips/{tripId}/cards": { handler: addTripCard },
+  "PATCH /api/trips/{tripId}/cards/{tripCardId}": { handler: assignTripCard },
+  "DELETE /api/trips/{tripId}/cards/{tripCardId}": { handler: removeTripCard },
+  "GET /api/invites/{token}": { handler: resolveInvite, public: true },
+  "POST /api/invites/{token}/redeem": { handler: redeemInvite },
 };
 
 export interface ApiEvent {

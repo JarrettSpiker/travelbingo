@@ -4,9 +4,13 @@ import App from "./App";
 import { AppShell } from "./components/AppShell";
 import { Spinner } from "./components/ui/spinner";
 import { AuthCallbackPage } from "./pages/AuthCallbackPage";
+import { InvitePage } from "./pages/InvitePage";
 import { SavedCardsPage } from "./pages/SavedCardsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { SharedCardPage } from "./pages/SharedCardPage";
+import { TripDetailPage } from "./pages/TripDetailPage";
+import { TripFormPage } from "./pages/TripFormPage";
+import { TripsPage } from "./pages/TripsPage";
 import { useAuth } from "./auth/authContext";
 import { readCardParam } from "./lib/cardParam";
 import {
@@ -132,6 +136,11 @@ export function AppRoutes() {
       <Route path="/cards" element={<SavedCardsPage />} />
       <Route path="/settings" element={<SettingsPage />} />
       <Route path="/s/:token" element={<SharedCardPage />} />
+      <Route path="/invite/:token" element={<InvitePage />} />
+      <Route path="/trips" element={<TripsPage />} />
+      <Route path="/trips/new" element={<TripFormPage />} />
+      <Route path="/trips/:tripId/edit" element={<TripFormPage />} />
+      <Route path="/trips/:tripId" element={<TripDetailPage />} />
       <Route path="/auth/callback" element={<AuthCallbackPage />} />
       {GalleryPage && (
         <Route

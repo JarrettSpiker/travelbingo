@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { getUserId, OWNER_ONLY, requireCardRole } from "./auth.ts";
+import { ADMIN_ONLY, ADMIN_OR_MEMBER, getUserId, OWNER_ONLY, requireCardRole, requireTripRole } from "./auth.ts";
 import { HttpError } from "./http.ts";
-import { membershipKey } from "./lib/keys.ts";
+import { membershipKey, tripMembershipKey } from "./lib/keys.ts";
 import { makeTestDeps } from "./testing/fakeDdb.ts";
 
 async function statusOf(promise: Promise<unknown>): Promise<number> {
@@ -76,5 +76,73 @@ describe("requireCardRole", () => {
     seedMembership(deps, "user-a", "viewer");
 
     expect(await statusOf(requireCardRole(deps, "user-a", "card-1", OWNER_ONLY))).toBe(403);
+  });
+});
+
+describe("requireTripRole", () => {
+  function seedTripMembership(
+    deps: ReturnType<typeof makeTestDeps>,
+    userId: string,
+    role: "admin" | "member",
+  ) {
+    deps.ddb.seed({
+      ...tripMembershipKey(userId, "trip-1"),
+      role,
+      title: "Summer Road Trip",
+      updatedAt: "2026-08-01T00:00:00.000Z",
+    });
+  }
+
+  it("returns the membership when the role is allowed", async () => {
+    const deps = makeTestDeps();
+    seedTripMembership(deps, "user-a", "admin");
+
+    const membership = await requireTripRole(deps, "user-a", "trip-1", ADMIN_ONLY);
+
+    expect(membership.role).toBe("admin");
+    expect(membership.title).toBe("Summer Road Trip");
+  });
+
+  it("accepts either role with ADMIN_OR_MEMBER", async () => {
+    const deps = makeTestDeps();
+    seedTripMembership(deps, "user-a", "member");
+
+    const membership = await requireTripRole(deps, "user-a", "trip-1", ADMIN_OR_MEMBER);
+    expect(membership.role).toBe("member");
+  });
+
+  it("returns 404 when the caller has no membership", async () => {
+    const deps = makeTestDeps();
+
+    expect(await statusOf(requireTripRole(deps, "user-a", "trip-1", ADMIN_OR_MEMBER))).toBe(404);
+  });
+
+  it("returns 404 — not 403 — for another user's trip", async () => {
+    // The security property, identical to cards: a 403 here would confirm that
+    // trip-1 is a real id belonging to someone else.
+    const deps = makeTestDeps();
+    seedTripMembership(deps, "user-a", "admin");
+
+    expect(await statusOf(requireTripRole(deps, "user-b", "trip-1", ADMIN_OR_MEMBER))).toBe(404);
+  });
+
+  it("returns 403 when a member requests an admin-only operation", async () => {
+    // 403 is safe: the caller already knows the trip exists, because they hold
+    // a membership of it.
+    const deps = makeTestDeps();
+    seedTripMembership(deps, "user-a", "member");
+
+    expect(await statusOf(requireTripRole(deps, "user-a", "trip-1", ADMIN_ONLY))).toBe(403);
+  });
+
+  it("derives the role solely from the membership item, never the request", async () => {
+    // The role is read from the stored membership; nothing in a request can
+    // elevate it. (The caller's identity comes from getUserId elsewhere; the
+    // role here comes only from this item.)
+    const deps = makeTestDeps();
+    seedTripMembership(deps, "user-a", "member");
+
+    const membership = await requireTripRole(deps, "user-a", "trip-1", ADMIN_OR_MEMBER);
+    expect(membership.role).toBe("member");
   });
 });

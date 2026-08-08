@@ -9,20 +9,37 @@ locals {
   # Function whose only job is rewriting the URI. This way console paths and
   # browser paths are identical.
   public_share_route = "GET /api/shares/{token}"
+  # Same deal as the share route: an unguessable token is the capability, so the
+  # invite landing page can show the trip title before sign-in.
+  public_invite_route = "GET /api/invites/{token}"
 
   api_routes = {
-    "GET /api/cards"                            = { authorized = true }
-    "POST /api/cards"                           = { authorized = true }
-    "GET /api/cards/{cardId}"                   = { authorized = true }
-    "PUT /api/cards/{cardId}"                   = { authorized = true }
-    "PATCH /api/cards/{cardId}"                 = { authorized = true }
-    "DELETE /api/cards/{cardId}"                = { authorized = true }
-    "GET /api/cards/{cardId}/shares"            = { authorized = true }
-    "POST /api/cards/{cardId}/shares"           = { authorized = true }
-    "DELETE /api/cards/{cardId}/shares/{token}" = { authorized = true }
-    "GET /api/me/profile"                       = { authorized = true }
-    "PUT /api/me/profile"                       = { authorized = true }
-    (local.public_share_route)                  = { authorized = false }
+    "GET /api/cards"                                = { authorized = true }
+    "POST /api/cards"                               = { authorized = true }
+    "GET /api/cards/{cardId}"                       = { authorized = true }
+    "PUT /api/cards/{cardId}"                       = { authorized = true }
+    "PATCH /api/cards/{cardId}"                     = { authorized = true }
+    "DELETE /api/cards/{cardId}"                    = { authorized = true }
+    "GET /api/cards/{cardId}/shares"                = { authorized = true }
+    "POST /api/cards/{cardId}/shares"               = { authorized = true }
+    "DELETE /api/cards/{cardId}/shares/{token}"     = { authorized = true }
+    "GET /api/me/profile"                           = { authorized = true }
+    "PUT /api/me/profile"                           = { authorized = true }
+    (local.public_share_route)                      = { authorized = false }
+    "GET /api/trips"                                = { authorized = true }
+    "POST /api/trips"                               = { authorized = true }
+    "GET /api/trips/{tripId}"                       = { authorized = true }
+    "PATCH /api/trips/{tripId}"                     = { authorized = true }
+    "DELETE /api/trips/{tripId}"                    = { authorized = true }
+    "POST /api/trips/{tripId}/invites"              = { authorized = true }
+    "GET /api/trips/{tripId}/invites"               = { authorized = true }
+    "DELETE /api/trips/{tripId}/invites/{token}"    = { authorized = true }
+    "DELETE /api/trips/{tripId}/members/{userId}"   = { authorized = true }
+    "POST /api/trips/{tripId}/cards"                = { authorized = true }
+    "PATCH /api/trips/{tripId}/cards/{tripCardId}"  = { authorized = true }
+    "DELETE /api/trips/{tripId}/cards/{tripCardId}" = { authorized = true }
+    (local.public_invite_route)                     = { authorized = false }
+    "POST /api/invites/{token}/redeem"              = { authorized = true }
   }
 }
 
@@ -92,11 +109,17 @@ resource "aws_apigatewayv2_stage" "default" {
     throttling_burst_limit = 40
   }
 
-  # Stricter still on the one route reachable without an account. Share tokens
-  # carry 128 bits of entropy, so this is a cost control rather than a secrecy
-  # control — guessing is already infeasible.
+  # Stricter still on the routes reachable without an account. Share and invite
+  # tokens carry 128 bits of entropy, so this is a cost control rather than a
+  # secrecy control — guessing is already infeasible.
   route_settings {
     route_key              = local.public_share_route
+    throttling_rate_limit  = 5
+    throttling_burst_limit = 10
+  }
+
+  route_settings {
+    route_key              = local.public_invite_route
     throttling_rate_limit  = 5
     throttling_burst_limit = 10
   }

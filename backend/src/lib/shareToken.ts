@@ -1,7 +1,7 @@
 import { PutCommand } from "@aws-sdk/lib-dynamodb";
 import type { Deps } from "../context.ts";
 import { HttpError } from "../http.ts";
-import { shareKey } from "./keys.ts";
+import type { TableKey } from "./keys.ts";
 
 /**
  * 16 bytes = 128 bits of entropy, base64url-encoded to 22 characters.
@@ -26,13 +26,18 @@ function isConditionFailure(error: unknown): boolean {
 }
 
 /**
- * Writes a share item under a fresh token, conditional on that token being
- * unused. A collision at 128 bits effectively cannot happen, but the write is
+ * Writes an item under a fresh token, conditional on that token being unused.
+ * A collision at 128 bits effectively cannot happen, but the write is
  * conditional anyway — an unconditional put would silently overwrite somebody
- * else's share if it ever did. One retry, then give up loudly.
+ * else's item if it ever did. One retry, then give up loudly.
+ *
+ * The key shape is supplied by the caller ({@link shareKey} for share links,
+ * {@link inviteKey} for trip invites), so the same collision-retried pattern
+ * serves both without duplication.
  */
-export async function putShareWithUniqueToken(
+export async function putWithUniqueToken(
   deps: Deps,
+  keyFor: (token: string) => TableKey,
   buildItem: (token: string) => Record<string, unknown>,
 ): Promise<string> {
   for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -42,7 +47,7 @@ export async function putShareWithUniqueToken(
       await deps.ddb.send(
         new PutCommand({
           TableName: deps.tableName,
-          Item: { ...shareKey(token), ...buildItem(token) },
+          Item: { ...keyFor(token), ...buildItem(token) },
           ConditionExpression: "attribute_not_exists(PK)",
         }),
       );
