@@ -7,7 +7,9 @@ import { cn } from "@/lib/utils";
 
 const linkClasses = ({ isActive }: { isActive: boolean }) =>
   cn(
-    "rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors",
+    // Tighter below `sm`: three links plus the editor's save action have to
+    // share a 390px row, and the padding is the cheapest thing to give back.
+    "rounded-md px-2 py-1.5 text-sm font-medium transition-colors sm:px-2.5",
     "focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
     isActive ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground",
   );

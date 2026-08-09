@@ -92,7 +92,10 @@ export function TripsPage() {
   return (
     <AppShell headerActions={<AuthMenu />}>
       <div className="grid gap-6">
-        <div className="flex items-center justify-between gap-2">
+        {/* Wraps like the detail page's equivalent row: below ~360px the
+            heading and both buttons do not fit on one line, and without this
+            they push the whole page into horizontal scroll. */}
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <h1 className="font-display text-2xl font-semibold">Trips</h1>
           <div className="flex gap-2">
             <Button variant="ghost" onClick={() => void navigate("/")}>

@@ -24,7 +24,7 @@
 ## 5. Infra
 
 - [x] 5.1 Add the new route keys to the API Gateway HTTP API configuration in `infra/`, all carrying the Cognito authorizer **except** `GET /api/invites/{token}`, which is designated public (parallel to `GET /api/shares/{token}`). No new Lambda, DynamoDB table, bucket, or Cognito change.
-- [ ] 5.2 `terraform plan` against dev confirms only the API Gateway route additions; no destructive diffs to the `prevent_destroy` DynamoDB table or user pool.
+- [x] 5.2 `terraform plan` against dev confirms only the API Gateway route additions; no destructive diffs to the `prevent_destroy` DynamoDB table or user pool.
 
 ## 6. Frontend types and API client
 
@@ -44,6 +44,6 @@
 ## 8. Verification
 
 - [x] 8.1 `npm run lint && npm test && npm run build` pass in **both** `frontend/` and `backend/`.
-- [ ] 8.2 Visual QA via `npm run capture -- /trips`, `/trips/new`, `/trips/:tripId`, and `/invite/:token` in light and dark at 390px and 1440px; confirm the signed-out capture reports zero `/api/` requests on `/` and no "Trips" entry point.
-- [ ] 8.3 Multi-user verification in dev using `scripts/dev-user.sh` to create a second identity: admin creates trip, mints invite, second user redeems, both add cards, admin assigns (competitive) and removes, admin removes a member and confirms the removed user's trip disappears from their list while added cards remain.
+- [x] 8.2 Visual QA via `npm run capture -- /trips`, `/trips/new`, `/trips/:tripId`, and `/invite/:token` in light and dark at 390px and 1440px; confirm the signed-out capture reports zero `/api/` requests on `/` and no "Trips" entry point.
+- [x] 8.3 Multi-user verification in dev using `scripts/dev-user.sh` to create a second identity: admin creates trip, mints invite, second user redeems, both add cards, admin assigns (competitive) and removes, admin removes a member and confirms the removed user's trip disappears from their list while added cards remain.
 - [x] 8.4 Confirm the frozen card renderer and `App.css` are untouched (`cardGrid.guard.test.ts` passes unchanged) and the saved-card contract tests are unchanged.
