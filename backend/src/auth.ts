@@ -1,7 +1,7 @@
 import { GetCommand } from "@aws-sdk/lib-dynamodb";
 import type { Deps } from "./context.ts";
 import { forbidden, notFound, unauthorized } from "./http.ts";
-import { membershipKey, tripMembershipKey } from "./lib/keys.ts";
+import { membershipKey, tripCardKey, tripMembershipKey, tripMetaKey } from "./lib/keys.ts";
 
 /**
  * Roles a membership can carry. Only "owner" is issued today; the parameter
@@ -127,4 +127,89 @@ export async function requireTripRole(
   }
 
   return item;
+}
+
+/**
+ * The minimum of a trip's META that entitlement to play depends on. Kept here
+ * rather than imported from routes/trips.ts so authorization does not depend on
+ * a route module; the two shapes are structurally compatible.
+ */
+interface PlayableTripMeta {
+  mode: "cooperative" | "competitive";
+  startDate?: string;
+  endDate?: string;
+}
+
+/** What a trip card's item carries that entitlement to play depends on. */
+interface PlayableTripCard {
+  snapshot: unknown;
+  ownerId: string;
+  assignedMemberId?: string;
+  markedSlots?: Set<number>;
+  progressUpdatedAt?: string;
+}
+
+export interface TripCardPlayer {
+  membership: TripMembership;
+  trip: PlayableTripMeta;
+  card: PlayableTripCard;
+}
+
+/**
+ * The play authorization check, a third sibling of {@link requireCardRole} and
+ * {@link requireTripRole}. Every modification of a trip card's marks goes
+ * through it; no route writes its own.
+ *
+ * Trip membership is required first, inheriting that routine's non-leak rule
+ * unchanged. On top of it:
+ *
+ *   cooperative                  every member plays every card
+ *   competitive, assigned        only the assignee
+ *   competitive, unassigned      nobody
+ *
+ * **The administrator is deliberately not privileged.** An admin assigns,
+ * reassigns, and removes cards, but marking is playing, and playing someone
+ * else's card is not an administrative act. Granting it would also make the
+ * competitive rule untestable in practice, since the admin is a member of every
+ * trip they run.
+ *
+ * A trip card that does not exist is a 404, matching the sibling rule that
+ * absence and inaccessibility are indistinguishable: a member already knows the
+ * trip exists, but must not be able to probe which tripCardIds are real. A
+ * member who is not this card's player is a 403, which reveals only that the
+ * card exists in a trip they are already in.
+ *
+ * Returns the trip meta and the card item so the caller does not re-read them —
+ * three point reads, and the count is pinned by a test.
+ */
+export async function requireTripCardPlayer(
+  deps: Deps,
+  userId: string,
+  tripId: string,
+  tripCardId: string,
+): Promise<TripCardPlayer> {
+  const membership = await requireTripRole(deps, userId, tripId, ADMIN_OR_MEMBER);
+
+  const [metaResult, cardResult] = await Promise.all([
+    deps.ddb.send(new GetCommand({ TableName: deps.tableName, Key: tripMetaKey(tripId) })),
+    deps.ddb.send(new GetCommand({ TableName: deps.tableName, Key: tripCardKey(tripId, tripCardId) })),
+  ]);
+
+  const trip = metaResult.Item as PlayableTripMeta | undefined;
+  const card = cardResult.Item as PlayableTripCard | undefined;
+  if (!trip || !card) {
+    throw notFound();
+  }
+
+  // Default-deny, deliberately written as "only cooperative is permissive"
+  // rather than "competitive is restrictive". The two are equivalent for the
+  // two modes that exist, and differ for every value that should not: a mode
+  // that is missing, corrupt, or added later closes the card instead of opening
+  // it to the whole trip. Payload validation already bars those, but this is the
+  // one module where a fail-open default is least acceptable.
+  if (trip.mode !== "cooperative" && card.assignedMemberId !== userId) {
+    throw forbidden();
+  }
+
+  return { membership, trip, card };
 }

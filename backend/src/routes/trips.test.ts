@@ -21,8 +21,11 @@ import {
   createTrip,
   deleteTrip,
   getTrip,
+  getTripProgress,
   listTrips,
   listInvites,
+  markTripCardSlot,
+  unmarkTripCardSlot,
   MAX_MEMBERS_PER_TRIP,
   MAX_TRIP_CARDS_PER_TRIP,
   MAX_TRIPS_PER_USER,
@@ -694,6 +697,376 @@ describe("trip cards", () => {
 
     expect(await statusOf(addTripCard(deps, request({ userId: null, params: { tripId }, body: { cardId } })))).toBe(401);
     expect(await statusOf(redeemInvite(deps, request({ userId: null, params: { token: "anything" } })))).toBe(401);
+  });
+});
+
+describe("card progress", () => {
+  // The fixture card's slots are ["Airport", null, "Dog"] with a free space, so
+  // on the rendered grid: 0 and 2 hold entries, 12 is the free space, and every
+  // other position is blank.
+  const ENTRY = 0;
+  const OTHER_ENTRY = 2;
+  const FREE = 12;
+  const BLANK = 1;
+
+  async function addCard(deps: TestDeps, tripId: string, userId = "user-a"): Promise<string> {
+    const cardId = await seedCard(deps, userId);
+    const response = await addTripCard(deps, request({ userId, params: { tripId }, body: { cardId } }));
+    return JSON.parse(response.body).tripCardId as string;
+  }
+
+  async function joinAs(deps: TestDeps, tripId: string, userId: string): Promise<void> {
+    const token = await mintInvite(deps, tripId);
+    await redeemInvite(deps, request({ userId, params: { token } }));
+  }
+
+  function mark(deps: TestDeps, tripId: string, tripCardId: string, slotIndex: number, userId = "user-a") {
+    return markTripCardSlot(deps, request({ userId, params: { tripId, tripCardId, slotIndex: String(slotIndex) } }));
+  }
+
+  function unmark(deps: TestDeps, tripId: string, tripCardId: string, slotIndex: number, userId = "user-a") {
+    return unmarkTripCardSlot(deps, request({ userId, params: { tripId, tripCardId, slotIndex: String(slotIndex) } }));
+  }
+
+  async function marksOf(deps: TestDeps, tripId: string, userId = "user-a"): Promise<number[]> {
+    const body = JSON.parse((await getTripProgress(deps, request({ userId, params: { tripId } }))).body);
+    return body.cards[0].markedSlots as number[];
+  }
+
+  it("marks and unmarks a square, round-tripping through every read surface", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const tripCardId = await addCard(deps, tripId);
+
+    const marked = JSON.parse((await mark(deps, tripId, tripCardId, ENTRY)).body);
+    expect(marked.markedSlots).toEqual([ENTRY]);
+    expect(marked.progressUpdatedAt).toBe("2026-08-02T00:00:00.000Z");
+
+    expect(await marksOf(deps, tripId)).toEqual([ENTRY]);
+    const trip = JSON.parse((await getTrip(deps, request({ params: { tripId } }))).body);
+    expect(trip.cards[0].markedSlots).toEqual([ENTRY]);
+
+    const unmarked = JSON.parse((await unmark(deps, tripId, tripCardId, ENTRY)).body);
+    expect(unmarked.markedSlots).toEqual([]);
+    expect(await marksOf(deps, tripId)).toEqual([]);
+  });
+
+  it("sorts marks ascending regardless of the order they arrived in", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const tripCardId = await addCard(deps, tripId);
+
+    await mark(deps, tripId, tripCardId, FREE);
+    await mark(deps, tripId, tripCardId, OTHER_ENTRY);
+    const body = JSON.parse((await mark(deps, tripId, tripCardId, ENTRY)).body);
+
+    expect(body.markedSlots).toEqual([ENTRY, OTHER_ENTRY, FREE]);
+  });
+
+  it("is idempotent in both directions", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const tripCardId = await addCard(deps, tripId);
+
+    await mark(deps, tripId, tripCardId, ENTRY);
+    expect(JSON.parse((await mark(deps, tripId, tripCardId, ENTRY)).body).markedSlots).toEqual([ENTRY]);
+
+    await unmark(deps, tripId, tripCardId, ENTRY);
+    expect(JSON.parse((await unmark(deps, tripId, tripCardId, ENTRY)).body).markedSlots).toEqual([]);
+    // And unmarking a square that was never marked is equally a no-op.
+    expect(JSON.parse((await unmark(deps, tripId, tripCardId, FREE)).body).markedSlots).toEqual([]);
+  });
+
+  it("removes the attribute entirely when the last square is unmarked, and still reports []", async () => {
+    // A DynamoDB set cannot be empty. Absent and empty are the same state, and
+    // every reader has to see them identically.
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const tripCardId = await addCard(deps, tripId);
+
+    await mark(deps, tripId, tripCardId, ENTRY);
+    expect(tripCardItem(deps, tripId, tripCardId)).toHaveProperty("markedSlots");
+
+    await unmark(deps, tripId, tripCardId, ENTRY);
+    expect(tripCardItem(deps, tripId, tripCardId)).not.toHaveProperty("markedSlots");
+    expect(await marksOf(deps, tripId)).toEqual([]);
+  });
+
+  it("treats the free space as an ordinary square that starts unmarked", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const tripCardId = await addCard(deps, tripId);
+
+    expect(await marksOf(deps, tripId)).toEqual([]);
+    expect(JSON.parse((await mark(deps, tripId, tripCardId, FREE)).body).markedSlots).toEqual([FREE]);
+    expect(JSON.parse((await unmark(deps, tripId, tripCardId, FREE)).body).markedSlots).toEqual([]);
+  });
+
+  it("rejects a position that is not a whole number on the grid, changing nothing", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const tripCardId = await addCard(deps, tripId);
+    await mark(deps, tripId, tripCardId, ENTRY);
+
+    for (const slotIndex of ["25", "-1", "1.5", "abc", ""]) {
+      expect(
+        await statusOf(markTripCardSlot(deps, request({ params: { tripId, tripCardId, slotIndex } }))),
+        `expected ${slotIndex} to be rejected`,
+      ).toBe(400);
+    }
+    expect(await marksOf(deps, tripId)).toEqual([ENTRY]);
+  });
+
+  it("rejects a blank position, changing nothing", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const tripCardId = await addCard(deps, tripId);
+    await mark(deps, tripId, tripCardId, ENTRY);
+
+    expect(await statusOf(mark(deps, tripId, tripCardId, BLANK))).toBe(400);
+    expect(await marksOf(deps, tripId)).toEqual([ENTRY]);
+  });
+
+  it("competitive: only the assignee may mark", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps, "user-a", { mode: "competitive" });
+    const tripCardId = await addCard(deps, tripId);
+    await joinAs(deps, tripId, "user-b");
+    await joinAs(deps, tripId, "user-c");
+
+    // Unassigned: nobody, the administrator included.
+    expect(await statusOf(mark(deps, tripId, tripCardId, ENTRY, "user-a"))).toBe(403);
+    expect(await statusOf(mark(deps, tripId, tripCardId, ENTRY, "user-b"))).toBe(403);
+
+    await assignTripCard(deps, request({ params: { tripId, tripCardId }, body: { assignedMemberId: "user-b" } }));
+
+    expect((await mark(deps, tripId, tripCardId, ENTRY, "user-b")).statusCode).toBe(200);
+    // The other member and the administrator are both refused.
+    expect(await statusOf(mark(deps, tripId, tripCardId, OTHER_ENTRY, "user-c"))).toBe(403);
+    expect(await statusOf(mark(deps, tripId, tripCardId, OTHER_ENTRY, "user-a"))).toBe(403);
+    expect(await marksOf(deps, tripId)).toEqual([ENTRY]);
+  });
+
+  it("competitive: reassignment moves who may mark and leaves the marks alone", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps, "user-a", { mode: "competitive" });
+    const tripCardId = await addCard(deps, tripId);
+    await joinAs(deps, tripId, "user-b");
+    await joinAs(deps, tripId, "user-c");
+
+    await assignTripCard(deps, request({ params: { tripId, tripCardId }, body: { assignedMemberId: "user-b" } }));
+    await mark(deps, tripId, tripCardId, ENTRY, "user-b");
+
+    await assignTripCard(deps, request({ params: { tripId, tripCardId }, body: { assignedMemberId: "user-c" } }));
+
+    expect(await marksOf(deps, tripId)).toEqual([ENTRY]);
+    expect(await statusOf(mark(deps, tripId, tripCardId, OTHER_ENTRY, "user-b"))).toBe(403);
+    expect((await mark(deps, tripId, tripCardId, OTHER_ENTRY, "user-c")).statusCode).toBe(200);
+  });
+
+  it("cooperative: any member may mark, and they share one set of marks", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const tripCardId = await addCard(deps, tripId);
+    await joinAs(deps, tripId, "user-b");
+
+    await mark(deps, tripId, tripCardId, ENTRY, "user-a");
+    await mark(deps, tripId, tripCardId, OTHER_ENTRY, "user-b");
+
+    // One shared set, seen identically by both — not a copy per member.
+    expect(await marksOf(deps, tripId, "user-a")).toEqual([ENTRY, OTHER_ENTRY]);
+    expect(await marksOf(deps, tripId, "user-b")).toEqual([ENTRY, OTHER_ENTRY]);
+
+    // And either may undo the other's mark; there is no per-member state to protect.
+    await unmark(deps, tripId, tripCardId, ENTRY, "user-b");
+    expect(await marksOf(deps, tripId)).toEqual([OTHER_ENTRY]);
+  });
+
+  it("keeps two marks on different squares made at the same moment", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const tripCardId = await addCard(deps, tripId);
+    await joinAs(deps, tripId, "user-b");
+
+    await Promise.all([
+      mark(deps, tripId, tripCardId, ENTRY, "user-a"),
+      mark(deps, tripId, tripCardId, OTHER_ENTRY, "user-b"),
+    ]);
+
+    expect(await marksOf(deps, tripId)).toEqual([ENTRY, OTHER_ENTRY]);
+  });
+
+  it("refuses marking before the trip starts and after it ends, while reads keep working", async () => {
+    // The fixed test clock is 2026-08-02.
+    const deps = makeTestDeps();
+    const notYet = await seedTrip(deps, "user-a", { startDate: "2026-09-01", endDate: "2026-09-10" });
+    const over = await seedTrip(deps, "user-a", { startDate: "2026-06-01", endDate: "2026-07-01" });
+    const notYetCard = await addCard(deps, notYet);
+    const overCard = await addCard(deps, over);
+
+    expect(await statusOf(mark(deps, notYet, notYetCard, ENTRY))).toBe(400);
+    expect(await statusOf(mark(deps, over, overCard, ENTRY))).toBe(400);
+    expect(await statusOf(unmark(deps, over, overCard, ENTRY))).toBe(400);
+
+    // Reading is unaffected by the window: it bounds who may write, not who may look.
+    expect(await marksOf(deps, notYet)).toEqual([]);
+    expect(await marksOf(deps, over)).toEqual([]);
+    expect((await getTrip(deps, request({ params: { tripId: over } }))).statusCode).toBe(200);
+  });
+
+  it("accepts marking inside the window, and in a trip with no dates at all", async () => {
+    const deps = makeTestDeps();
+    const dated = await seedTrip(deps, "user-a", { startDate: "2026-08-01", endDate: "2026-08-10" });
+    const undated = await seedTrip(deps);
+
+    expect((await mark(deps, dated, await addCard(deps, dated), ENTRY)).statusCode).toBe(200);
+    expect((await mark(deps, undated, await addCard(deps, undated), ENTRY)).statusCode).toBe(200);
+  });
+
+  it("ignores any date the request carries", async () => {
+    // The window is decided by the server's own clock. Nothing in the body,
+    // path, or query contributes to it.
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps, "user-a", { startDate: "2026-09-01", endDate: "2026-09-10" });
+    const tripCardId = await addCard(deps, tripId);
+
+    expect(
+      await statusOf(
+        markTripCardSlot(
+          deps,
+          request({
+            params: { tripId, tripCardId, slotIndex: String(ENTRY), now: "2026-09-05" },
+            body: { now: "2026-09-05T00:00:00.000Z", startDate: "2020-01-01" },
+          }),
+        ),
+      ),
+    ).toBe(400);
+  });
+
+  it("survives member removal and edits or deletion of the original card", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps, "user-a", { mode: "competitive" });
+    await joinAs(deps, tripId, "user-b");
+
+    const cardId = await seedCard(deps, "user-b");
+    const tripCardId = JSON.parse(
+      (await addTripCard(deps, request({ userId: "user-b", params: { tripId }, body: { cardId } }))).body,
+    ).tripCardId as string;
+    await assignTripCard(deps, request({ params: { tripId, tripCardId }, body: { assignedMemberId: "user-b" } }));
+    await mark(deps, tripId, tripCardId, ENTRY, "user-b");
+
+    // Deleting the original card cannot reach the snapshot, so it cannot reach
+    // the marks hanging off it either.
+    deps.ddb.items.delete(`CARD#${cardId} META`);
+    expect(await marksOf(deps, tripId)).toEqual([ENTRY]);
+
+    await removeMember(deps, request({ params: { tripId, userId: "user-b" } }));
+    expect(await marksOf(deps, tripId)).toEqual([ENTRY]);
+  });
+
+  it("removes marks with the trip card, and with the trip", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const tripCardId = await addCard(deps, tripId);
+    await mark(deps, tripId, tripCardId, ENTRY);
+
+    await removeTripCard(deps, request({ params: { tripId, tripCardId } }));
+    const progress = JSON.parse((await getTripProgress(deps, request({ params: { tripId } }))).body);
+    expect(progress.cards).toEqual([]);
+
+    // A re-added equivalent card starts clean rather than inheriting the marks.
+    const readded = await addCard(deps, tripId);
+    expect(await marksOf(deps, tripId)).toEqual([]);
+
+    await mark(deps, tripId, readded, ENTRY);
+    await deleteTrip(deps, request({ params: { tripId } }));
+    const key = tripCardKey(tripId, readded);
+    expect(deps.ddb.get(key.PK, key.SK)).toBeUndefined();
+  });
+
+  it("refuses a mark for a card deleted mid-request, and does not recreate it", async () => {
+    // UpdateItem is an upsert, so an unguarded write here would resurrect the
+    // row carrying marks but no snapshot — a trip card that renders as a crash
+    // for every member and that no UI can remove. The condition on the write is
+    // what closes the window between authorization's read and the write.
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const tripCardId = await addCard(deps, tripId);
+    const key = tripCardKey(tripId, tripCardId);
+
+    // Delete the card once authorization has read it: the membership Get, then
+    // the trip META and trip card Gets, are the first three sends.
+    const realSend = deps.ddb.send.bind(deps.ddb);
+    let sends = 0;
+    deps.ddb.send = (async (command: Parameters<typeof realSend>[0]) => {
+      const response = await realSend(command);
+      sends += 1;
+      if (sends === 3) deps.ddb.items.delete(`${key.PK} ${key.SK}`);
+      return response;
+    }) as typeof deps.ddb.send;
+
+    expect(await statusOf(mark(deps, tripId, tripCardId, ENTRY))).toBe(404);
+    expect(deps.ddb.get(key.PK, key.SK)).toBeUndefined();
+
+    const body = JSON.parse((await getTripProgress(deps, request({ params: { tripId } }))).body);
+    expect(body.cards).toEqual([]);
+  });
+
+  it("is a 404, not a 403, for a non-member and for an unknown trip card", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const tripCardId = await addCard(deps, tripId);
+
+    expect(await statusOf(getTripProgress(deps, request({ userId: "user-z", params: { tripId } })))).toBe(404);
+    expect(await statusOf(mark(deps, tripId, tripCardId, ENTRY, "user-z"))).toBe(404);
+    expect(await statusOf(mark(deps, tripId, "no-such-card", ENTRY))).toBe(404);
+  });
+
+  it("refuses a signed-out caller on every progress route", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const tripCardId = await addCard(deps, tripId);
+    const params = { tripId, tripCardId, slotIndex: "0" };
+
+    expect(await statusOf(getTripProgress(deps, request({ userId: null, params: { tripId } })))).toBe(401);
+    expect(await statusOf(markTripCardSlot(deps, request({ userId: null, params })))).toBe(401);
+    expect(await statusOf(unmarkTripCardSlot(deps, request({ userId: null, params })))).toBe(401);
+  });
+
+  it("does not re-serialize snapshots, members, or invites on the polled endpoint", async () => {
+    // This is the endpoint a page hits every ten seconds. Returning what
+    // getTrip returns would make polling cost what a full load costs.
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const tripCardId = await addCard(deps, tripId);
+    await mark(deps, tripId, tripCardId, ENTRY);
+
+    const body = JSON.parse((await getTripProgress(deps, request({ params: { tripId } }))).body);
+    expect(Object.keys(body)).toEqual(["cards"]);
+    expect(body.cards).toEqual([
+      { tripCardId, markedSlots: [ENTRY], progressUpdatedAt: "2026-08-02T00:00:00.000Z" },
+    ]);
+  });
+
+  it("reports a card nobody has touched as having no marks", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const tripCardId = await addCard(deps, tripId);
+
+    const body = JSON.parse((await getTripProgress(deps, request({ params: { tripId } }))).body);
+    expect(body.cards).toEqual([{ tripCardId, markedSlots: [] }]);
+  });
+
+  it("shows a member the progress on a card assigned to somebody else", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps, "user-a", { mode: "competitive" });
+    const tripCardId = await addCard(deps, tripId);
+    await joinAs(deps, tripId, "user-b");
+    await assignTripCard(deps, request({ params: { tripId, tripCardId }, body: { assignedMemberId: "user-b" } }));
+    await mark(deps, tripId, tripCardId, ENTRY, "user-b");
+
+    // Entitlement to play decides who may change marks, never who may see them.
+    expect(await marksOf(deps, tripId, "user-a")).toEqual([ENTRY]);
   });
 });
 

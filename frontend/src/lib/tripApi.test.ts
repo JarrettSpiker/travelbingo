@@ -7,8 +7,11 @@ import {
   createTrip,
   deleteTrip,
   getTrip,
+  getTripProgress,
   listInvites,
   listTrips,
+  markTripCardSlot,
+  unmarkTripCardSlot,
   redeemInvite,
   removeMember,
   removeTripCard,
@@ -144,5 +147,41 @@ describe("tripApi routing", () => {
     const { client, calls } = makeClient([jsonResponse(204, null)]);
     await revokeInvite(client, "t1", "tok/with%slash");
     expect(calls[0].url).toBe("/api/trips/t1/invites/tok%2Fwith%25slash");
+  });
+
+  it("marks and unmarks one square through the same idempotent path", async () => {
+    const { client, calls } = makeClient([
+      jsonResponse(200, { tripCardId: "tc", markedSlots: [3], progressUpdatedAt: "t" }),
+      jsonResponse(200, { tripCardId: "tc", markedSlots: [], progressUpdatedAt: "t" }),
+    ]);
+
+    const marked = await markTripCardSlot(client, "t1", "tc", 3);
+    const unmarked = await unmarkTripCardSlot(client, "t1", "tc", 3);
+
+    expect(marked.markedSlots).toEqual([3]);
+    expect(unmarked.markedSlots).toEqual([]);
+    expect(calls[0].url).toBe("/api/trips/t1/cards/tc/marks/3");
+    expect(calls[0].init.method).toBe("PUT");
+    expect(calls[1].url).toBe("/api/trips/t1/cards/tc/marks/3");
+    expect(calls[1].init.method).toBe("DELETE");
+    // Both carry the caller's token: there is no anonymous marking.
+    expect(headersOf(calls[0]).Authorization).toBe("Bearer token");
+  });
+
+  it("GETs the polled progress endpoint and unwraps its cards", async () => {
+    const { client, calls } = makeClient([
+      jsonResponse(200, { cards: [{ tripCardId: "tc", markedSlots: [0, 6] }] }),
+    ]);
+
+    const progress = await getTripProgress(client, "t1");
+
+    expect(progress).toEqual([{ tripCardId: "tc", markedSlots: [0, 6] }]);
+    expect(calls[0].url).toBe("/api/trips/t1/progress");
+    expect(calls[0].init.method).toBe("GET");
+  });
+
+  it("tolerates a progress response with no cards array", async () => {
+    const { client } = makeClient([jsonResponse(200, {})]);
+    expect(await getTripProgress(client, "t1")).toEqual([]);
   });
 });

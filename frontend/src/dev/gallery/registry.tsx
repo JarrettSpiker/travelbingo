@@ -8,6 +8,9 @@ import {
   FEW_ENTRIES,
   MANDATORY_OVERFLOW_ENTRIES,
   OVER_CAPACITY_ENTRIES,
+  MIDNIGHT_COLORS,
+  SAMPLE_FULL_MARKS,
+  SAMPLE_MARKED_SLOTS,
   SUNSET_COLORS,
 } from "./sampleData";
 import {
@@ -27,6 +30,7 @@ import {
   EmojiSchemeFormSample,
   EntryInputSample,
   FontSchemeFormSample,
+  PlayableCardGridSample,
   SettingsPageSample,
 } from "./samples";
 
@@ -160,6 +164,65 @@ export const GALLERY_ENTRIES: GalleryEntry[] = [
             title="Sunset Drive"
             colorScheme={SUNSET_COLORS}
             emojiScheme={{ emojis: ["🌅"] }}
+          />
+        ),
+      },
+      {
+        // The state a member sees on a trip-mate's card: marks, no affordance.
+        label: "Partly marked, read-only",
+        node: (
+          <CardGridSample
+            title="Road Trip Bingo"
+            colorScheme={DEFAULT_COLOR_SCHEME}
+            emojiScheme={{ emojis: ["🚗", "🌵", "⛽"] }}
+            markedSlots={SAMPLE_MARKED_SLOTS}
+          />
+        ),
+      },
+      {
+        // The mark's colour is fixed and cannot adapt to the card, so it has to
+        // be reviewed against a second scheme, not just the default one.
+        label: "Partly marked, custom colours",
+        node: (
+          <CardGridSample
+            title="Sunset Drive"
+            colorScheme={SUNSET_COLORS}
+            emojiScheme={{ emojis: ["🌅"] }}
+            markedSlots={SAMPLE_MARKED_SLOTS}
+          />
+        ),
+      },
+      {
+        // The densest the layer gets: every entry has to survive being under one.
+        label: "Fully marked",
+        node: (
+          <CardGridSample
+            title="Road Trip Bingo"
+            colorScheme={DEFAULT_COLOR_SCHEME}
+            emojiScheme={{ emojis: ["🚗", "🌵", "⛽"] }}
+            markedSlots={SAMPLE_FULL_MARKS}
+          />
+        ),
+      },
+      {
+        // The hard case for a fixed translucent mark: a dark cell it has to stay
+        // visible on, carrying light text it must not swallow.
+        label: "Partly marked, dark card",
+        node: (
+          <CardGridSample
+            title="Night Drive"
+            colorScheme={MIDNIGHT_COLORS}
+            emojiScheme={{ emojis: ["🌙", "⭐"] }}
+            markedSlots={SAMPLE_MARKED_SLOTS}
+          />
+        ),
+      },
+      {
+        label: "Playable — click or tab and press Enter",
+        node: (
+          <PlayableCardGridSample
+            colorScheme={DEFAULT_COLOR_SCHEME}
+            emojiScheme={{ emojis: ["🚗", "🌵", "⛽"] }}
           />
         ),
       },

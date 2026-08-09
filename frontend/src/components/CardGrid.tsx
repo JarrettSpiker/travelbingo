@@ -1,5 +1,5 @@
-import { forwardRef, type CSSProperties } from "react";
-import type { BingoCard } from "../lib/bingo";
+import { forwardRef, type CSSProperties, type KeyboardEvent } from "react";
+import type { BingoCard, MarkedSlots } from "../lib/bingo";
 import type { ColorScheme } from "../lib/colorScheme";
 import { computeEdgeEmojiPositions, type EmojiPosition, type EmojiScheme } from "../lib/emojiScheme";
 import type { FontScheme } from "../lib/fontScheme";
@@ -10,6 +10,18 @@ interface CardGridProps {
   colorScheme: ColorScheme;
   fontScheme: FontScheme;
   emojiScheme: EmojiScheme;
+  /**
+   * Grid positions currently marked. Omitting it renders the card exactly as it
+   * rendered before marking existed — no rule fires without a mark, so every
+   * card saved or exported before this feature is unaffected.
+   */
+  markedSlots?: MarkedSlots;
+  /**
+   * Supplied only when the viewer may change this card's marks. Its presence is
+   * what makes cells interactive; the server is still the authority, and a
+   * refused mark is reverted by the caller.
+   */
+  onToggleSlot?: (index: number) => void;
 }
 
 /** Number of emoji slots around the border; emojis cycle to fill the whole ring. */
@@ -43,7 +55,7 @@ function edgeEmojiStyle(position: EmojiPosition): CSSProperties {
 }
 
 export const CardGrid = forwardRef<HTMLDivElement, CardGridProps>(function CardGrid(
-  { card, title, colorScheme, fontScheme, emojiScheme },
+  { card, title, colorScheme, fontScheme, emojiScheme, markedSlots, onToggleSlot },
   ref,
 ) {
   const hasTitle = Boolean(title);
@@ -84,20 +96,60 @@ export const CardGrid = forwardRef<HTMLDivElement, CardGridProps>(function CardG
           </span>
         ))}
         <div className="bingo-grid">
-          {card.cells.map((cell, index) => (
-            <div
-              key={index}
-              className={`bingo-cell bingo-cell-${cell.kind}`}
-              style={
-                {
-                  backgroundColor: colorScheme.cellColor,
-                  "--cell-font-scale": fontScaleForText(cell.text),
-                } as CSSProperties
-              }
-            >
-              {cell.text}
-            </div>
-          ))}
+          {card.cells.map((cell, index) => {
+            const marked = markedSlots?.has(index) ?? false;
+            // A blank is the absence of a square rather than an unclaimed one,
+            // so it never becomes interactive.
+            const toggle =
+              onToggleSlot && cell.kind !== "blank" ? () => onToggleSlot(index) : undefined;
+
+            return (
+              // Deliberately still a <div> carrying role="button", rather than
+              // a real button element. The renderer's rule is that it uses only
+              // elements with no UA typography to lose; a button would
+              // reintroduce exactly that exposure, and would carry a UA
+              // background and border into the exported image as well.
+              <div
+                key={index}
+                className={`bingo-cell bingo-cell-${cell.kind}${toggle ? " bingo-cell-playable" : ""}`}
+                style={
+                  {
+                    backgroundColor: colorScheme.cellColor,
+                    "--cell-font-scale": fontScaleForText(cell.text),
+                  } as CSSProperties
+                }
+                role={toggle ? "button" : undefined}
+                tabIndex={toggle ? 0 : undefined}
+                aria-pressed={toggle ? marked : undefined}
+                onClick={toggle}
+                onKeyDown={
+                  toggle
+                    ? (event: KeyboardEvent<HTMLDivElement>) => {
+                        // role="button" gets no key activation for free the way
+                        // a real button element does.
+                        if (event.key !== "Enter" && event.key !== " ") return;
+                        event.preventDefault();
+                        toggle();
+                      }
+                    : undefined
+                }
+              >
+                {cell.text}
+                {marked && (
+                  // Two real spans — not an SVG, which is a whole second
+                  // rendering model inside a node that must serialize
+                  // identically four ways, and not a ::before/::after pair.
+                  // Pseudo-element serialization through html-to-image is
+                  // precisely the class of silent export regression the guard
+                  // exists to catch; a real element is trivially verifiable.
+                  <span className="bingo-mark" aria-hidden="true">
+                    <span className="bingo-mark-stroke" />
+                    <span className="bingo-mark-stroke" />
+                  </span>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

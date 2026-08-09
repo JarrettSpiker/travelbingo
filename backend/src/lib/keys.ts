@@ -13,7 +13,8 @@
 //   TRIP#<tripId>   META            ownerId, title, mode, startDate?, endDate?, createdAt, updatedAt
 //   USER#<sub>      TRIP#<tripId>   role(admin|member), title, startDate?, endDate?, updatedAt   <- "my trips" listing row
 //   TRIP#<tripId>   MEMBER#<sub>    role, createdAt                              <- cascade-delete mirror
-//   TRIP#<tripId>   TRIPCARD#<id>   snapshot{}, ownerId, assignedMemberId?, createdAt   <- render-only snapshot
+//   TRIP#<tripId>   TRIPCARD#<id>   snapshot{}, ownerId, assignedMemberId?, createdAt,   <- render-only snapshot
+//                                   markedSlots?: Set<Number>, progressUpdatedAt?  <- play progress
 //   TRIP#<tripId>   INVITE#<token>  createdAt                                    <- admin-facing pointer (list/revoke)
 //   INVITE#<token>  META            tripId, title, createdAt, revokedAt?        <- redemption record
 
@@ -100,7 +101,13 @@ export function tripMemberKey(tripId: string, userId: string): TableKey {
   return { PK: `TRIP#${tripId}`, SK: `${MEMBER_SK_PREFIX}${userId}` };
 }
 
-/** A frozen, render-only card snapshot within a trip. */
+/**
+ * A frozen, render-only card snapshot within a trip, and the anchor its play
+ * progress hangs off. `markedSlots` is a DynamoDB number set, so marking and
+ * unmarking are atomic ADD/DELETE operations on a single attribute rather than
+ * a read-modify-write; a set cannot be empty, so unmarking the last square
+ * removes the attribute and "absent" means "nothing marked".
+ */
 export function tripCardKey(tripId: string, tripCardId: string): TableKey {
   return { PK: `TRIP#${tripId}`, SK: `${TRIPCARD_SK_PREFIX}${tripCardId}` };
 }

@@ -38,8 +38,13 @@ locals {
     "POST /api/trips/{tripId}/cards"                = { authorized = true }
     "PATCH /api/trips/{tripId}/cards/{tripCardId}"  = { authorized = true }
     "DELETE /api/trips/{tripId}/cards/{tripCardId}" = { authorized = true }
-    (local.public_invite_route)                     = { authorized = false }
-    "POST /api/invites/{token}/redeem"              = { authorized = true }
+    # Play progress. The poll and both marking routes are members-only; there is
+    # no public reading of a trip's progress.
+    "GET /api/trips/{tripId}/progress"                                = { authorized = true }
+    "PUT /api/trips/{tripId}/cards/{tripCardId}/marks/{slotIndex}"    = { authorized = true }
+    "DELETE /api/trips/{tripId}/cards/{tripCardId}/marks/{slotIndex}" = { authorized = true }
+    (local.public_invite_route)                                       = { authorized = false }
+    "POST /api/invites/{token}/redeem"                                = { authorized = true }
   }
 }
 

@@ -50,8 +50,68 @@ export interface TripCardSnapshot {
   };
 }
 
+/**
+ * The grid is a fixed 5x5. Mirrors GRID_SIZE/CELLS_PER_CARD/FREE_SPACE_INDEX in
+ * frontend/src/lib/bingo.ts — the renderer walks these same positions, and a
+ * mark names one of them.
+ */
+export const GRID_SIZE = 5;
+export const CELLS_PER_CARD = GRID_SIZE * GRID_SIZE;
+export const FREE_SPACE_INDEX = Math.floor(CELLS_PER_CARD / 2);
+
 /** A well-formed calendar date in ISO order, so dates compare lexicographically. */
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** A whole number with no sign, exponent, or decimal point — what a path segment may carry. */
+const WHOLE_NUMBER = /^(0|[1-9]\d*)$/;
+
+/**
+ * Parses a grid position from a path segment.
+ *
+ * The value names a *cell* of the rendered 5x5 grid (0–24), not an offset into
+ * the snapshot's `slots` array — those two differ by one after the free space,
+ * which occupies a cell but no slot. Rejecting rather than clamping follows this
+ * module's reject-don't-correct rule; a clamped index would silently mark a
+ * square the player did not touch.
+ */
+export function parseSlotIndex(value: string | undefined): number {
+  if (typeof value !== "string" || !WHOLE_NUMBER.test(value)) {
+    throw badRequest(`slotIndex must be a whole number from 0 to ${CELLS_PER_CARD - 1}`);
+  }
+  const index = Number(value);
+  if (index >= CELLS_PER_CARD) {
+    throw badRequest(`slotIndex must be a whole number from 0 to ${CELLS_PER_CARD - 1}`);
+  }
+  return index;
+}
+
+/**
+ * Whether a grid position holds a real square that can be marked.
+ *
+ * A blank — a position on the grid holding no entry, as happens when a card was
+ * built from fewer entries than the grid has cells — is the *absence* of a
+ * square rather than an unclaimed one, and is not markable. Letting one be
+ * marked would make an under-filled card trivially complete for the win
+ * conditions arriving in a later change.
+ *
+ * The free space is the opposite case and gets no special treatment: it is a
+ * real square with real text, it starts unmarked, and it is marked and unmarked
+ * like any other.
+ */
+export function isMarkablePosition(
+  snapshot: Pick<TripCardSnapshot, "slots" | "hasFreeSpace">,
+  index: number,
+): boolean {
+  if (!Number.isInteger(index) || index < 0 || index >= CELLS_PER_CARD) return false;
+  if (snapshot.hasFreeSpace && index === FREE_SPACE_INDEX) return true;
+
+  // The free space occupies a cell but consumes no slot, so every position after
+  // it is one ahead of its entry in the array.
+  const slot = snapshot.slots[
+    snapshot.hasFreeSpace && index > FREE_SPACE_INDEX ? index - 1 : index
+  ];
+  return typeof slot === "string" && slot !== "";
+}
 
 /**
  * Parses an optional display email supplied by the client on join. The backend

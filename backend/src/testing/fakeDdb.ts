@@ -62,9 +62,16 @@ export class FakeDdb {
       case "QueryCommand":
         return this.runQuery(input);
 
-      case "UpdateCommand":
-        this.applyUpdate(input);
-        return {};
+      case "UpdateCommand": {
+        const updated = this.applyUpdate(input);
+        // Only ALL_NEW is used, and only by the marking path. Anything else is
+        // rejected rather than silently answered with the wrong projection.
+        if (input.ReturnValues === undefined) return {};
+        if (input.ReturnValues !== "ALL_NEW") {
+          throw new Error(`FakeDdb: unsupported ReturnValues ${input.ReturnValues}`);
+        }
+        return { Attributes: { ...updated } };
+      }
 
       case "TransactWriteCommand":
         return this.runTransaction(input);
@@ -148,6 +155,34 @@ export class FakeDdb {
       matches = startIdx >= 0 ? matches.slice(startIdx + 1) : [];
     }
 
+    // A ProjectionExpression narrows what comes back. Honored rather than
+    // ignored: the progress poll exists precisely so it does *not* return
+    // snapshots, and a fake that returned them anyway would let that regress
+    // while the test still passed. Applied at the return, after the page key is
+    // taken from the full item — the real service always returns a complete key
+    // in LastEvaluatedKey, whatever the projection drops.
+    const project = (items: Item[]): Item[] => {
+      const expressionText: string | undefined = input.ProjectionExpression;
+      if (!expressionText) return items;
+
+      const names = input.ExpressionAttributeNames ?? {};
+      const attributes = expressionText.split(",").map((token) => {
+        const trimmed = token.trim();
+        if (!trimmed.startsWith("#")) return trimmed;
+        const resolved = names[trimmed];
+        if (!resolved) throw new Error(`FakeDdb: unbound projection name ${trimmed}`);
+        return String(resolved);
+      });
+
+      return items.map((item) => {
+        const projected: Item = {};
+        for (const attribute of attributes) {
+          if (attribute in item) projected[attribute] = item[attribute];
+        }
+        return projected;
+      });
+    };
+
     // If a page size is set, truncate and hand back a LastEvaluatedKey whenever
     // more items remain — the signal DynamoDB gives at a page boundary, which
     // callers must loop on. Without this knob the fake returns everything at
@@ -157,11 +192,11 @@ export class FakeDdb {
       const truncated = matches.slice(0, pageSize);
       const last = truncated[truncated.length - 1];
       return last
-        ? { Items: truncated, LastEvaluatedKey: { PK: String(last.PK), SK: String(last.SK) } }
-        : { Items: truncated };
+        ? { Items: project(truncated), LastEvaluatedKey: { PK: String(last.PK), SK: String(last.SK) } }
+        : { Items: project(truncated) };
     }
 
-    return { Items: matches };
+    return { Items: project(matches) };
   }
 
   private runTransaction(input: Record<string, any>): Record<string, never> {
@@ -206,15 +241,26 @@ export class FakeDdb {
     return {};
   }
 
-  /** Evaluates the subset of condition expressions this codebase uses. */
-  private checkCondition(action: Record<string, any>): void {
+  /**
+   * Evaluates the subset of condition expressions this codebase uses.
+   *
+   * `failure` names the exception the real service raises, which differs by
+   * caller: a cancelled transaction reports `TransactionCanceledException`, a
+   * conditional single-item write reports `ConditionalCheckFailedException`.
+   */
+  private checkCondition(
+    action: Record<string, any>,
+    failure: "TransactionCanceledException" | "ConditionalCheckFailedException" = "TransactionCanceledException",
+  ): void {
     const exists = this.items.has(itemKey(action.Key.PK, action.Key.SK));
     const expression: string = action.ConditionExpression;
 
     if (expression === "attribute_exists(PK)") {
       if (!exists) {
-        const error = new Error("Transaction cancelled");
-        error.name = "TransactionCanceledException";
+        const error = new Error(
+          failure === "TransactionCanceledException" ? "Transaction cancelled" : "The conditional request failed",
+        );
+        error.name = failure;
         throw error;
       }
       return;
@@ -223,11 +269,21 @@ export class FakeDdb {
     throw new Error(`FakeDdb: unsupported condition ${expression}`);
   }
 
-  private applyUpdate(update: Record<string, any>): void {
+  private applyUpdate(update: Record<string, any>): Item {
     const key = itemKey(update.Key.PK, update.Key.SK);
-    const existing = this.items.get(key);
-    if (!existing) {
-      throw new Error("FakeDdb: update on a missing item");
+
+    // UpdateItem is an upsert: a missing item is *created*, carrying only its
+    // key plus whatever the expression sets. This fake used to throw here
+    // instead, which made every "a deleted row stays deleted" test pass against
+    // behaviour the service does not have. Model the service; let the callers
+    // that need "only if it exists" say so with a condition.
+    const existing: Item = this.items.get(key) ?? { PK: update.Key.PK, SK: update.Key.SK };
+
+    if (update.ConditionExpression) {
+      this.checkCondition(
+        { Key: update.Key, ConditionExpression: update.ConditionExpression },
+        "ConditionalCheckFailedException",
+      );
     }
 
     const expression: string = update.UpdateExpression.trim();
@@ -235,41 +291,118 @@ export class FakeDdb {
     const values = update.ExpressionAttributeValues ?? {};
 
     // DynamoDB update expressions are a sequence of clauses (SET, REMOVE, ADD,
-    // DELETE). This fake implements the SET and REMOVE subset the codebase
-    // uses — including a combined "SET ... REMOVE ..." — and throws on anything
-    // else, so a broken expression surfaces as a failing test rather than a
-    // silent no-op.
-    const setMatch = /(?:^|\s)SET\s+(.+?)(?=\s+REMOVE\b|$)/.exec(expression);
-    const removeMatch = /(?:^|\s)REMOVE\s+(.+?)(?=\s+SET\b|$)/.exec(expression);
+    // DELETE), which may appear in any order but at most once each. This fake
+    // implements the subset the codebase uses and throws on anything else, so a
+    // broken expression surfaces as a failing test rather than a silent no-op.
+    const clauses = splitClauses(expression);
 
-    if (setMatch?.[1]) {
-      for (const assignment of setMatch[1].split(",")) {
+    // An unbound `#name` is a ValidationException from the real service, so it
+    // must not quietly become an attribute literally called "#typo" here. The
+    // projection path already throws on this; the two agree.
+    const resolve = (token: string): string => {
+      if (!token.startsWith("#")) return token;
+      const resolved = names[token];
+      if (!resolved) throw new Error(`FakeDdb: unbound name ${token}`);
+      return String(resolved);
+    };
+
+    if (clauses.SET) {
+      for (const assignment of clauses.SET.split(",")) {
         const parts = assignment.split("=");
         if (parts.length !== 2 || !parts[0] || !parts[1]) {
           throw new Error(`FakeDdb: unsupported assignment ${assignment}`);
         }
-        const nameToken = parts[0].trim();
-        const valueToken = parts[1].trim();
-        const attribute = nameToken.startsWith("#") ? names[nameToken] : nameToken;
-        existing[attribute] = values[valueToken];
+        existing[resolve(parts[0].trim())] = values[parts[1].trim()];
       }
     }
 
-    if (removeMatch?.[1]) {
-      for (const nameToken of removeMatch[1].split(",")) {
+    if (clauses.REMOVE) {
+      for (const nameToken of clauses.REMOVE.split(",")) {
         const token = nameToken.trim();
         if (!token) continue;
-        const attribute = token.startsWith("#") ? names[token] : token;
-        delete existing[attribute];
+        delete existing[resolve(token)];
       }
     }
 
-    if (!setMatch?.[1] && !removeMatch?.[1]) {
+    // ADD and DELETE are implemented for number sets only — the one use is the
+    // per-square marking path, where set semantics are what make two members
+    // marking at once safe. Numeric ADD (the counter form) is deliberately not
+    // implemented, so reaching for it fails loudly instead of half-working.
+    if (clauses.ADD) {
+      for (const [attribute, value] of setOperands(clauses.ADD, resolve, values)) {
+        const current = existing[attribute];
+        const next = current instanceof Set ? new Set(current) : new Set();
+        for (const member of value) next.add(member);
+        existing[attribute] = next;
+      }
+    }
+
+    if (clauses.DELETE) {
+      for (const [attribute, value] of setOperands(clauses.DELETE, resolve, values)) {
+        const current = existing[attribute];
+        if (!(current instanceof Set)) continue;
+        const next = new Set(current);
+        for (const member of value) next.delete(member);
+        // A DynamoDB set cannot be empty: removing the last member removes the
+        // attribute. Readers must treat absent and empty identically, and this
+        // is where that becomes true in tests.
+        if (next.size === 0) delete existing[attribute];
+        else existing[attribute] = next;
+      }
+    }
+
+    if (!clauses.SET && !clauses.REMOVE && !clauses.ADD && !clauses.DELETE) {
       throw new Error(`FakeDdb: unsupported update expression ${expression}`);
     }
 
     this.items.set(key, existing);
+    return existing;
   }
+}
+
+type ClauseName = "SET" | "REMOVE" | "ADD" | "DELETE";
+
+/** Splits an update expression into its clauses, in whatever order they appear. */
+function splitClauses(expression: string): Partial<Record<ClauseName, string>> {
+  const keywords: ClauseName[] = ["SET", "REMOVE", "ADD", "DELETE"];
+  const boundaries = [...expression.matchAll(/(?:^|\s)(SET|REMOVE|ADD|DELETE)\s/g)].map((match) => ({
+    name: match[1] as ClauseName,
+    start: match.index + match[0].length,
+    keywordAt: match.index,
+  }));
+
+  const clauses: Partial<Record<ClauseName, string>> = {};
+  for (const [i, boundary] of boundaries.entries()) {
+    const end = boundaries[i + 1]?.keywordAt ?? expression.length;
+    if (clauses[boundary.name] !== undefined) {
+      throw new Error(`FakeDdb: repeated ${boundary.name} clause in ${expression}`);
+    }
+    clauses[boundary.name] = expression.slice(boundary.start, end).trim();
+  }
+
+  if (boundaries.length === 0 && keywords.some((k) => expression.includes(k))) {
+    throw new Error(`FakeDdb: unsupported update expression ${expression}`);
+  }
+  return clauses;
+}
+
+/** Parses `#name :value, #other :value` operand pairs, requiring a Set value. */
+function setOperands(
+  clause: string,
+  resolve: (token: string) => string,
+  values: Record<string, unknown>,
+): [string, Set<unknown>][] {
+  return clause.split(",").map((operand) => {
+    const parts = operand.trim().split(/\s+/);
+    if (parts.length !== 2 || !parts[0] || !parts[1]) {
+      throw new Error(`FakeDdb: unsupported set operand ${operand}`);
+    }
+    const value = values[parts[1]];
+    if (!(value instanceof Set)) {
+      throw new Error(`FakeDdb: ADD/DELETE is implemented for sets only, got ${String(value)}`);
+    }
+    return [resolve(parts[0]), value];
+  });
 }
 
 export interface TestDeps extends Deps {

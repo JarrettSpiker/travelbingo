@@ -44,6 +44,32 @@ export const SAMPLE_CARD = buildCard(
   { hasFreeSpace: true, freeSpaceText: "FREE" },
 );
 
+/**
+ * A believable mid-game card: two lines part-built and the free space taken.
+ * Deliberately not a neat block, so the review shows marks against light and
+ * dark cells, next to short and long entries, and over the emoji ring.
+ */
+export const SAMPLE_MARKED_SLOTS: ReadonlySet<number> = new Set([0, 1, 6, 7, 12, 18, 20, 24]);
+
+/** Every square marked — the densest the marking layer ever gets. */
+export const SAMPLE_FULL_MARKS: ReadonlySet<number> = new Set(
+  Array.from({ length: 25 }, (_, index) => index),
+);
+
+/**
+ * A dark card. The marking layer's colour is fixed and cannot adapt to the
+ * user's `cellColor`, so "the entry text stays readable through the mark" has to
+ * be checked against a dark card as well as a light one — that is the case where
+ * a fixed translucent mark is most likely to fail.
+ */
+export const MIDNIGHT_COLORS: ColorScheme = {
+  ...DEFAULT_COLOR_SCHEME,
+  backgroundColor: "#101828",
+  cellColor: "#1f2a44",
+  textColor: "#e6edf7",
+  titleColor: "#93c5fd",
+};
+
 export const SUNSET_COLORS: ColorScheme = {
   ...DEFAULT_COLOR_SCHEME,
   backgroundColor: "#fff4e6",
