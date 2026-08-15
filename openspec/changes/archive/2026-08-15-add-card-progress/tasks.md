@@ -21,7 +21,7 @@
 ## 4. Infra
 
 - [x] 4.1 Add the three route keys to the API Gateway HTTP API configuration in `infra/apigateway.tf`, all carrying the Cognito authorizer. No new Lambda, DynamoDB table, bucket, or Cognito change.
-- [ ] 4.2 `terraform plan` against dev shows API Gateway route additions only, with no destructive diff to the `prevent_destroy` table or user pool.
+- [x] 4.2 `terraform plan` against dev shows API Gateway route additions only, with no destructive diff to the `prevent_destroy` table or user pool.
 
 ## 5. Frontend card renderer (do this before the rest of the frontend, so the export checklist runs early)
 
@@ -52,8 +52,8 @@
 ## 8. Verification
 
 - [x] 8.1 `npm run lint && npm test && npm run build` pass in **both** `frontend/` and `backend/`.
-- [ ] 8.2 Visual QA via `npm run capture -- /trips/:tripId --pdf` in light and dark at 390px and 1440px, with a card carrying marks. Confirm the translucent X leaves entry text readable against both a light and a dark user-chosen cell colour.
+- [x] 8.2 Visual QA via `npm run capture -- /trips/:tripId --pdf` in light and dark at 390px and 1440px, with a card carrying marks. Confirm the translucent X leaves entry text readable against both a light and a dark user-chosen cell colour.
 - [x] 8.3 Run the full export regression checklist in `frontend/DESIGN.md` — print, PNG, thumbnail — for a marked card and an unmarked card, confirming the unmarked output matches pre-change output.
 - [x] 8.4 Confirm `npm run capture -- /` reports zero `/api/` requests signed out and shows no play affordance.
-- [ ] 8.5 Multi-member verification in dev using `scripts/dev-user.sh` for a second identity: in a competitive trip, the assignee marks and the other member and the admin are both refused; the admin reassigns and the right to mark moves while the marks stay; in a cooperative trip both members mark the same card and each sees the other's marks appear without reloading; set the trip's end date to yesterday and confirm marking is refused while reading still works.
+- [x] 8.5 Multi-member verification in dev using `scripts/dev-user.sh` for a second identity: in a competitive trip, the assignee marks and the other member and the admin are both refused; the admin reassigns and the right to mark moves while the marks stay; in a cooperative trip both members mark the same card and each sees the other's marks appear without reloading; set the trip's end date to yesterday and confirm marking is refused while reading still works.
 - [x] 8.6 Confirm the saved-card contract tests (`backend/src/lib/cardPayload.contract.test.ts`, `frontend/src/lib/savedCard.contract.test.ts`) are unchanged — this change does not touch the stored card shape.
