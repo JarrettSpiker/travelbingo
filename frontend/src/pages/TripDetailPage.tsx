@@ -39,10 +39,9 @@ import {
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { useAuth } from "@/auth/authContext";
-import { createCard, listCards } from "@/lib/cardsApi";
+import { listCards } from "@/lib/cardsApi";
 import type { SavedCardSummary } from "@/lib/savedCard";
 import { cardFromSlots } from "@/lib/bingo";
-import type { CardUrlData } from "@/lib/cardData";
 import {
   addTripCard,
   assignTripCard,
@@ -109,20 +108,6 @@ function assigneeLabel(
   return memberLabel(trip.members[index], index, currentUserId, email, displayName);
 }
 
-/** Builds an editable card from a frozen snapshot, deriving the entry pool from the grid. */
-function snapshotToCardData(card: TripCard): CardUrlData {
-  const s = card.snapshot;
-  return {
-    slots: s.slots,
-    title: s.title,
-    hasFreeSpace: s.hasFreeSpace,
-    freeSpaceText: s.freeSpaceText,
-    colorScheme: s.colorScheme,
-    fontScheme: s.fontScheme,
-    emojiScheme: s.emojiScheme,
-  };
-}
-
 export function TripDetailPage() {
   const { tripId = "" } = useParams();
   const { api, status, accountsEnabled, email, displayName, userId: currentUserId } = useAuth();
@@ -131,7 +116,6 @@ export function TripDetailPage() {
   const [trip, setTrip] = useState<TripDetail | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [copiedCardId, setCopiedCardId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   /** The tripCardId currently being assigned, so that card alone shows a spinner. */
   const [assigningId, setAssigningId] = useState<string | null>(null);
@@ -281,20 +265,6 @@ export function TripDetailPage() {
       await load();
     } catch {
       setError("Could not add that card to the trip.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleCopyToLibrary(card: TripCard) {
-    setBusy(true);
-    setError(null);
-    try {
-      await createCard(api, snapshotToCardData(card));
-      setCopiedCardId(card.tripCardId);
-      setNotice("Copied to your cards.");
-    } catch {
-      setError("Could not copy that card to your library.");
     } finally {
       setBusy(false);
     }
@@ -600,14 +570,6 @@ export function TripDetailPage() {
                           onClick={() => void handleExportPng(card)}
                         >
                           <Download aria-hidden /> PNG
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={busy}
-                          onClick={() => void handleCopyToLibrary(card)}
-                        >
-                          {copiedCardId === card.tripCardId ? "Copied" : "Copy to my cards"}
                         </Button>
                         {isAdmin && (
                           <Button
