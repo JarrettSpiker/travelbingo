@@ -1,7 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { ADMIN_ONLY, ADMIN_OR_MEMBER, getUserId, OWNER_ONLY, requireCardRole, requireTripRole } from "./auth.ts";
+import {
+  ADMIN_ONLY,
+  ADMIN_OR_MEMBER,
+  getUserId,
+  OWNER_ONLY,
+  requireCardRole,
+  requireTripCardPlayer,
+  requireTripRole,
+} from "./auth.ts";
 import { HttpError } from "./http.ts";
-import { membershipKey, tripMembershipKey } from "./lib/keys.ts";
+import { membershipKey, tripCardKey, tripMembershipKey, tripMetaKey } from "./lib/keys.ts";
 import { makeTestDeps } from "./testing/fakeDdb.ts";
 
 async function statusOf(promise: Promise<unknown>): Promise<number> {
@@ -144,5 +152,137 @@ describe("requireTripRole", () => {
 
     const membership = await requireTripRole(deps, "user-a", "trip-1", ADMIN_OR_MEMBER);
     expect(membership.role).toBe("member");
+  });
+});
+
+describe("requireTripCardPlayer", () => {
+  type Deps = ReturnType<typeof makeTestDeps>;
+
+  function seedTrip(deps: Deps, mode: "cooperative" | "competitive") {
+    deps.ddb.seed({ ...tripMetaKey("trip-1"), ownerId: "user-a", title: "Summer Road Trip", mode });
+  }
+
+  function seedMember(deps: Deps, userId: string, role: "admin" | "member") {
+    deps.ddb.seed({
+      ...tripMembershipKey(userId, "trip-1"),
+      role,
+      title: "Summer Road Trip",
+      updatedAt: "2026-08-01T00:00:00.000Z",
+    });
+  }
+
+  function seedCard(deps: Deps, assignedMemberId?: string) {
+    deps.ddb.seed({
+      ...tripCardKey("trip-1", "card-1"),
+      snapshot: { slots: [] },
+      ownerId: "user-a",
+      createdAt: "2026-08-01T00:00:00.000Z",
+      ...(assignedMemberId ? { assignedMemberId } : {}),
+    });
+  }
+
+  it("lets any member play any card in a cooperative trip", async () => {
+    const deps = makeTestDeps();
+    seedTrip(deps, "cooperative");
+    seedMember(deps, "user-b", "member");
+    seedCard(deps);
+
+    const player = await requireTripCardPlayer(deps, "user-b", "trip-1", "card-1");
+
+    expect(player.membership.role).toBe("member");
+    expect(player.trip.mode).toBe("cooperative");
+    expect(player.card.ownerId).toBe("user-a");
+  });
+
+  it("lets the assignee play their own card in a competitive trip", async () => {
+    const deps = makeTestDeps();
+    seedTrip(deps, "competitive");
+    seedMember(deps, "user-b", "member");
+    seedCard(deps, "user-b");
+
+    const player = await requireTripCardPlayer(deps, "user-b", "trip-1", "card-1");
+    expect(player.card.assignedMemberId).toBe("user-b");
+  });
+
+  it("refuses a member who is not the assignee with 403", async () => {
+    const deps = makeTestDeps();
+    seedTrip(deps, "competitive");
+    seedMember(deps, "user-c", "member");
+    seedCard(deps, "user-b");
+
+    expect(await statusOf(requireTripCardPlayer(deps, "user-c", "trip-1", "card-1"))).toBe(403);
+  });
+
+  it("refuses the administrator on another member's card with 403", async () => {
+    // Administering a trip is not playing its cards. An admin who could mark
+    // any card would also make the competitive rule untestable in practice,
+    // since the admin is a member of every trip they run.
+    const deps = makeTestDeps();
+    seedTrip(deps, "competitive");
+    seedMember(deps, "user-a", "admin");
+    seedCard(deps, "user-b");
+
+    expect(await statusOf(requireTripCardPlayer(deps, "user-a", "trip-1", "card-1"))).toBe(403);
+  });
+
+  it("refuses everyone, administrator included, on an unassigned competitive card", async () => {
+    const deps = makeTestDeps();
+    seedTrip(deps, "competitive");
+    seedMember(deps, "user-a", "admin");
+    seedMember(deps, "user-b", "member");
+    seedCard(deps);
+
+    expect(await statusOf(requireTripCardPlayer(deps, "user-a", "trip-1", "card-1"))).toBe(403);
+    expect(await statusOf(requireTripCardPlayer(deps, "user-b", "trip-1", "card-1"))).toBe(403);
+  });
+
+  it("returns 404 to a non-member, from the inherited trip check", async () => {
+    const deps = makeTestDeps();
+    seedTrip(deps, "cooperative");
+    seedMember(deps, "user-a", "admin");
+    seedCard(deps);
+
+    expect(await statusOf(requireTripCardPlayer(deps, "user-z", "trip-1", "card-1"))).toBe(404);
+  });
+
+  it("returns 404 — not 403 — for a tripCardId that does not exist", async () => {
+    // A member already knows the trip exists, but must not be able to probe
+    // which card ids within it are real.
+    const deps = makeTestDeps();
+    seedTrip(deps, "cooperative");
+    seedMember(deps, "user-a", "admin");
+
+    expect(await statusOf(requireTripCardPlayer(deps, "user-a", "trip-1", "missing"))).toBe(404);
+  });
+
+  it("closes the card when the stored mode is not one it recognizes", async () => {
+    // Fail-closed, not fail-open. Validation bars this today, so the value here
+    // stands in for a mode added later or an item written by something other
+    // than the current create path — neither of which should silently open
+    // every card in the trip to every member.
+    const deps = makeTestDeps();
+    deps.ddb.seed({ ...tripMetaKey("trip-1"), ownerId: "user-a", title: "T", mode: "teams" });
+    seedMember(deps, "user-a", "admin");
+    seedMember(deps, "user-b", "member");
+    seedCard(deps, "user-b");
+
+    expect(await statusOf(requireTripCardPlayer(deps, "user-a", "trip-1", "card-1"))).toBe(403);
+    // The assignee still plays their own card, so an unknown mode degrades to
+    // the stricter of the two rules rather than locking everyone out.
+    expect((await requireTripCardPlayer(deps, "user-b", "trip-1", "card-1")).card.assignedMemberId).toBe("user-b");
+  });
+
+  it("performs exactly three reads", async () => {
+    // The membership, the trip META, and the trip card. Pinned so the count
+    // cannot quietly grow on a write path that already costs three point reads.
+    const deps = makeTestDeps();
+    seedTrip(deps, "cooperative");
+    seedMember(deps, "user-a", "admin");
+    seedCard(deps);
+
+    deps.ddb.sendCount = 0;
+    await requireTripCardPlayer(deps, "user-a", "trip-1", "card-1");
+
+    expect(deps.ddb.sendCount).toBe(3);
   });
 });

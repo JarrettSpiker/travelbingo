@@ -65,6 +65,13 @@
 }
 
 .bingo-cell {
+  /*
+    The containing block for the marking layer. It has no visual effect on an
+    unmarked cell: `position: relative` with `z-index: auto` creates no stacking
+    context, and a cell's only siblings are other cells, so paint order within
+    the grid is unchanged. The edge emojis stay behind at z-index -1.
+  */
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -83,6 +90,61 @@
 .bingo-cell-blank {
   border-style: dashed;
   opacity: 0.5;
+}
+
+/*
+  The marking layer.
+
+  It lives inside the card rather than over it because `html-to-image` clones
+  only the `.bingo-card` node and `@media print` isolates that same subtree — an
+  overlay drawn by a wrapper would look right on screen and vanish from every
+  export. See DESIGN.md.
+
+  The colours here are fixed, like the #ccc/#999 borders above and for the same
+  reason: no app design token, and none of the modern colour syntaxes the guard
+  bars, may enter the card — the exported PNG must not depend on how the app is
+  themed. They cannot adapt to the user's cell colour either; a mark that did
+  would be application logic painting inside a card made of user data.
+*/
+.bingo-cell-playable {
+  cursor: pointer;
+}
+
+.bingo-cell-playable:focus-visible {
+  /* Inset so the ring is not clipped by the cell's own `overflow: hidden`. A
+     cloned node is never focused, so this never reaches an export. */
+  outline: 2px solid #1d4ed8;
+  outline-offset: -2px;
+}
+
+.bingo-mark {
+  position: absolute;
+  inset: 0;
+  /* Clicks belong to the cell underneath, which carries the handler. */
+  pointer-events: none;
+}
+
+.bingo-mark-stroke {
+  position: absolute;
+  top: 50%;
+  left: 6%;
+  width: 88%;
+  height: 9%;
+  min-height: 2px;
+  border-radius: 999px;
+  /*
+    Translucency is the requirement, not a style choice: the square's entry text
+    has to stay readable through the mark, which is the whole point of marking a
+    card you then share as an image. A dauber red at just under half alpha is
+    the one fixed colour that stays visible over both a light and a dark
+    user-chosen cellColor without swallowing the text under it.
+  */
+  background: rgba(214, 45, 32, 0.45);
+  transform: translateY(-50%) rotate(45deg);
+}
+
+.bingo-mark-stroke:last-child {
+  transform: translateY(-50%) rotate(-45deg);
 }
 
 @media print {
@@ -163,10 +225,18 @@
     padding: 24px;
   }
 
+  /*
+    `.bingo-mark-stroke` is here for the same reason the cells are: without it a
+    browser is free to drop the fill and print an unmarked card, which is a
+    silently wrong document rather than an obviously ugly one. The guard test
+    asserts this rule keeps naming it.
+  */
   .bingo-card,
   .bingo-cell,
   .bingo-card-title,
-  .bingo-card-titlebar {
+  .bingo-card-titlebar,
+  .bingo-mark,
+  .bingo-mark-stroke {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }

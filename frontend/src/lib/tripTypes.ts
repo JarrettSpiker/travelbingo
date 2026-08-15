@@ -62,6 +62,25 @@ export interface TripCard {
   createdAt: string;
   /** Present only in competitive trips, and only when the admin has assigned it. */
   assignedMemberId?: string;
+  /**
+   * Grid positions currently marked, ascending. Always an array on the wire: the
+   * server stores these as a set, which cannot be empty, so it normalizes the
+   * absent case to `[]` rather than leaving readers to know that.
+   */
+  markedSlots: number[];
+  /** Absent until the card's marks have been touched at least once. */
+  progressUpdatedAt?: string;
+}
+
+/**
+ * One card's progress, as returned by `GET /api/trips/{tripId}/progress`. This
+ * is the polled shape: deliberately just the marks, with no snapshot, so a page
+ * left open does not re-download every card every few seconds.
+ */
+export interface TripCardProgress {
+  tripCardId: string;
+  markedSlots: number[];
+  progressUpdatedAt?: string;
 }
 
 /** The full trip, as returned by GET /api/trips/{tripId}. */

@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { HttpError } from "../http.ts";
-import { parseTripCardSnapshot, parseTripInput, parseTripUpdate } from "./tripPayload.ts";
+import {
+  CELLS_PER_CARD,
+  FREE_SPACE_INDEX,
+  isMarkablePosition,
+  parseSlotIndex,
+  parseTripCardSnapshot,
+  parseTripInput,
+  parseTripUpdate,
+} from "./tripPayload.ts";
 
 const validSnapshot = {
   slots: ["Airport", "", null, "Dog"],
@@ -173,5 +181,74 @@ describe("parseTripCardSnapshot", () => {
     expect(rejectsSnapshot(null)).toBe(400);
     expect(rejectsSnapshot("snapshot")).toBe(400);
     expect(rejectsSnapshot([])).toBe(400);
+  });
+});
+
+describe("parseSlotIndex", () => {
+  function rejects(value: string | undefined): number {
+    try {
+      parseSlotIndex(value);
+      return 200;
+    } catch (error) {
+      if (error instanceof HttpError) return error.statusCode;
+      throw error;
+    }
+  }
+
+  it("accepts every position on the grid", () => {
+    expect(parseSlotIndex("0")).toBe(0);
+    expect(parseSlotIndex("24")).toBe(CELLS_PER_CARD - 1);
+  });
+
+  it("rejects anything that is not a plain whole number in range", () => {
+    // Rejected rather than clamped or coerced: a "corrected" index would mark a
+    // square the player never touched.
+    for (const value of ["25", "-1", "1.5", "1e1", "+1", " 1", "01", "abc", "", undefined]) {
+      expect(rejects(value), `expected ${String(value)} to be rejected`).toBe(400);
+    }
+  });
+});
+
+describe("isMarkablePosition", () => {
+  // A full grid with a free space: 24 slots, the 13th cell being the free space.
+  const full = { hasFreeSpace: true, slots: Array.from({ length: 24 }, (_, i) => `entry ${i}`) };
+
+  it("accepts every real square on a full card", () => {
+    for (let index = 0; index < CELLS_PER_CARD; index += 1) {
+      expect(isMarkablePosition(full, index), `position ${index}`).toBe(true);
+    }
+  });
+
+  it("treats the free space as an ordinary square", () => {
+    expect(isMarkablePosition(full, FREE_SPACE_INDEX)).toBe(true);
+  });
+
+  it("maps positions after the free space one slot back", () => {
+    // The free space occupies a cell but consumes no slot. Getting this wrong
+    // is invisible before the middle of the card and off by one after it.
+    const slots = Array.from({ length: 24 }, (_, i) => (i === 12 ? null : `entry ${i}`));
+    expect(isMarkablePosition({ hasFreeSpace: true, slots }, 13)).toBe(false);
+    expect(isMarkablePosition({ hasFreeSpace: true, slots }, 12)).toBe(true);
+    expect(isMarkablePosition({ hasFreeSpace: true, slots }, 14)).toBe(true);
+  });
+
+  it("refuses a blank — the absence of a square, not an unclaimed one", () => {
+    const slots: (string | null)[] = ["Airport", null, ""];
+    expect(isMarkablePosition({ hasFreeSpace: false, slots }, 0)).toBe(true);
+    expect(isMarkablePosition({ hasFreeSpace: false, slots }, 1)).toBe(false);
+    expect(isMarkablePosition({ hasFreeSpace: false, slots }, 2)).toBe(false);
+    expect(isMarkablePosition({ hasFreeSpace: false, slots }, 3)).toBe(false);
+  });
+
+  it("uses all 25 positions when the card has no free space", () => {
+    const slots = Array.from({ length: 25 }, (_, i) => `entry ${i}`);
+    expect(isMarkablePosition({ hasFreeSpace: false, slots }, FREE_SPACE_INDEX)).toBe(true);
+    expect(isMarkablePosition({ hasFreeSpace: false, slots }, 24)).toBe(true);
+  });
+
+  it("refuses a position off the grid", () => {
+    expect(isMarkablePosition(full, -1)).toBe(false);
+    expect(isMarkablePosition(full, CELLS_PER_CARD)).toBe(false);
+    expect(isMarkablePosition(full, 1.5)).toBe(false);
   });
 });

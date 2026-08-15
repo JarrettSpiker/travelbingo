@@ -16,7 +16,7 @@ import { type BingoEntry } from "../../lib/bingo";
 import { type ColorScheme } from "../../lib/colorScheme";
 import { type EmojiScheme } from "../../lib/emojiScheme";
 import { DEFAULT_FONT_SCHEME, type FontScheme } from "../../lib/fontScheme";
-import { SAMPLE_CARD, sampleEntry } from "./sampleData";
+import { SAMPLE_CARD, SAMPLE_MARKED_SLOTS, sampleEntry } from "./sampleData";
 
 /**
  * Interactive samples for the gallery. Each owns its own state, so the gallery
@@ -99,10 +99,13 @@ export function CardGridSample({
   colorScheme,
   emojiScheme,
   title,
+  markedSlots,
 }: {
   colorScheme: ColorScheme;
   emojiScheme: EmojiScheme;
   title: string;
+  /** Omitted for the unmarked states, which must render as they always have. */
+  markedSlots?: ReadonlySet<number>;
 }) {
   return (
     <CardGrid
@@ -111,6 +114,41 @@ export function CardGridSample({
       colorScheme={colorScheme}
       fontScheme={DEFAULT_FONT_SCHEME}
       emojiScheme={emojiScheme}
+      markedSlots={markedSlots}
+    />
+  );
+}
+
+/**
+ * The playable card, with real marking. Reviewing this one means clicking it:
+ * the affordance, the focus ring on the cells, and whether the entry text is
+ * still readable under a fresh mark are all things a static picture hides.
+ */
+export function PlayableCardGridSample({
+  colorScheme,
+  emojiScheme,
+}: {
+  colorScheme: ColorScheme;
+  emojiScheme: EmojiScheme;
+}) {
+  const [marked, setMarked] = useState<ReadonlySet<number>>(SAMPLE_MARKED_SLOTS);
+
+  return (
+    <CardGrid
+      card={SAMPLE_CARD}
+      title="Road Trip Bingo"
+      colorScheme={colorScheme}
+      fontScheme={DEFAULT_FONT_SCHEME}
+      emojiScheme={emojiScheme}
+      markedSlots={marked}
+      onToggleSlot={(index) =>
+        setMarked((current) => {
+          const next = new Set(current);
+          if (next.has(index)) next.delete(index);
+          else next.add(index);
+          return next;
+        })
+      }
     />
   );
 }

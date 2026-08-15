@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import {
   CalendarDays,
   Compass,
   Copy,
+  Download,
   LayoutGrid,
   Link2,
+  Lock,
   Pencil,
   Plus,
   Trash2,
@@ -37,10 +39,9 @@ import {
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { useAuth } from "@/auth/authContext";
-import { createCard, listCards } from "@/lib/cardsApi";
+import { listCards } from "@/lib/cardsApi";
 import type { SavedCardSummary } from "@/lib/savedCard";
 import { cardFromSlots } from "@/lib/bingo";
-import type { CardUrlData } from "@/lib/cardData";
 import {
   addTripCard,
   assignTripCard,
@@ -52,7 +53,10 @@ import {
   removeTripCard,
   revokeInvite,
 } from "@/lib/tripApi";
-import { formatTripRange, formatTripTimestamp } from "@/lib/tripDates";
+import { downloadCardPng } from "@/lib/cardPngExport";
+import { playWindowState } from "@/lib/playWindow";
+import { markedSlotsFor, useTripProgress } from "@/hooks/useTripProgress";
+import { formatTripDate, formatTripRange, formatTripTimestamp } from "@/lib/tripDates";
 import type { TripCard, TripDetail, TripMember } from "@/lib/tripTypes";
 
 /** The detail page names specific days, so unlike the list it carries the year. */
@@ -104,20 +108,6 @@ function assigneeLabel(
   return memberLabel(trip.members[index], index, currentUserId, email, displayName);
 }
 
-/** Builds an editable card from a frozen snapshot, deriving the entry pool from the grid. */
-function snapshotToCardData(card: TripCard): CardUrlData {
-  const s = card.snapshot;
-  return {
-    slots: s.slots,
-    title: s.title,
-    hasFreeSpace: s.hasFreeSpace,
-    freeSpaceText: s.freeSpaceText,
-    colorScheme: s.colorScheme,
-    fontScheme: s.fontScheme,
-    emojiScheme: s.emojiScheme,
-  };
-}
-
 export function TripDetailPage() {
   const { tripId = "" } = useParams();
   const { api, status, accountsEnabled, email, displayName, userId: currentUserId } = useAuth();
@@ -126,7 +116,6 @@ export function TripDetailPage() {
   const [trip, setTrip] = useState<TripDetail | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [copiedCardId, setCopiedCardId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   /** The tripCardId currently being assigned, so that card alone shows a spinner. */
   const [assigningId, setAssigningId] = useState<string | null>(null);
@@ -145,6 +134,60 @@ export function TripDetailPage() {
 
   const isAdmin = trip?.role === "admin";
   const isCompetitive = trip?.mode === "competitive";
+
+  const {
+    progress,
+    error: progressError,
+    clearError: clearProgressError,
+    toggle,
+  } = useTripProgress(api, tripId, trip?.cards, accountsEnabled && status === "authenticated");
+
+  /**
+   * Each rendered card's `.bingo-card` node, so an export can hand the right one
+   * to `downloadCardPng`. A map rather than a ref per card because the number of
+   * cards is data, and hooks are not.
+   */
+  const cardNodes = useRef(new Map<string, HTMLDivElement | null>());
+
+  /**
+   * Which side of the trip's dates today falls on, or null while it is running.
+   * Evaluated with the same rule the server enforces (`lib/playWindow.ts`), but
+   * only to disable controls and explain why — the server re-decides every mark.
+   */
+  const windowState = trip ? playWindowState(trip, new Date()) : null;
+
+  /**
+   * Whether the viewer may change this card's marks. Cooperative trips are
+   * played by every member; competitive ones only by the assignee, with no
+   * administrator exemption — administering a trip is not playing its cards.
+   */
+  function canPlay(card: TripCard): boolean {
+    if (!trip || windowState !== null) return false;
+    return trip.mode === "cooperative" ? true : card.assignedMemberId === currentUserId;
+  }
+
+  /**
+   * Why a visible card is read-only, when the reason is specific to that card.
+   * The trip-wide reason — its dates — is stated once above the list rather than
+   * repeated on all fifty cards.
+   */
+  function readOnlyReason(card: TripCard): string | null {
+    if (!trip || windowState !== null || trip.mode !== "competitive") return null;
+    if (!card.assignedMemberId) return "Unassigned — nobody can mark this card yet.";
+    if (card.assignedMemberId !== currentUserId) return "Assigned to someone else. You can watch, but not mark.";
+    return null;
+  }
+
+  async function handleExportPng(card: TripCard) {
+    const node = cardNodes.current.get(card.tripCardId);
+    if (!node) return;
+    setError(null);
+    try {
+      await downloadCardPng(node, card.snapshot.title);
+    } catch {
+      setError("Sorry, the PNG could not be generated. Please try again.");
+    }
+  }
 
   const load = useCallback(async () => {
     try {
@@ -222,20 +265,6 @@ export function TripDetailPage() {
       await load();
     } catch {
       setError("Could not add that card to the trip.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleCopyToLibrary(card: TripCard) {
-    setBusy(true);
-    setError(null);
-    try {
-      await createCard(api, snapshotToCardData(card));
-      setCopiedCardId(card.tripCardId);
-      setNotice("Copied to your cards.");
-    } catch {
-      setError("Could not copy that card to your library.");
     } finally {
       setBusy(false);
     }
@@ -356,6 +385,29 @@ export function TripDetailPage() {
           </Alert>
         )}
 
+        {progressError && (
+          <Alert variant="destructive">
+            <TriangleAlert />
+            <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+              <span>{progressError}</span>
+              {/* A refused mark usually means the trip moved under the viewer —
+                  reassigned, or its dates edited. Reloading is the action that
+                  actually resolves it. */}
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={busy}
+                onClick={() => {
+                  clearProgressError();
+                  void load();
+                }}
+              >
+                Reload
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
+
         {notice && (
           <Alert variant="info">
             <Copy />
@@ -418,6 +470,21 @@ export function TripDetailPage() {
             </Button>
           }
         >
+          {/* The trip-wide reason a card is read-only, stated once rather than
+              repeated on every card in the list. */}
+          {windowState !== null && (
+            <Alert variant="info" className="mb-4">
+              <CalendarDays />
+              <AlertDescription>
+                {windowState === "before"
+                  ? `This trip hasn't started yet, so its cards can't be marked. Marking opens on ${
+                      trip.startDate ? formatTripDate(trip.startDate, DATE_FORMAT) : "the start date"
+                    }.`
+                  : "This trip has ended, so its cards can no longer be marked. Everyone's progress stays visible."}
+              </AlertDescription>
+            </Alert>
+          )}
+
           {trip.cards.length === 0 ? (
             <p className="text-sm text-muted-foreground">No cards yet. Add one from your library.</p>
           ) : (
@@ -427,6 +494,8 @@ export function TripDetailPage() {
                   hasFreeSpace: card.snapshot.hasFreeSpace,
                   freeSpaceText: card.snapshot.freeSpaceText,
                 });
+                const playable = canPlay(card);
+                const reason = readOnlyReason(card);
                 return (
                   // `1fr auto`: a card with a title renders taller than one
                   // without, so without this the meta boxes in a row start and
@@ -435,17 +504,32 @@ export function TripDetailPage() {
                   <li key={card.tripCardId} className="grid grid-rows-[1fr_auto] gap-3">
                     <div className="mx-auto w-full max-w-sm">
                       <CardGrid
+                        ref={(node) => {
+                          cardNodes.current.set(card.tripCardId, node);
+                        }}
                         card={bingoCard}
                         title={card.snapshot.title}
                         colorScheme={card.snapshot.colorScheme}
                         fontScheme={card.snapshot.fontScheme}
                         emojiScheme={card.snapshot.emojiScheme}
+                        markedSlots={markedSlotsFor(progress, card.tripCardId)}
+                        // Omitted entirely when the viewer may not mark: the
+                        // cells then render exactly as they do for a card
+                        // nobody is playing, with no affordance to mislead.
+                        onToggleSlot={
+                          playable ? (index) => void toggle(card.tripCardId, index) : undefined
+                        }
                       />
                     </div>
                     <div className="grid gap-2 rounded-md border border-border bg-background/40 p-3 text-sm">
                       <span className="text-muted-foreground">
                         Added {formatTripTimestamp(card.createdAt, DATE_FORMAT)}
                       </span>
+                      {reason && (
+                        <span className="inline-flex items-start gap-1.5 text-muted-foreground">
+                          <Lock className="mt-0.5 size-3 shrink-0" aria-hidden /> {reason}
+                        </span>
+                      )}
                       {isCompetitive && (
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="text-muted-foreground">Assigned to</span>
@@ -477,13 +561,15 @@ export function TripDetailPage() {
                         </div>
                       )}
                       <div className="flex flex-wrap gap-2 pt-1">
+                        {/* Available to every member who can see the card, not
+                            only the player: sharing a trip-mate's near-miss is
+                            half the point. */}
                         <Button
                           variant="outline"
                           size="sm"
-                          disabled={busy}
-                          onClick={() => void handleCopyToLibrary(card)}
+                          onClick={() => void handleExportPng(card)}
                         >
-                          {copiedCardId === card.tripCardId ? "Copied" : "Copy to my cards"}
+                          <Download aria-hidden /> PNG
                         </Button>
                         {isAdmin && (
                           <Button

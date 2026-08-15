@@ -1,5 +1,4 @@
 import { useState, type RefObject } from "react";
-import { toPng } from "html-to-image";
 import { Download, Shuffle, TriangleAlert } from "lucide-react";
 import { useAuth } from "@/auth/authContext";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -12,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import type { BingoCard } from "@/lib/bingo";
 import type { ColorScheme } from "@/lib/colorScheme";
-import { buildImageFilename } from "@/lib/imageExport";
+import { downloadCardPng } from "@/lib/cardPngExport";
 import type { EmojiScheme } from "@/lib/emojiScheme";
 import type { FontScheme } from "@/lib/fontScheme";
 import { CardGrid } from "@/components/CardGrid";
@@ -60,14 +59,7 @@ export function CardView({
     }
     setPngError(false);
     try {
-      await document.fonts.ready;
-      const dataUrl = await toPng(node, { pixelRatio: 2 });
-      const link = document.createElement("a");
-      link.download = buildImageFilename(title);
-      link.href = dataUrl;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      await downloadCardPng(node, title);
     } catch {
       setPngError(true);
     }

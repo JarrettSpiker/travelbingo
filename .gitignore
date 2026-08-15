@@ -2,3 +2,6 @@
 .claude/
 .opencode/
 .pi/
+
+.captures
+node_modules

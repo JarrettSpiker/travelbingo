@@ -294,6 +294,52 @@ including that `CardGrid.tsx` renders only `div`, `span`, and `h3` — elements
 with no UA typography left to lose — and that `.bingo-card-title` pins its own
 `font-size` and `font-weight`.
 
+### The marking layer is part of the frozen renderer
+
+Trip play draws a translucent X over a marked square. That X is **inside** the
+card, not over it — `.bingo-mark` and `.bingo-mark-stroke` are rendered by
+`CardGrid.tsx` and styled in `App.css`, alongside everything else above.
+
+That is not an implementation detail, it is the only thing that works.
+`html-to-image` clones the `.bingo-card` node and `@media print` isolates that
+same subtree, so anything drawn outside it does not exist to either consumer. An
+overlay positioned over the card by a wrapper component would look correct on
+screen and vanish from the PNG and the PDF — a broken feature that passes review.
+So the renderer was extended deliberately, with the guard and this document
+updated in the same change.
+
+The rules the marking layer adds to the ones above:
+
+- **Its colour is fixed, not themed, and cannot adapt to the card.** The stroke
+  is a literal `rgba()` in `App.css`, for exactly the reason the `#ccc`/`#999`
+  borders are literal. It would be tempting to derive it from the user's
+  `cellColor` so it always contrasts — that would be application logic painting
+  inside a card made of user data, and it would make the exported PNG depend on
+  something the exporter cannot see. One colour, chosen to stay visible over
+  both a light and a dark `cellColor`.
+- **Translucency is a requirement, not a style choice.** The square's entry text
+  must stay readable *through* the mark. That is the point of marking a card you
+  then export and post somewhere: a reader has to see both what was spotted and
+  that it was spotted. Raising the alpha until the mark "reads better" breaks
+  the feature. Check it against a light and a dark `cellColor`, not just the
+  default scheme.
+- **It is two real spans, not `::before`/`::after` and not an SVG.**
+  Pseudo-element serialization through `html-to-image` is precisely the class of
+  silent export regression this whole section exists to prevent, and an SVG is a
+  second rendering model inside a node that must serialize identically four
+  ways. The tag allowlist bars the latter mechanically.
+- **`@media print` must keep `print-color-adjust: exact` on the strokes.**
+  Without it a browser may drop the fill and print a marked card as an unmarked
+  one — silently wrong rather than obviously broken. The guard asserts the print
+  rule keeps naming `.bingo-mark-stroke`.
+- **A cell is interactive as a `div` with `role="button"`**, never a real button
+  element, which would reintroduce the UA-typography exposure the tag allowlist
+  exists to prevent and carry a UA background and border into the export.
+- **An unmarked card renders exactly as it did before this layer existed.** No
+  rule fires without `markedSlots`, so every card saved or exported before play
+  mode is byte-for-byte unaffected. That invariant is what the checklist below
+  asks you to verify with a before/after pair.
+
 ## Export regression checklist
 
 Run this whenever you touch `CardGrid.tsx`, `App.css`, or anything that changes
@@ -342,8 +388,17 @@ npm run export-check           # the PNG export and the saved-card thumbnail
    This runs entirely against the dev server: no sign-in, no API call, and
    nothing written to the deployed dev table or thumbnail bucket.
 5. **PNG edge cases.** Check the gallery's no-title card state too.
-6. **Keyboard.** Tab through the editor. Every control needs a visible focus
+6. **A card carrying marks.** The gallery has partially- and fully-marked card
+   states. Print and export one of each and confirm the X appears in the same
+   positions as on screen, that the entry text underneath is still readable, and
+   that the strokes survive the PDF — a marked card that prints unmarked is the
+   specific failure `print-color-adjust: exact` is there to prevent. Then export
+   an **unmarked** card and diff it against your pre-change copy: it must be
+   unchanged. The marking layer is only correct if it costs nothing when there
+   is nothing to mark.
+7. **Keyboard.** Tab through the editor. Every control needs a visible focus
    ring. Dialogs must trap focus, restore it on close, and close on Escape.
+   A playable card's cells are in the tab order and toggle on Enter and Space.
    Not automated — do this one by hand.
 
 Keep reference copies of the PDF, PNG, and thumbnail from before your change so

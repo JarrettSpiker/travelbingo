@@ -12,13 +12,16 @@ import {
   createTrip,
   deleteTrip,
   getTrip,
+  getTripProgress,
   listInvites,
   listTrips,
+  markTripCardSlot,
   redeemInvite,
   removeMember,
   removeTripCard,
   resolveInvite,
   revokeInvite,
+  unmarkTripCardSlot,
   updateTrip,
 } from "./routes/trips.ts";
 
@@ -71,6 +74,9 @@ const ROUTES: Record<string, Route> = {
   "POST /api/trips/{tripId}/cards": { handler: addTripCard },
   "PATCH /api/trips/{tripId}/cards/{tripCardId}": { handler: assignTripCard },
   "DELETE /api/trips/{tripId}/cards/{tripCardId}": { handler: removeTripCard },
+  "GET /api/trips/{tripId}/progress": { handler: getTripProgress },
+  "PUT /api/trips/{tripId}/cards/{tripCardId}/marks/{slotIndex}": { handler: markTripCardSlot },
+  "DELETE /api/trips/{tripId}/cards/{tripCardId}/marks/{slotIndex}": { handler: unmarkTripCardSlot },
   "GET /api/invites/{token}": { handler: resolveInvite, public: true },
   "POST /api/invites/{token}/redeem": { handler: redeemInvite },
 };

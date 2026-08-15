@@ -7,7 +7,14 @@ import {
   TransactWriteCommand,
   UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
-import { OWNER_ONLY, requireCardRole, ADMIN_ONLY, ADMIN_OR_MEMBER, requireTripRole } from "../auth.ts";
+import {
+  OWNER_ONLY,
+  requireCardRole,
+  ADMIN_ONLY,
+  ADMIN_OR_MEMBER,
+  requireTripCardPlayer,
+  requireTripRole,
+} from "../auth.ts";
 import type { Deps } from "../context.ts";
 import { badRequest, json, noContent, notFound, unauthorized, type JsonResponse } from "../http.ts";
 import type { CardPayload } from "../lib/cardPayload.ts";
@@ -30,7 +37,16 @@ import {
   TRIPCARD_SK_PREFIX,
   userPartition,
 } from "../lib/keys.ts";
-import { parseOptionalEmail, parseTripCardSnapshot, parseTripInput, parseTripUpdate, type TripCardSnapshot } from "../lib/tripPayload.ts";
+import {
+  isMarkablePosition,
+  parseOptionalEmail,
+  parseSlotIndex,
+  parseTripCardSnapshot,
+  parseTripInput,
+  parseTripUpdate,
+  type TripCardSnapshot,
+} from "../lib/tripPayload.ts";
+import { isWithinPlayWindow } from "../lib/playWindow.ts";
 import { putWithUniqueToken } from "../lib/shareToken.ts";
 import type { RouteRequest } from "../request.ts";
 
@@ -116,11 +132,17 @@ async function fetchDisplayNames(deps: Deps, userIds: string[]): Promise<Map<str
   return names;
 }
 
-/** Pages a (PK, begins_with(SK)) query to completion. */
+/**
+ * Pages a (PK, begins_with(SK)) query to completion. `projection` narrows the
+ * attributes returned; it is given as `[expression, names]` because every
+ * attribute worth projecting here collides with a DynamoDB reserved word or
+ * would if it were renamed later.
+ */
 async function queryByPrefix(
   deps: Deps,
   pk: string,
   prefix: string | null,
+  projection?: { expression: string; names: Record<string, string> },
 ): Promise<Record<string, unknown>[]> {
   const items: Record<string, unknown>[] = [];
   let startKey: Record<string, unknown> | undefined;
@@ -138,6 +160,12 @@ async function queryByPrefix(
               KeyConditionExpression: "PK = :pk",
               ExpressionAttributeValues: { ":pk": pk },
             }),
+        ...(projection
+          ? {
+              ProjectionExpression: projection.expression,
+              ExpressionAttributeNames: projection.names,
+            }
+          : {}),
         ExclusiveStartKey: startKey,
       }),
     );
@@ -161,6 +189,19 @@ function projectSnapshot(meta: CardPayload): TripCardSnapshot {
   };
 }
 
+/**
+ * The wire shape of a card's marks: always a sorted JSON array, never a set.
+ *
+ * A DynamoDB set cannot be empty, so unmarking the last square removes the
+ * attribute entirely — an absent `markedSlots` and an empty set are the same
+ * state, "nothing marked". Normalizing here means no reader ever has to know
+ * that, and the sort makes the response stable to compare.
+ */
+function markedSlotsResponse(value: unknown): number[] {
+  const values = value instanceof Set ? [...value] : Array.isArray(value) ? value : [];
+  return values.filter((slot): slot is number => typeof slot === "number").sort((a, b) => a - b);
+}
+
 function tripCardResponse(item: Record<string, unknown>) {
   const tripCardId = String(item.SK).slice(TRIPCARD_SK_PREFIX.length);
   const response: Record<string, unknown> = {
@@ -168,9 +209,13 @@ function tripCardResponse(item: Record<string, unknown>) {
     snapshot: item.snapshot,
     ownerId: item.ownerId,
     createdAt: item.createdAt,
+    markedSlots: markedSlotsResponse(item.markedSlots),
   };
   if (item.assignedMemberId !== undefined) {
     response.assignedMemberId = item.assignedMemberId;
+  }
+  if (item.progressUpdatedAt !== undefined) {
+    response.progressUpdatedAt = item.progressUpdatedAt;
   }
   return response;
 }
@@ -816,4 +861,111 @@ export async function assignTripCard(deps: Deps, request: RouteRequest): Promise
   );
 
   return json(200, { tripCardId, assignedMemberId });
+}
+
+// --- Play progress ---------------------------------------------------------
+
+/**
+ * Marks or unmarks one square, as a single atomic set operation.
+ *
+ * `ADD`/`DELETE` on a number set is commutative and idempotent, which is what
+ * makes cooperative play safe: two members marking two different squares in the
+ * same second cannot lose each other's write, with no read-modify-write cycle,
+ * no version attribute, and no conditional-update retry loop. Marking an
+ * already-marked square is a no-op rather than an error, and so is unmarking one
+ * that was never marked.
+ *
+ * The three refusals, in order: not your card to play (via
+ * {@link requireTripCardPlayer}), not a real square, and not during the trip.
+ */
+async function setTripCardSlot(
+  deps: Deps,
+  request: RouteRequest,
+  marked: boolean,
+): Promise<JsonResponse> {
+  const userId = requireUser(request);
+  const tripId = request.params.tripId ?? "";
+  const tripCardId = request.params.tripCardId ?? "";
+  const slotIndex = parseSlotIndex(request.params.slotIndex);
+
+  const { trip, card } = await requireTripCardPlayer(deps, userId, tripId, tripCardId);
+
+  const snapshot = card.snapshot as TripCardSnapshot | undefined;
+  if (!snapshot || !isMarkablePosition(snapshot, slotIndex)) {
+    throw badRequest("that position is not a square on this card");
+  }
+
+  // The server's own clock, never anything the request carries or implies.
+  if (!isWithinPlayWindow(trip, new Date(deps.now()))) {
+    throw badRequest("this trip is outside the dates it can be played");
+  }
+
+  const timestamp = deps.now();
+  let result;
+  try {
+    result = await deps.ddb.send(
+      new UpdateCommand({
+        TableName: deps.tableName,
+        Key: tripCardKey(tripId, tripCardId),
+        UpdateExpression: `SET #progressUpdatedAt = :now ${marked ? "ADD" : "DELETE"} #markedSlots :slot`,
+        ExpressionAttributeNames: {
+          "#markedSlots": "markedSlots",
+          "#progressUpdatedAt": "progressUpdatedAt",
+        },
+        ExpressionAttributeValues: { ":slot": new Set([slotIndex]), ":now": timestamp },
+        // UpdateItem is an *upsert*. Without this the card can be removed
+        // between requireTripCardPlayer's read and this write, and the write
+        // then recreates the row carrying marks but no snapshot — a trip card
+        // that renders as a crash for every member and that no UI can delete.
+        ConditionExpression: "attribute_exists(PK)",
+        ReturnValues: "ALL_NEW",
+      }),
+    );
+  } catch (error) {
+    // The card stopped existing under us. That is the same answer the
+    // authorization check would have given a moment earlier.
+    if (isConditionFailure(error)) throw notFound();
+    throw error;
+  }
+
+  return json(200, {
+    tripCardId,
+    markedSlots: markedSlotsResponse(result.Attributes?.markedSlots),
+    progressUpdatedAt: timestamp,
+  });
+}
+
+export async function markTripCardSlot(deps: Deps, request: RouteRequest): Promise<JsonResponse> {
+  return setTripCardSlot(deps, request, true);
+}
+
+export async function unmarkTripCardSlot(deps: Deps, request: RouteRequest): Promise<JsonResponse> {
+  return setTripCardSlot(deps, request, false);
+}
+
+/**
+ * The polled endpoint: only what changes. Read authorization is trip-level, so
+ * every member sees every card's progress regardless of who may modify it.
+ *
+ * It deliberately projects away the snapshots — a poll must not carry the
+ * payload `getTrip` carries — and stays readable outside the play window, since
+ * the window bounds who may write, not who may look.
+ */
+export async function getTripProgress(deps: Deps, request: RouteRequest): Promise<JsonResponse> {
+  const userId = requireUser(request);
+  const tripId = request.params.tripId ?? "";
+  await requireTripRole(deps, userId, tripId, ADMIN_OR_MEMBER);
+
+  const items = await queryByPrefix(deps, tripPartition(tripId), TRIPCARD_SK_PREFIX, {
+    expression: "#SK, #markedSlots, #progressUpdatedAt",
+    names: { "#SK": "SK", "#markedSlots": "markedSlots", "#progressUpdatedAt": "progressUpdatedAt" },
+  });
+
+  const cards = items.map((item) => ({
+    tripCardId: String(item.SK).slice(TRIPCARD_SK_PREFIX.length),
+    markedSlots: markedSlotsResponse(item.markedSlots),
+    ...(item.progressUpdatedAt !== undefined ? { progressUpdatedAt: item.progressUpdatedAt } : {}),
+  }));
+
+  return json(200, { cards });
 }

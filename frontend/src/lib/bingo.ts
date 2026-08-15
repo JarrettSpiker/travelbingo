@@ -14,6 +14,17 @@ export interface BingoCard {
   cells: BingoCell[];
 }
 
+/**
+ * Grid positions (0 … CELLS_PER_CARD-1) currently marked on a card.
+ *
+ * Declared here rather than inline in the renderer on purpose: the renderer's
+ * guard reads `CardGrid.tsx` as text to check which HTML tags it renders, and a
+ * `ReadonlySet<number>` written there reads as a `<number>` tag. Naming the type
+ * once, next to the grid constants it indexes into, keeps that guard crude and
+ * loud instead of teaching it to parse TypeScript.
+ */
+export type MarkedSlots = ReadonlySet<number>;
+
 export interface BingoEntry {
   text: string;
   mandatory: boolean;
