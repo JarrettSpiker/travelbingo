@@ -2,6 +2,7 @@ import { type ReactNode } from "react";
 import { ShareLinkDialog } from "../../components/ShareLinkDialog";
 import { SuggestionsDialog } from "../../components/SuggestionsDialog";
 import { UnsavedChangesDialog } from "../../components/UnsavedChangesDialog";
+import { CardWinStatus } from "../../components/CardWinStatus";
 import { DEFAULT_COLOR_SCHEME } from "../../lib/colorScheme";
 import { DEFAULT_EMOJI_SCHEME } from "../../lib/emojiScheme";
 import {
@@ -32,7 +33,11 @@ import {
   FontSchemeFormSample,
   PlayableCardGridSample,
   SettingsPageSample,
+  WinConditionSelectSample,
 } from "./samples";
+
+/** Fixed date formatting for the win-status states, so captures are stable. */
+const sampleWinDate = () => "Aug 4, 2026";
 
 /**
  * The gallery registry.
@@ -232,6 +237,62 @@ export const GALLERY_ENTRIES: GalleryEntry[] = [
     source: "src/components/CardView.tsx",
     title: "Card view",
     states: [{ label: "Default", node: <CardViewSample colorScheme={DEFAULT_COLOR_SCHEME} /> }],
+  },
+  {
+    source: "src/components/WinConditionSelect.tsx",
+    title: "Win condition select",
+    states: [
+      { label: "One line", node: <WinConditionSelectSample initial="line" /> },
+      { label: "Two lines", node: <WinConditionSelectSample initial="two-lines" /> },
+      { label: "Full card", node: <WinConditionSelectSample initial="full-card" /> },
+    ],
+  },
+  {
+    source: "src/components/CardWinStatus.tsx",
+    title: "Card win status",
+    states: [
+      {
+        label: "One square from winning",
+        node: <CardWinStatus distance={1} formatTimestamp={sampleWinDate} />,
+      },
+      {
+        label: "Won — the badge names the member and the date",
+        node: (
+          <CardWinStatus
+            distance={0}
+            wonAt="2026-08-04T12:00:00.000Z"
+            winnerLabel="Sam"
+            formatTimestamp={sampleWinDate}
+          />
+        ),
+      },
+      {
+        label: "Target unreachable — blank squares in every route",
+        node: <CardWinStatus distance={Infinity} formatTimestamp={sampleWinDate} />,
+      },
+      {
+        label: "Won, then unmarked below the target — two truths at once",
+        node: (
+          <CardWinStatus
+            distance={3}
+            wonAt="2026-08-04T12:00:00.000Z"
+            winnerLabel="Sam"
+            formatTimestamp={sampleWinDate}
+          />
+        ),
+      },
+      {
+        label: "Celebrating the viewer's own completing mark",
+        node: (
+          <CardWinStatus
+            distance={0}
+            celebration="Bingo! You completed one line."
+            formatTimestamp={sampleWinDate}
+            onDismissCelebration={() => {}}
+          />
+        ),
+      },
+    ],
   },
   {
     source: "src/components/AuthMenu.tsx",

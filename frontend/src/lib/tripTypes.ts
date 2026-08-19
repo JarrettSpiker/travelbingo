@@ -1,11 +1,14 @@
 import type { ColorScheme } from "./colorScheme";
 import type { EmojiScheme } from "./emojiScheme";
 import type { FontScheme } from "./fontScheme";
+import type { WinCondition } from "./winCondition";
 
 // Hand-mirrored from backend/src/lib/tripPayload.ts and the route response
 // shapes, following the repo's cross-package convention (the saved-card shape
 // is mirrored the same way; the snapshot is its own type, not the saved-card
 // shape). Keep these in sync with the backend when the wire shape changes.
+// `WinCondition` and its pure logic are mirrored separately, in
+// ./winCondition.ts ↔ backend/src/lib/winCondition.ts.
 
 export type TripMode = "cooperative" | "competitive";
 
@@ -70,6 +73,14 @@ export interface TripCard {
   markedSlots: number[];
   /** Absent until the card's marks have been touched at least once. */
   progressUpdatedAt?: string;
+  /**
+   * A recorded win: a fact about the past, never retracted by later unmarks.
+   * Absent until a mark completed the trip's target. `winnerId` names the
+   * member entitled to the win — the assignee in a competitive trip, the
+   * completing marker in a cooperative one.
+   */
+  wonAt?: string;
+  winnerId?: string;
 }
 
 /**
@@ -81,6 +92,8 @@ export interface TripCardProgress {
   tripCardId: string;
   markedSlots: number[];
   progressUpdatedAt?: string;
+  wonAt?: string;
+  winnerId?: string;
 }
 
 /** The full trip, as returned by GET /api/trips/{tripId}. */
@@ -88,6 +101,8 @@ export interface TripDetail {
   tripId: string;
   title: string;
   mode: TripMode;
+  /** Always present on the wire; the server derives the default for legacy trips. */
+  winCondition: WinCondition;
   createdAt: string;
   updatedAt: string;
   role: TripRole;
@@ -103,13 +118,15 @@ export interface TripDetail {
 export interface TripInput {
   title: string;
   mode: TripMode;
+  winCondition?: WinCondition;
   startDate?: string;
   endDate?: string;
 }
 
-/** Shape sent on edit (the mode is fixed at creation). */
+/** Shape sent on edit (the mode is fixed at creation; the target is not). */
 export interface TripUpdate {
   title: string;
+  winCondition?: WinCondition;
   startDate?: string;
   endDate?: string;
 }

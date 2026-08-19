@@ -100,6 +100,18 @@ describe("parseTripInput", () => {
     );
   });
 
+  it("accepts every supported win condition and defaults to a line", () => {
+    for (const winCondition of ["line", "two-lines", "full-card"]) {
+      expect(parseTripInput({ title: "Trip", mode: "cooperative", winCondition }).winCondition).toBe(winCondition);
+    }
+    expect(parseTripInput({ title: "Trip", mode: "cooperative" }).winCondition).toBe("line");
+  });
+
+  it("rejects an unsupported win condition", () => {
+    expect(rejectsInput({ title: "Trip", mode: "cooperative", winCondition: "blackout" })).toBe(400);
+    expect(rejectsInput({ title: "Trip", mode: "cooperative", winCondition: 3 })).toBe(400);
+  });
+
   it("rejects a non-object payload", () => {
     expect(rejectsInput(null)).toBe(400);
     expect(rejectsInput("trip")).toBe(400);
@@ -122,6 +134,22 @@ describe("parseTripUpdate", () => {
     expect(() => parseTripUpdate({ title: "x", startDate: "2026-08-02", endDate: "2026-08-01" })).toThrow(
       HttpError,
     );
+  });
+
+  it("accepts a supported win condition and leaves it unset when absent", () => {
+    expect(parseTripUpdate({ title: "x", winCondition: "full-card" }).winCondition).toBe("full-card");
+    expect(parseTripUpdate({ title: "x" }).winCondition).toBeUndefined();
+  });
+
+  it("rejects an unsupported win condition", () => {
+    expect(() => parseTripUpdate({ title: "x", winCondition: "corners" })).toThrow(HttpError);
+  });
+
+  it("still offers no way to change the mode", () => {
+    // The mode is fixed at creation; the update payload drops it entirely
+    // rather than storing or validating it.
+    const parsed = parseTripUpdate({ title: "x", mode: "competitive" });
+    expect((parsed as unknown as Record<string, unknown>).mode).toBeUndefined();
   });
 });
 

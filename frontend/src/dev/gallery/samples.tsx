@@ -11,11 +11,13 @@ import { EmojiSchemeForm } from "../../components/EmojiSchemeForm";
 import { EntryInput } from "../../components/EntryInput";
 import { FontSchemeForm } from "../../components/FontSchemeForm";
 import { Panel } from "../../components/Panel";
+import { WinConditionSelect } from "../../components/WinConditionSelect";
 import { MAX_DISPLAY_NAME_LENGTH } from "../../lib/profileApi";
 import { type BingoEntry } from "../../lib/bingo";
 import { type ColorScheme } from "../../lib/colorScheme";
 import { type EmojiScheme } from "../../lib/emojiScheme";
 import { DEFAULT_FONT_SCHEME, type FontScheme } from "../../lib/fontScheme";
+import { type WinCondition } from "../../lib/winCondition";
 import { SAMPLE_CARD, SAMPLE_MARKED_SLOTS, sampleEntry } from "./sampleData";
 
 /**
@@ -48,6 +50,11 @@ export function ColorSchemeFormSample({ initial }: { initial: ColorScheme }) {
 export function FontSchemeFormSample() {
   const [fontScheme, setFontScheme] = useState<FontScheme>(DEFAULT_FONT_SCHEME);
   return <FontSchemeForm fontScheme={fontScheme} onChange={setFontScheme} />;
+}
+
+export function WinConditionSelectSample({ initial }: { initial: WinCondition }) {
+  const [value, setValue] = useState<WinCondition>(initial);
+  return <WinConditionSelect value={value} onChange={setValue} />;
 }
 
 export function EmojiSchemeFormSample({ initial }: { initial: EmojiScheme }) {

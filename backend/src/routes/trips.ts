@@ -46,6 +46,7 @@ import {
   parseTripUpdate,
   type TripCardSnapshot,
 } from "../lib/tripPayload.ts";
+import { DEFAULT_WIN_CONDITION, hasWon, type WinCondition } from "../lib/winCondition.ts";
 import { isWithinPlayWindow } from "../lib/playWindow.ts";
 import { putWithUniqueToken } from "../lib/shareToken.ts";
 import type { RouteRequest } from "../request.ts";
@@ -95,10 +96,17 @@ interface TripMeta {
   ownerId: string;
   title: string;
   mode: "cooperative" | "competitive";
+  /** Absent on trips created before win conditions existed — read as a line. */
+  winCondition?: WinCondition;
   startDate?: string;
   endDate?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+/** Schema-on-read: an item with no `winCondition` attribute is a `"line"` trip. */
+function winConditionOf(meta: { winCondition?: WinCondition }): WinCondition {
+  return meta.winCondition ?? DEFAULT_WIN_CONDITION;
 }
 
 async function getTripMeta(deps: Deps, tripId: string): Promise<TripMeta | undefined> {
@@ -217,6 +225,12 @@ function tripCardResponse(item: Record<string, unknown>) {
   if (item.progressUpdatedAt !== undefined) {
     response.progressUpdatedAt = item.progressUpdatedAt;
   }
+  // A recorded win is returned as stored, never re-evaluated — it is a fact
+  // about the past, not a value derived from the current marks.
+  if (item.wonAt !== undefined) {
+    response.wonAt = item.wonAt;
+    response.winnerId = item.winnerId;
+  }
   return response;
 }
 
@@ -275,6 +289,7 @@ export async function createTrip(deps: Deps, request: RouteRequest): Promise<Jso
               ownerId: userId,
               title: input.title,
               mode: input.mode,
+              winCondition: input.winCondition,
               createdAt: timestamp,
               updatedAt: timestamp,
               ...dateFields(input.startDate, input.endDate),
@@ -311,7 +326,13 @@ export async function createTrip(deps: Deps, request: RouteRequest): Promise<Jso
     }),
   );
 
-  return json(201, { tripId, title: input.title, mode: input.mode, updatedAt: timestamp });
+  return json(201, {
+    tripId,
+    title: input.title,
+    mode: input.mode,
+    winCondition: input.winCondition,
+    updatedAt: timestamp,
+  });
 }
 
 /**
@@ -367,6 +388,7 @@ export async function getTrip(deps: Deps, request: RouteRequest): Promise<JsonRe
     tripId,
     title: meta.title,
     mode: meta.mode,
+    winCondition: winConditionOf(meta),
     createdAt: meta.createdAt,
     updatedAt: meta.updatedAt,
     role: membership.role,
@@ -385,12 +407,26 @@ export async function getTrip(deps: Deps, request: RouteRequest): Promise<JsonRe
  * Builds a SET/REMOVE update for the title and dates, used for both the META and
  * every member's listing row. Absent dates are REMOVEd (clearing them); present
  * dates are SET. The play mode is fixed at creation and is not editable.
+ *
+ * `winCondition` is META-only — the denormalized listing rows do not carry it
+ * (the trips list does not render it), so it is passed separately and only the
+ * META's update includes it.
  */
-function buildFieldUpdate(input: { title: string; startDate?: string; endDate?: string }, timestamp: string) {
+function buildFieldUpdate(
+  input: { title: string; startDate?: string; endDate?: string },
+  timestamp: string,
+  winCondition?: WinCondition,
+) {
   const names: Record<string, string> = { "#title": "title", "#updatedAt": "updatedAt" };
   const values: Record<string, unknown> = { ":title": input.title, ":updatedAt": timestamp };
   const setParts = ["#title = :title", "#updatedAt = :updatedAt"];
   const removeParts: string[] = [];
+
+  if (winCondition !== undefined) {
+    names["#winCondition"] = "winCondition";
+    values[":winCondition"] = winCondition;
+    setParts.push("#winCondition = :winCondition");
+  }
 
   if (input.startDate !== undefined) {
     names["#startDate"] = "startDate";
@@ -426,7 +462,8 @@ export async function updateTrip(deps: Deps, request: RouteRequest): Promise<Jso
 
   const input = parseTripUpdate(request.body);
   const timestamp = deps.now();
-  const update = buildFieldUpdate(input, timestamp);
+  const metaUpdate = buildFieldUpdate(input, timestamp, input.winCondition);
+  const memberUpdate = buildFieldUpdate(input, timestamp);
 
   // Update the META and every member's denormalized listing row in a single
   // transaction. The title and dates are duplicated onto each membership row so
@@ -439,11 +476,11 @@ export async function updateTrip(deps: Deps, request: RouteRequest): Promise<Jso
   await deps.ddb.send(
     new TransactWriteCommand({
       TransactItems: [
-        { Update: { TableName: deps.tableName, Key: tripMetaKey(tripId), ...update } },
+        { Update: { TableName: deps.tableName, Key: tripMetaKey(tripId), ...metaUpdate } },
         ...memberRows.map((row) => {
           const memberUserId = String(row.SK).slice(MEMBER_SK_PREFIX.length);
           return {
-            Update: { TableName: deps.tableName, Key: tripMembershipKey(memberUserId, tripId), ...update },
+            Update: { TableName: deps.tableName, Key: tripMembershipKey(memberUserId, tripId), ...memberUpdate },
           };
         }),
       ],
@@ -928,6 +965,33 @@ async function setTripCardSlot(
     throw error;
   }
 
+  // A win is evaluated on the mark path only — adding a square is the only
+  // operation that can move a card to its target, and unmarking must never
+  // create or destroy one. The set update above returned the card's whole mark
+  // set, so this evaluates fresh state without another read.
+  if (marked && hasWon(new Set(markedSlotsResponse(result.Attributes?.markedSlots)), winConditionOf(trip))) {
+    // The member entitled to the win: the assignee in a competitive trip, the
+    // member who placed the completing mark in a cooperative one.
+    const winnerId = trip.mode === "competitive" ? String(card.assignedMemberId) : userId;
+    try {
+      await deps.ddb.send(
+        new UpdateCommand({
+          TableName: deps.tableName,
+          Key: tripCardKey(tripId, tripCardId),
+          UpdateExpression: "SET #wonAt = :wonAt, #winnerId = :winnerId",
+          ExpressionAttributeNames: { "#wonAt": "wonAt", "#winnerId": "winnerId" },
+          ExpressionAttributeValues: { ":wonAt": timestamp, ":winnerId": winnerId },
+          // The first achievement sticks: a concurrent completing mark loses
+          // the race, which is the correct outcome — someone else's record is
+          // already there — not an error.
+          ConditionExpression: "attribute_not_exists(wonAt)",
+        }),
+      );
+    } catch (error) {
+      if (!isConditionFailure(error)) throw error;
+    }
+  }
+
   return json(200, {
     tripCardId,
     markedSlots: markedSlotsResponse(result.Attributes?.markedSlots),
@@ -957,14 +1021,21 @@ export async function getTripProgress(deps: Deps, request: RouteRequest): Promis
   await requireTripRole(deps, userId, tripId, ADMIN_OR_MEMBER);
 
   const items = await queryByPrefix(deps, tripPartition(tripId), TRIPCARD_SK_PREFIX, {
-    expression: "#SK, #markedSlots, #progressUpdatedAt",
-    names: { "#SK": "SK", "#markedSlots": "markedSlots", "#progressUpdatedAt": "progressUpdatedAt" },
+    expression: "#SK, #markedSlots, #progressUpdatedAt, #wonAt, #winnerId",
+    names: {
+      "#SK": "SK",
+      "#markedSlots": "markedSlots",
+      "#progressUpdatedAt": "progressUpdatedAt",
+      "#wonAt": "wonAt",
+      "#winnerId": "winnerId",
+    },
   });
 
   const cards = items.map((item) => ({
     tripCardId: String(item.SK).slice(TRIPCARD_SK_PREFIX.length),
     markedSlots: markedSlotsResponse(item.markedSlots),
     ...(item.progressUpdatedAt !== undefined ? { progressUpdatedAt: item.progressUpdatedAt } : {}),
+    ...(item.wonAt !== undefined ? { wonAt: item.wonAt, winnerId: item.winnerId } : {}),
   }));
 
   return json(200, { cards });

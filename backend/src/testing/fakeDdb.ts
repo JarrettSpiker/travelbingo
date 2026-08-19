@@ -254,9 +254,29 @@ export class FakeDdb {
   ): void {
     const exists = this.items.has(itemKey(action.Key.PK, action.Key.SK));
     const expression: string = action.ConditionExpression;
+    const names: Record<string, string> = action.ExpressionAttributeNames ?? {};
 
     if (expression === "attribute_exists(PK)") {
       if (!exists) {
+        const error = new Error(
+          failure === "TransactionCanceledException" ? "Transaction cancelled" : "The conditional request failed",
+        );
+        error.name = failure;
+        throw error;
+      }
+      return;
+    }
+
+    // attribute_not_exists(<attr>) — used by the win-recording write, whose
+    // "first achievement sticks" guard is a condition on a non-key attribute.
+    // A missing item satisfies it (the attribute cannot exist on nothing).
+    const notExists = /^attribute_not_exists\((#?\w+)\)$/.exec(expression);
+    if (notExists?.[1] !== undefined) {
+      const token = notExists[1];
+      const attribute = token.startsWith("#") ? names[token] : token;
+      if (attribute === undefined) throw new Error(`FakeDdb: unbound name ${token}`);
+      const item = this.items.get(itemKey(action.Key.PK, action.Key.SK));
+      if (item && attribute in item) {
         const error = new Error(
           failure === "TransactionCanceledException" ? "Transaction cancelled" : "The conditional request failed",
         );
@@ -281,7 +301,11 @@ export class FakeDdb {
 
     if (update.ConditionExpression) {
       this.checkCondition(
-        { Key: update.Key, ConditionExpression: update.ConditionExpression },
+        {
+          Key: update.Key,
+          ConditionExpression: update.ConditionExpression,
+          ExpressionAttributeNames: update.ExpressionAttributeNames,
+        },
         "ConditionalCheckFailedException",
       );
     }

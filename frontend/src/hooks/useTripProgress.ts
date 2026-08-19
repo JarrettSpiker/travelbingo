@@ -176,7 +176,11 @@ export interface TripProgress {
   /** Set when a mark was refused; cleared on the next successful toggle. */
   error: string | null;
   clearError: () => void;
-  toggle: (tripCardId: string, slotIndex: number) => Promise<void>;
+  /**
+   * Resolves false when the toggle was refused, so a caller can react to the
+   * outcome (e.g. hold back a celebration) without watching the error state.
+   */
+  toggle: (tripCardId: string, slotIndex: number) => Promise<boolean>;
 }
 
 /**
@@ -282,11 +286,13 @@ export function useTripProgress(
         // the next poll healed it. Each request is authoritative about its own
         // square and nothing else.
         setProgress((current) => withSlot(current, tripCardId, slotIndex, !wasMarked));
+        return true;
       } catch {
         // Revert to the square's true state rather than leaving a mark that
         // exists only here.
         setProgress((current) => withSlot(current, tripCardId, slotIndex, wasMarked));
         setError("That square could not be updated. It may not be yours to mark, or the trip's dates may have passed.");
+        return false;
       } finally {
         pending.current.delete(key);
       }

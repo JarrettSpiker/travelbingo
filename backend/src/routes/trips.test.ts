@@ -80,6 +80,21 @@ async function seedCard(deps: TestDeps, userId = "user-a"): Promise<string> {
   return JSON.parse(response.body).cardId as string;
 }
 
+/**
+ * A card with all 24 slots filled, so every position on the rendered grid is
+ * markable — the default fixture's three real squares can never complete a
+ * line, which is exactly what its unreachability tests rely on.
+ */
+const fullCard = {
+  ...card,
+  slots: Array.from({ length: 24 }, (_, i) => `Entry ${i}`),
+};
+
+async function seedFullCard(deps: TestDeps, userId = "user-a"): Promise<string> {
+  const response = await createCard(deps, request({ userId, body: fullCard }));
+  return JSON.parse(response.body).cardId as string;
+}
+
 async function mintInvite(deps: TestDeps, tripId: string, userId = "user-a"): Promise<string> {
   const response = await createInvite(deps, request({ userId, params: { tripId } }));
   return JSON.parse(response.body).token as string;
@@ -89,6 +104,9 @@ interface TripCardItem {
   snapshot: { title: string; slots: (string | null)[] };
   ownerId: string;
   assignedMemberId?: string;
+  markedSlots?: Set<number>;
+  wonAt?: string;
+  winnerId?: string;
 }
 
 function tripCardItem(deps: TestDeps, tripId: string, tripCardId: string): TripCardItem {
@@ -1067,6 +1085,227 @@ describe("card progress", () => {
 
     // Entitlement to play decides who may change marks, never who may see them.
     expect(await marksOf(deps, tripId, "user-a")).toEqual([ENTRY]);
+  });
+});
+
+describe("win conditions", () => {
+  const ROW1 = [5, 6, 7, 8, 9];
+  const ROW2 = [10, 11, 12, 13, 14];
+  const WON_AT = "2026-08-02T00:00:00.000Z";
+
+  async function joinAs(deps: TestDeps, tripId: string, userId: string): Promise<void> {
+    const token = await mintInvite(deps, tripId);
+    await redeemInvite(deps, request({ userId, params: { token } }));
+  }
+
+  async function addFullCard(deps: TestDeps, tripId: string, userId = "user-a"): Promise<string> {
+    const cardId = await seedFullCard(deps, userId);
+    const response = await addTripCard(deps, request({ userId, params: { tripId }, body: { cardId } }));
+    return JSON.parse(response.body).tripCardId as string;
+  }
+
+  function mark(deps: TestDeps, tripId: string, tripCardId: string, slotIndex: number, userId = "user-a") {
+    return markTripCardSlot(deps, request({ userId, params: { tripId, tripCardId, slotIndex: String(slotIndex) } }));
+  }
+
+  function unmark(deps: TestDeps, tripId: string, tripCardId: string, slotIndex: number, userId = "user-a") {
+    return unmarkTripCardSlot(deps, request({ userId, params: { tripId, tripCardId, slotIndex: String(slotIndex) } }));
+  }
+
+  async function completeRow(
+    deps: TestDeps,
+    tripId: string,
+    tripCardId: string,
+    row: number[],
+    marker = "user-a",
+    finalMarker = marker,
+  ): Promise<void> {
+    const others = row.slice(0, -1);
+    for (const slotIndex of others) await mark(deps, tripId, tripCardId, slotIndex, marker);
+    const last = row[row.length - 1];
+    if (last === undefined) throw new Error("completeRow needs a non-empty row");
+    await mark(deps, tripId, tripCardId, last, finalMarker);
+  }
+
+  it("stores a chosen win condition, defaults to a line, and reads a legacy trip as a line", async () => {
+    const deps = makeTestDeps();
+    const chosen = await seedTrip(deps, "user-a", { winCondition: "two-lines" });
+    expect(deps.ddb.get(tripMetaKey(chosen).PK, "META")).toMatchObject({ winCondition: "two-lines" });
+    expect(JSON.parse((await getTrip(deps, request({ params: { tripId: chosen } }))).body).winCondition).toBe(
+      "two-lines",
+    );
+
+    // Omitted on create: the default is stored explicitly.
+    const defaulted = await seedTrip(deps);
+    expect(deps.ddb.get(tripMetaKey(defaulted).PK, "META")).toMatchObject({ winCondition: "line" });
+
+    // A trip created before win conditions existed carries no attribute at all;
+    // getTrip derives the default so no reader has to know it.
+    const legacyId = "legacy-trip";
+    deps.ddb.seed({
+      ...tripMetaKey(legacyId),
+      ownerId: "user-a",
+      title: "Old trip",
+      mode: "cooperative",
+      createdAt: "t",
+      updatedAt: "t",
+    });
+    deps.ddb.seed({ ...tripMembershipKey("user-a", legacyId), role: "admin", title: "Old trip", updatedAt: "t" });
+    expect(JSON.parse((await getTrip(deps, request({ params: { tripId: legacyId } }))).body).winCondition).toBe("line");
+  });
+
+  it("rejects an unsupported win condition on create and on update, changing nothing", async () => {
+    const deps = makeTestDeps();
+    expect(
+      await statusOf(createTrip(deps, request({ body: { title: "x", mode: "cooperative", winCondition: "diagonal" } }))),
+    ).toBe(400);
+    const tripId = await seedTrip(deps);
+    expect(
+      await statusOf(updateTrip(deps, request({ params: { tripId }, body: { title: "x", winCondition: "everything" } }))),
+    ).toBe(400);
+    expect(deps.ddb.get(tripMetaKey(tripId).PK, "META")?.winCondition).toBe("line");
+  });
+
+  it("lets the administrator change the condition and refuses a member with 403", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    await joinAs(deps, tripId, "user-b");
+
+    expect(
+      await statusOf(updateTrip(deps, request({ userId: "user-b", params: { tripId }, body: { title: "x", winCondition: "full-card" } }))),
+    ).toBe(403);
+
+    await updateTrip(deps, request({ params: { tripId }, body: { title: "x", winCondition: "full-card" } }));
+    expect(deps.ddb.get(tripMetaKey(tripId).PK, "META")?.winCondition).toBe("full-card");
+    expect(JSON.parse((await getTrip(deps, request({ params: { tripId } }))).body).winCondition).toBe("full-card");
+  });
+
+  it("changing the condition leaves marks and a recorded win untouched", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps, "user-a", { mode: "competitive" });
+    const tripCardId = await addFullCard(deps, tripId);
+    await joinAs(deps, tripId, "user-b");
+    await assignTripCard(deps, request({ params: { tripId, tripCardId }, body: { assignedMemberId: "user-b" } }));
+    await completeRow(deps, tripId, tripCardId, ROW1, "user-b");
+    expect(tripCardItem(deps, tripId, tripCardId)).toMatchObject({ wonAt: WON_AT, winnerId: "user-b" });
+
+    // Tightening to a full card invalidates nothing that already happened.
+    await updateTrip(deps, request({ params: { tripId }, body: { title: "Summer Road Trip", winCondition: "full-card" } }));
+    const item = tripCardItem(deps, tripId, tripCardId);
+    expect([...(item.markedSlots ?? new Set())].sort((a, b) => a - b)).toEqual(ROW1);
+    expect(item).toMatchObject({ wonAt: WON_AT, winnerId: "user-b" });
+  });
+
+  it("cooperative: a mark completing the target records the marker as the winner", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const tripCardId = await addFullCard(deps, tripId);
+    await joinAs(deps, tripId, "user-b");
+
+    await completeRow(deps, tripId, tripCardId, ROW1, "user-b");
+
+    expect(tripCardItem(deps, tripId, tripCardId)).toMatchObject({ wonAt: WON_AT, winnerId: "user-b" });
+    // Both read surfaces carry the record, straight from the stored attributes.
+    const trip = JSON.parse((await getTrip(deps, request({ params: { tripId } }))).body);
+    expect(trip.cards[0]).toMatchObject({ wonAt: WON_AT, winnerId: "user-b" });
+    const progress = JSON.parse((await getTripProgress(deps, request({ params: { tripId } }))).body);
+    expect(progress.cards[0]).toMatchObject({ wonAt: WON_AT, winnerId: "user-b" });
+  });
+
+  it("competitive: the winner is the assignee", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps, "user-a", { mode: "competitive" });
+    const tripCardId = await addFullCard(deps, tripId);
+    await joinAs(deps, tripId, "user-b");
+    await assignTripCard(deps, request({ params: { tripId, tripCardId }, body: { assignedMemberId: "user-b" } }));
+
+    await completeRow(deps, tripId, tripCardId, ROW1, "user-b");
+
+    expect(tripCardItem(deps, tripId, tripCardId)).toMatchObject({ wonAt: WON_AT, winnerId: "user-b" });
+  });
+
+  it("a mark that does not complete the target records nothing", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const tripCardId = await addFullCard(deps, tripId);
+
+    // Four of row 1, plus an unrelated square: one line one square short.
+    await completeRow(deps, tripId, tripCardId, [5, 6, 7, 8, 0]);
+
+    const item = tripCardItem(deps, tripId, tripCardId);
+    expect(item.wonAt).toBeUndefined();
+    expect(item.winnerId).toBeUndefined();
+  });
+
+  it("marks on a card that cannot reach the target never record a win", async () => {
+    // The default fixture card has three real squares (0, 2, and the free
+    // space); no line is completable, so marking all of them records nothing.
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const cardId = await seedCard(deps);
+    const { tripCardId } = JSON.parse(
+      (await addTripCard(deps, request({ params: { tripId }, body: { cardId } }))).body,
+    );
+
+    for (const slotIndex of [0, 2, 12]) await mark(deps, tripId, tripCardId, slotIndex);
+
+    const item = tripCardItem(deps, tripId, tripCardId);
+    expect(item.wonAt).toBeUndefined();
+    expect(item.winnerId).toBeUndefined();
+  });
+
+  it("a further mark does not overwrite the record", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const tripCardId = await addFullCard(deps, tripId);
+    await completeRow(deps, tripId, tripCardId, ROW1);
+    expect(tripCardItem(deps, tripId, tripCardId).wonAt).toBe(WON_AT);
+
+    deps.now = () => "2026-08-03T00:00:00.000Z";
+    expect((await mark(deps, tripId, tripCardId, 0)).statusCode).toBe(200);
+    expect(tripCardItem(deps, tripId, tripCardId).wonAt).toBe(WON_AT);
+  });
+
+  it("unmarking below the threshold leaves the record, and unmarks are never evaluated", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const tripCardId = await addFullCard(deps, tripId);
+    await completeRow(deps, tripId, tripCardId, ROW1);
+
+    expect((await unmark(deps, tripId, tripCardId, 5)).statusCode).toBe(200);
+
+    expect(tripCardItem(deps, tripId, tripCardId)).toMatchObject({ wonAt: WON_AT, winnerId: "user-a" });
+  });
+
+  it("two concurrent completing marks yield exactly one record", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const tripCardId = await addFullCard(deps, tripId);
+    // Row 0 awaits its fifth square (4); column 4 awaits its fifth (24).
+    for (const slotIndex of [0, 1, 2, 3, 9, 14, 19]) await mark(deps, tripId, tripCardId, slotIndex);
+
+    const [a, b] = await Promise.all([mark(deps, tripId, tripCardId, 4), mark(deps, tripId, tripCardId, 24)]);
+
+    // Both marks land; the second's win write loses the condition race and is
+    // swallowed, leaving the first achievement as the single record.
+    expect(a.statusCode).toBe(200);
+    expect(b.statusCode).toBe(200);
+    expect(tripCardItem(deps, tripId, tripCardId).wonAt).toBe(WON_AT);
+  });
+
+  it("a trip can carry two won cards", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const first = await addFullCard(deps, tripId);
+    const second = await addFullCard(deps, tripId);
+
+    await completeRow(deps, tripId, first, ROW1);
+    await completeRow(deps, tripId, second, ROW2, "user-a");
+
+    expect(tripCardItem(deps, tripId, first)).toMatchObject({ wonAt: WON_AT, winnerId: "user-a" });
+    expect(tripCardItem(deps, tripId, second)).toMatchObject({ wonAt: WON_AT, winnerId: "user-a" });
+    const trip = JSON.parse((await getTrip(deps, request({ params: { tripId } }))).body);
+    expect(trip.cards.filter((card: { wonAt?: string }) => card.wonAt === WON_AT)).toHaveLength(2);
   });
 });
 

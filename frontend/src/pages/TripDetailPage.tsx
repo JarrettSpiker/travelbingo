@@ -10,6 +10,7 @@ import {
   Lock,
   Pencil,
   Plus,
+  Target,
   Trash2,
   TriangleAlert,
   UserMinus,
@@ -18,6 +19,7 @@ import {
 import { AppShell } from "@/components/AppShell";
 import { AuthMenu } from "@/components/AuthMenu";
 import { CardGrid } from "@/components/CardGrid";
+import { CardWinStatus } from "@/components/CardWinStatus";
 import { Panel } from "@/components/Panel";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -55,6 +57,13 @@ import {
 } from "@/lib/tripApi";
 import { downloadCardPng } from "@/lib/cardPngExport";
 import { playWindowState } from "@/lib/playWindow";
+import {
+  WIN_CONDITION_LABELS,
+  DEFAULT_WIN_CONDITION,
+  hasWon,
+  markableSlots,
+  squaresFromWin,
+} from "@/lib/winCondition";
 import { markedSlotsFor, useTripProgress } from "@/hooks/useTripProgress";
 import { formatTripDate, formatTripRange, formatTripTimestamp } from "@/lib/tripDates";
 import type { TripCard, TripDetail, TripMember } from "@/lib/tripTypes";
@@ -90,6 +99,20 @@ function memberLabel(
   return member.displayName ?? member.email ?? `Member ${index + 1}`;
 }
 
+/** A member's display label looked up by id, or null when they are no longer in the trip. */
+function memberLabelById(
+  trip: TripDetail,
+  userId: string | undefined,
+  currentUserId: string | null,
+  email: string | null,
+  displayName: string | null,
+): string | null {
+  if (!userId) return null;
+  const index = trip.members.findIndex((m) => m.userId === userId);
+  if (index === -1) return null;
+  return memberLabel(trip.members[index]!, index, currentUserId, email, displayName);
+}
+
 /**
  * The label for a card's assignee. "Unassigned" when nobody holds the card;
  * "Unknown member" only when the assignment points at someone no longer in the
@@ -103,9 +126,9 @@ function assigneeLabel(
   displayName: string | null,
 ): string {
   if (!assignedMemberId) return "Unassigned";
-  const index = trip.members.findIndex((m) => m.userId === assignedMemberId);
-  if (index === -1) return "Unknown member";
-  return memberLabel(trip.members[index], index, currentUserId, email, displayName);
+  return (
+    memberLabelById(trip, assignedMemberId, currentUserId, email, displayName) ?? "Unknown member"
+  );
 }
 
 export function TripDetailPage() {
@@ -119,6 +142,12 @@ export function TripDetailPage() {
   const [notice, setNotice] = useState<string | null>(null);
   /** The tripCardId currently being assigned, so that card alone shows a spinner. */
   const [assigningId, setAssigningId] = useState<string | null>(null);
+  /**
+   * Cards whose completed target the viewer has just been told about — the
+   * celebration follows their own completing mark, and each is dismissed
+   * individually.
+   */
+  const [celebrations, setCelebrations] = useState<ReadonlySet<string>>(new Set());
 
   const [confirm, setConfirm] = useState<{
     title: string;
@@ -176,6 +205,36 @@ export function TripDetailPage() {
     if (!card.assignedMemberId) return "Unassigned — nobody can mark this card yet.";
     if (card.assignedMemberId !== currentUserId) return "Assigned to someone else. You can watch, but not mark.";
     return null;
+  }
+
+  /**
+   * Toggles a square and, when the viewer's own *mark* completes the trip's
+   * target, celebrates on that card. The winning evaluation runs on the
+   * optimistic mark set the toggle is about to apply — the same pure function
+   * the backend records the win with — and only celebrates when the server
+   * accepted the mark.
+   */
+  async function handleToggleMark(card: TripCard, index: number) {
+    if (!trip) return;
+    const current = markedSlotsFor(progress, card.tripCardId);
+    const marking = !current.has(index);
+    const next = new Set(current);
+    next.add(index);
+    const completing = marking && hasWon(next, winCondition);
+
+    const accepted = await toggle(card.tripCardId, index);
+    if (accepted && completing) {
+      setCelebrations((prev) => new Set(prev).add(card.tripCardId));
+    }
+  }
+
+  function dismissCelebration(tripCardId: string) {
+    setCelebrations((prev) => {
+      if (!prev.has(tripCardId)) return prev;
+      const next = new Set(prev);
+      next.delete(tripCardId);
+      return next;
+    });
   }
 
   async function handleExportPng(card: TripCard) {
@@ -327,6 +386,11 @@ export function TripDetailPage() {
     );
   }
 
+  // The wire always carries winCondition once the API change deploys; until
+  // then a local bundle can be ahead of it, and "line" is the correct reading
+  // of a trip the old API never stored one for.
+  const winCondition = trip.winCondition ?? DEFAULT_WIN_CONDITION;
+
   const range = formatTripRange(trip.startDate, trip.endDate, DATE_FORMAT);
 
   return (
@@ -340,6 +404,9 @@ export function TripDetailPage() {
                 <Users className="size-3" aria-hidden /> {isAdmin ? "Admin" : "Member"}
               </Badge>
               <Badge variant="outline">{trip.mode}</Badge>
+              <Badge variant="outline">
+                <Target className="size-3" aria-hidden /> {WIN_CONDITION_LABELS[winCondition]}
+              </Badge>
               {range && (
                 <span className="inline-flex items-center gap-1">
                   <CalendarDays className="size-3" aria-hidden /> {range}
@@ -496,6 +563,14 @@ export function TripDetailPage() {
                 });
                 const playable = canPlay(card);
                 const reason = readOnlyReason(card);
+                // Live distance from the current marks — optimistic ones
+                // included — against the trip's target. A recorded win and
+                // this number are two separate truths, shown side by side.
+                const distance = squaresFromWin(
+                  markedSlotsFor(progress, card.tripCardId),
+                  markableSlots(card.snapshot),
+                  winCondition,
+                );
                 return (
                   // `1fr auto`: a card with a title renders taller than one
                   // without, so without this the meta boxes in a row start and
@@ -517,7 +592,7 @@ export function TripDetailPage() {
                         // cells then render exactly as they do for a card
                         // nobody is playing, with no affordance to mislead.
                         onToggleSlot={
-                          playable ? (index) => void toggle(card.tripCardId, index) : undefined
+                          playable ? (index) => void handleToggleMark(card, index) : undefined
                         }
                       />
                     </div>
@@ -525,6 +600,21 @@ export function TripDetailPage() {
                       <span className="text-muted-foreground">
                         Added {formatTripTimestamp(card.createdAt, DATE_FORMAT)}
                       </span>
+                      <CardWinStatus
+                        distance={distance}
+                        wonAt={card.wonAt}
+                        winnerLabel={
+                          memberLabelById(trip, card.winnerId, currentUserId, email, displayName) ??
+                          undefined
+                        }
+                        formatTimestamp={(iso) => formatTripTimestamp(iso, DATE_FORMAT)}
+                        celebration={
+                          celebrations.has(card.tripCardId)
+                            ? `Bingo! You completed ${WIN_CONDITION_LABELS[winCondition].toLowerCase()}.`
+                            : null
+                        }
+                        onDismissCelebration={() => dismissCelebration(card.tripCardId)}
+                      />
                       {reason && (
                         <span className="inline-flex items-start gap-1.5 text-muted-foreground">
                           <Lock className="mt-0.5 size-3 shrink-0" aria-hidden /> {reason}

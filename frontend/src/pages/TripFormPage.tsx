@@ -4,6 +4,7 @@ import { Compass, TriangleAlert } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { AuthMenu } from "@/components/AuthMenu";
 import { Panel } from "@/components/Panel";
+import { WinConditionSelect } from "@/components/WinConditionSelect";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -18,9 +19,13 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { useAuth } from "@/auth/authContext";
 import { createTrip, getTrip, updateTrip } from "@/lib/tripApi";
-import type { TripMode } from "@/lib/tripTypes";
+import { markableSlots, squaresFromWin, DEFAULT_WIN_CONDITION, type WinCondition } from "@/lib/winCondition";
+import type { TripCard, TripMode } from "@/lib/tripTypes";
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/** An unmarked card, for asking whether a target is reachable at all. */
+const NO_MARKS: ReadonlySet<number> = new Set<number>();
 
 /**
  * Mirrors the backend title bound. The server rejects anything over it; this
@@ -50,6 +55,13 @@ export function TripFormPage() {
    */
   const [titleTouched, setTitleTouched] = useState(false);
   const [mode, setMode] = useState<TripMode>("cooperative");
+  /**
+   * The target, unlike the mode, stays editable after creation — moving the
+   * goalpost invalidates nothing that has already happened.
+   */
+  const [winCondition, setWinCondition] = useState<WinCondition>("line");
+  /** The edit form's existing cards, so an unreachable target can be warned about. */
+  const [cards, setCards] = useState<TripCard[] | null>(null);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [loading, setLoading] = useState(isEdit);
@@ -74,6 +86,11 @@ export function TripFormPage() {
         }
         setTitle(trip.title);
         setMode(trip.mode);
+        // The wire always carries winCondition once the API change deploys;
+        // until then a local bundle can be ahead of it, and "line" is the
+        // correct reading of a trip the old API never stored one for.
+        setWinCondition(trip.winCondition ?? DEFAULT_WIN_CONDITION);
+        setCards(trip.cards);
         setStartDate(trip.startDate ?? "");
         setEndDate(trip.endDate ?? "");
       } catch {
@@ -140,6 +157,16 @@ export function TripFormPage() {
         : undefined;
   const canSubmit = !saving && !titleMissing && !dateError;
 
+  /**
+   * Cards already in the trip that can never meet the chosen target, however
+   * they are played — blank squares sit in every possible route. A warning,
+   * not a refusal: more cards may still be added.
+   */
+  const unreachableCount =
+    cards?.filter(
+      (card) => squaresFromWin(NO_MARKS, markableSlots(card.snapshot), winCondition) === Infinity,
+    ).length ?? 0;
+
   async function submit() {
     if (!canSubmit) return;
     setSaving(true);
@@ -150,10 +177,14 @@ export function TripFormPage() {
         endDate: endDate || undefined,
       };
       if (isEdit) {
-        await updateTrip(api, tripId!, { title: title.trim(), ...dates });
+        await updateTrip(api, tripId!, { title: title.trim(), winCondition, ...dates });
         navigate(`/trips/${tripId}`, { replace: true });
       } else {
-        const { tripId: newId } = await createTrip(api, { title: title.trim(), mode, ...dates }, email);
+        const { tripId: newId } = await createTrip(
+          api,
+          { title: title.trim(), mode, winCondition, ...dates },
+          email,
+        );
         navigate(`/trips/${newId}`, { replace: true });
       }
     } catch {
@@ -199,7 +230,9 @@ export function TripFormPage() {
               )}
             </Field>
 
-            {/* The mode is fixed once the trip exists; show it read-only on edit. */}
+            {/* The mode is fixed once the trip exists; show it read-only on edit.
+                The win condition below it stays editable — moving the target
+                invalidates nothing that has already happened. */}
             {isEdit ? (
               <Field htmlFor="trip-mode" label="Mode" hint="A trip's mode can't be changed after it's created.">
                 {({ id }) => (
@@ -227,6 +260,25 @@ export function TripFormPage() {
                   </Select>
                 )}
               </Field>
+            )}
+
+            <Field
+              htmlFor="trip-win-condition"
+              label="Win condition"
+              hint="How the game is won. A line is any row, column, or diagonal."
+            >
+              {({ id }) => <WinConditionSelect id={id} value={winCondition} onChange={setWinCondition} />}
+            </Field>
+
+            {isEdit && unreachableCount > 0 && (
+              <Alert variant="warning">
+                <TriangleAlert />
+                <AlertDescription>
+                  {unreachableCount === 1
+                    ? "One card already in this trip can't reach this target — its blank squares can never be marked. You can still choose it, and fuller cards can be added later."
+                    : `${unreachableCount} cards already in this trip can't reach this target — their blank squares can never be marked. You can still choose it, and fuller cards can be added later.`}
+                </AlertDescription>
+              </Alert>
             )}
 
             <div className="grid gap-4 sm:grid-cols-2">
