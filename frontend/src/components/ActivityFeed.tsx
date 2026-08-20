@@ -1,11 +1,6 @@
-import { BellRing, History, PartyPopper, Square } from "lucide-react";
-import { EVENT_VERBS, type TripActivityEvent } from "@/lib/notificationTypes";
-
-const EVENT_ICONS: Record<TripActivityEvent["type"], typeof BellRing> = {
-  progress_marked: Square,
-  one_away: BellRing,
-  victory: PartyPopper,
-};
+import { History } from "lucide-react";
+import { EVENT_ICONS, EVENT_VERBS } from "@/lib/eventPresentation";
+import type { TripActivityEvent } from "@/lib/notificationTypes";
 
 /**
  * The trip's activity feed: what has happened in this trip, most-recent-first,

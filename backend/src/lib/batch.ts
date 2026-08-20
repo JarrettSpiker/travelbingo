@@ -37,7 +37,15 @@ export async function deleteKeys(deps: Deps, keys: TableKey[]): Promise<void> {
 /**
  * Puts a set of items, chunked to the service limit with the same unprocessed
  * retry as {@link deleteKeys}. The notification fan-out writes through this so
- * its worst case (49 recipients) is two calls rather than 49.
+ * its worst case — a winning mark emitting two events to a full fifty-member
+ * trip, ~100 items — is four calls rather than a hundred.
+ *
+ * Unlike deleteKeys this does not dedupe: real DynamoDB rejects a batch
+ * containing two operations on the same key, so a caller whose items can carry
+ * duplicate PK+SK must dedupe itself. Current callers are safe by construction
+ * — fan-out recipients come from unique roster SKs and every item gets a fresh
+ * `<ts>#<rand>` sort id — which is why the omission is deliberate, and
+ * documented here rather than silent.
  */
 export async function putItems(deps: Deps, items: (TableKey & Record<string, unknown>)[]): Promise<void> {
   for (let start = 0; start < items.length; start += BATCH_LIMIT) {

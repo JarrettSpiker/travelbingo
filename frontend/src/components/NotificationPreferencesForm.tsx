@@ -53,10 +53,17 @@ export function NotificationPreferencesForm({
     setMuted(new Set(initial.mutedTripIds));
   }, [initial]);
 
+  // Comparing sizes alone would miss a swap — unmuting one trip and muting
+  // another in the same visit leaves the count unchanged, and left Save
+  // disabled on an edit the user could not otherwise make.
+  const mutedChanged =
+    muted.size !== initial.mutedTripIds.length ||
+    initial.mutedTripIds.some((tripId) => !muted.has(tripId));
+
   const dirty =
     Object.keys(types).some(
       (type) => types[type as NotificationEventType] !== initial.types[type as NotificationEventType],
-    ) || muted.size !== initial.mutedTripIds.length;
+    ) || mutedChanged;
 
   function toggleMute(tripId: string, next: boolean) {
     setMuted((current) => {

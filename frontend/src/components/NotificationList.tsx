@@ -1,16 +1,10 @@
 import { Fragment } from "react";
 import { Link } from "react-router";
-import { BellRing, CircleAlert, PartyPopper, Square } from "lucide-react";
+import { CheckCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { EVENT_VERBS, type Notification } from "@/lib/notificationTypes";
-
-/** Icon per event kind, so a full list scans without reading every verb. */
-const EVENT_ICONS: Record<Notification["type"], typeof BellRing> = {
-  progress_marked: Square,
-  one_away: BellRing,
-  victory: PartyPopper,
-};
+import { EVENT_ICONS, EVENT_VERBS } from "@/lib/eventPresentation";
+import type { Notification } from "@/lib/notificationTypes";
 
 /**
  * The bell's dropdown contents: the caller's notifications, most-recent-first,
@@ -44,10 +38,15 @@ export function NotificationList({
   return (
     <div className="grid gap-1">
       <ul className="grid max-h-80 gap-1 overflow-y-auto">
-        {notifications.map((notification) => {
+        {notifications.map((notification, index) => {
           const Icon = EVENT_ICONS[notification.type];
           return (
-            <li key={`${notification.tripId}:${notification.createdAt}:${notification.type}`}>
+            // actorId, because two members acting in the same trip in the same
+            // millisecond produce otherwise-identical keys; index as the final
+            // tiebreak, mirroring the activity feed.
+            <li
+              key={`${notification.tripId}:${notification.createdAt}:${notification.type}:${notification.actorId}:${index}`}
+            >
               <Link
                 to={`/trips/${encodeURIComponent(notification.tripId)}`}
                 state={{ fromNotification: true }}
@@ -83,7 +82,7 @@ export function NotificationList({
       </ul>
       {onMarkAllRead && (
         <Button variant="ghost" size="sm" className="justify-start" onClick={onMarkAllRead}>
-          <CircleAlert className="size-3.5" aria-hidden /> Mark all as read
+          <CheckCheck className="size-3.5" aria-hidden /> Mark all as read
         </Button>
       )}
     </div>

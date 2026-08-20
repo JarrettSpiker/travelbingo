@@ -97,16 +97,47 @@ describe("markNotificationsRead", () => {
 
     const before = deps.ddb.sendCount;
     const body = JSON.parse((await markNotificationsRead(deps, request())).body);
-    expect(body.unreadCount).toBe(0);
+    expect(body.readUpTo).toBe("2026-08-02T00:00:00.000Z");
 
-    // One read of nothing plus one write: the marker, and nothing else.
-    expect(deps.ddb.sendCount - before).toBe(1);
+    // One write for the marker itself; the rest of the calls are the reads
+    // that decide whether to write and re-derive the honest count. No write
+    // ever scales with the number of rows.
+    const writes = [...deps.ddb.items.values()].filter((item) => item.SK === "NOTIFREAD");
+    expect(writes).toHaveLength(1);
+
     const marker = deps.ddb.get(notificationReadKey("user-a").PK, notificationReadKey("user-a").SK);
     expect(marker?.readUpTo).toBe("2026-08-02T00:00:00.000Z");
+    expect(deps.ddb.sendCount - before).toBe(4);
 
     const list = JSON.parse((await listNotifications(deps, request())).body);
     expect(list.unreadCount).toBe(0);
     expect(list.notifications.every((n: { read: boolean }) => n.read)).toBe(true);
+  });
+
+  it("reports the honest count: a same-millisecond notification stays unread", async () => {
+    const deps = makeTestDeps();
+    // Emitted in the same millisecond as the fixed test clock the marker
+    // writes; its `#rand` sort suffix sorts after the bare timestamp, so it
+    // must remain unread — and the response must say so rather than 0.
+    deps.ddb.seed(seedNotification("user-a", "2026-08-02T00:00:00.000Z#rand", { type: "victory", tripId: "t", tripTitle: "T", actorId: "user-b", tripCardId: "c", createdAt: "2026-08-02T00:00:00.000Z" }));
+
+    const body = JSON.parse((await markNotificationsRead(deps, request())).body);
+    expect(body.unreadCount).toBe(1);
+
+    const list = JSON.parse((await listNotifications(deps, request())).body);
+    expect(list.unreadCount).toBe(1);
+    expect(list.notifications[0].read).toBe(false);
+  });
+
+  it("never moves the marker backwards", async () => {
+    const deps = makeTestDeps();
+    deps.ddb.seed({ ...notificationReadKey("user-a"), readUpTo: "2027-01-01T00:00:00.000Z", updatedAt: "t" });
+
+    // The fixed test clock (2026-08-02) is behind the stored marker: the
+    // write is skipped and the stored value stands.
+    await markNotificationsRead(deps, request());
+    const marker = deps.ddb.get(notificationReadKey("user-a").PK, notificationReadKey("user-a").SK);
+    expect(marker?.readUpTo).toBe("2027-01-01T00:00:00.000Z");
   });
 
   it("rejects a signed-out caller", async () => {

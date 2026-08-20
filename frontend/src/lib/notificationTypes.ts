@@ -5,13 +5,6 @@
 
 export type NotificationEventType = "progress_marked" | "one_away" | "victory";
 
-/** Plain-language verbs, shared by the bell dropdown and the activity feed. */
-export const EVENT_VERBS: Readonly<Record<NotificationEventType, string>> = {
-  progress_marked: "marked a square",
-  one_away: "is one square from winning",
-  victory: "won a card",
-};
-
 export interface NotificationPreferences {
   types: Record<NotificationEventType, boolean>;
   mutedTripIds: string[];

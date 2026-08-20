@@ -1,14 +1,14 @@
-import { GetCommand, PutCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
+import { GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
 import type { Deps } from "../context.ts";
 import { badRequest, json, unauthorized, type JsonResponse } from "../http.ts";
 import { fetchDisplayNames } from "../lib/displayNames.ts";
+import { NOTIF_SK_PREFIX, notificationPrefsKey, notificationReadKey, sortIdFromNotificationSk, userPartition } from "../lib/keys.ts";
 import {
-  NOTIF_SK_PREFIX,
-  notificationPrefsKey,
-  notificationReadKey,
-  sortIdFromNotificationSk,
-  userPartition,
-} from "../lib/keys.ts";
+  NOTIFICATION_PAGE_LIMIT,
+  notificationReadUpTo,
+  queryLatestByPrefix,
+  unreadNotificationCount,
+} from "../lib/notificationQueries.ts";
 import {
   parseNotificationPreferences,
   preferencesFromItem,
@@ -20,15 +20,7 @@ import type { RouteRequest } from "../request.ts";
 // that decide which events reach it at fan-out time. Every handler is scoped
 // solely to the caller's verified `sub` — there is no user id in any path,
 // body, or query to ignore, because the key is built from the credential and
-// nothing else.
-
-/** One page of the bell or the feed. Bounded reads are the spec; TTL is not relied on. */
-export const NOTIFICATION_PAGE_LIMIT = 20;
-
-interface ReadMarkerItem {
-  readUpTo: string;
-  updatedAt: string;
-}
+// nothing else. The shared query helpers live in lib/notificationQueries.ts.
 
 interface PreferencesItem extends NotificationPreferences {
   createdAt?: string;
@@ -38,58 +30,6 @@ interface PreferencesItem extends NotificationPreferences {
 function requireUser(request: RouteRequest): string {
   if (!request.userId) throw unauthorized();
   return request.userId;
-}
-
-/**
- * A bounded, most-recent-first page of a prefixed range in one partition. The
- * `<isoTs>#<rand>` sort keys make a descending query chronological for free;
- * the Limit — not TTL, whose deletion can lag by days — is what keeps the
- * response small.
- */
-export async function queryLatestByPrefix(
-  deps: Deps,
-  pk: string,
-  prefix: string,
-  limit: number,
-): Promise<Record<string, unknown>[]> {
-  const result = await deps.ddb.send(
-    new QueryCommand({
-      TableName: deps.tableName,
-      KeyConditionExpression: "PK = :pk AND begins_with(SK, :sk)",
-      ExpressionAttributeValues: { ":pk": pk, ":sk": prefix },
-      ScanIndexForward: false,
-      Limit: limit,
-    }),
-  );
-  return (result.Items ?? []) as Record<string, unknown>[];
-}
-
-/** Reads the caller's read-up-to marker, if any. */
-async function readUpTo(deps: Deps, userId: string): Promise<string | null> {
-  const result = await deps.ddb.send(
-    new GetCommand({ TableName: deps.tableName, Key: notificationReadKey(userId) }),
-  );
-  const item = result.Item as ReadMarkerItem | undefined;
-  return item?.readUpTo ?? null;
-}
-
-/**
- * The caller's unread count, exact up to the page limit. Unread items are the
- * newest ones, so a descending bounded page always contains all of them — the
- * count saturates rather than under-reporting when unread exceeds the limit.
- * Shared with the trip progress poll, so an open trip page refreshes the bell
- * on the interval it already runs.
- */
-export async function unreadNotificationCount(deps: Deps, userId: string): Promise<number> {
-  const [readAt, items] = await Promise.all([
-    readUpTo(deps, userId),
-    queryLatestByPrefix(deps, userPartition(userId), NOTIF_SK_PREFIX, NOTIFICATION_PAGE_LIMIT),
-  ]);
-  if (readAt === null) return items.length;
-  return items.filter((item) => {
-    const sortId = sortIdFromNotificationSk(String(item.SK));
-    return sortId !== null && sortId > readAt;
-  }).length;
 }
 
 /**
@@ -103,7 +43,7 @@ export async function listNotifications(deps: Deps, request: RouteRequest): Prom
 
   const [items, readAt] = await Promise.all([
     queryLatestByPrefix(deps, userPartition(userId), NOTIF_SK_PREFIX, NOTIFICATION_PAGE_LIMIT),
-    readUpTo(deps, userId),
+    notificationReadUpTo(deps, userId),
   ]);
 
   const actorNames = await fetchDisplayNames(
@@ -134,19 +74,30 @@ export async function listNotifications(deps: Deps, request: RouteRequest): Prom
  * Marks everything the caller currently holds as read, as one small write of a
  * read-up-to timestamp rather than one write per row. Notifications arriving
  * after this moment carry a newer sort id and read as unread again.
+ *
+ * The write is skipped when the stored marker is already at or past `now` — a
+ * second device with a slightly behind clock must not move read state
+ * backwards. A notification created in the same millisecond sorts after the
+ * bare timestamp (its sort id carries a `#rand` suffix) and correctly stays
+ * unread, so the response re-derives the count rather than asserting zero.
  */
 export async function markNotificationsRead(deps: Deps, request: RouteRequest): Promise<JsonResponse> {
   const userId = requireUser(request);
   const now = deps.now();
 
-  await deps.ddb.send(
-    new PutCommand({
-      TableName: deps.tableName,
-      Item: { ...notificationReadKey(userId), readUpTo: now, updatedAt: now },
-    }),
-  );
+  const existing = await notificationReadUpTo(deps, userId);
+  if (existing === null || existing < now) {
+    await deps.ddb.send(
+      new PutCommand({
+        TableName: deps.tableName,
+        Item: { ...notificationReadKey(userId), readUpTo: now, updatedAt: now },
+      }),
+    );
+  }
 
-  return json(200, { readUpTo: now, unreadCount: 0 });
+  const unreadCount = await unreadNotificationCount(deps, userId);
+
+  return json(200, { readUpTo: now, unreadCount });
 }
 
 /** The caller's preferences; the defaults when never saved. */

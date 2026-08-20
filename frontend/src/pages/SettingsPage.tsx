@@ -22,6 +22,17 @@ import { listTrips } from "@/lib/tripApi";
 import { MAX_DISPLAY_NAME_LENGTH, updateProfile } from "@/lib/profileApi";
 
 /**
+ * Shown until the preferences fetch lands (and if it never does). Module-level
+ * so its identity is stable: the form re-syncs from `initial` whenever that
+ * identity changes, and a fresh literal per render would discard a toggle the
+ * user had just flipped every time anything else on this page re-rendered.
+ */
+const FALLBACK_PREFERENCES: StoredNotificationPreferences = {
+  ...DEFAULT_NOTIFICATION_PREFERENCES,
+  updatedAt: null,
+};
+
+/**
  * The account settings page.
  *
  * Strictly additive: signed-out visitors are redirected away and make zero
@@ -221,7 +232,7 @@ export function SettingsPage() {
         </Panel>
         <Panel title="Notifications" icon={Bell}>
           <NotificationPreferencesForm
-            initial={prefs ?? { ...DEFAULT_NOTIFICATION_PREFERENCES, updatedAt: null }}
+            initial={prefs ?? FALLBACK_PREFERENCES}
             trips={prefsTrips}
             saving={prefsSaving}
             onSave={(next) => void savePreferences(next)}

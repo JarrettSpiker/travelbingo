@@ -45,6 +45,19 @@ describe("parseNotificationPreferences", () => {
     expect(rejects({ types, mutedTripIds: [""] })).toBe(400);
   });
 
+  it("rejects a duplicate mute entry rather than collapsing it", () => {
+    const types = { progress_marked: true, one_away: true, victory: true };
+    expect(rejects({ types, mutedTripIds: ["trip-1", "trip-1"] })).toBe(400);
+  });
+
+  it("bounds each mute entry's length", () => {
+    const types = { progress_marked: true, one_away: true, victory: true };
+    expect(rejects({ types, mutedTripIds: ["x".repeat(65)] })).toBe(400);
+    expect(
+      parseNotificationPreferences({ types, mutedTripIds: ["x".repeat(64)] }).mutedTripIds,
+    ).toEqual(["x".repeat(64)]);
+  });
+
   it("bounds the mute list to the per-user trip cap", () => {
     const types = { progress_marked: true, one_away: true, victory: true };
     expect(rejects({ types, mutedTripIds: Array.from({ length: 51 }, (_, i) => `trip-${i}`) })).toBe(400);

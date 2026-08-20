@@ -31,6 +31,13 @@ export interface NotificationPreferences {
 export const MAX_MUTED_TRIPS = 50;
 
 /**
+ * Bounds one mute-list entry. Trip ids are 16-byte base64url (~22 chars), so
+ * this is generous headroom while keeping a hand-crafted payload from parking
+ * megabyte strings in its own preferences item.
+ */
+export const MAX_MUTED_TRIP_ID_LENGTH = 64;
+
+/**
  * Applied when the user has never saved preferences: wins and near-misses are
  * worth interrupting someone for; an individual mark is not — in a five-member
  * trip it fires dozens of times an hour, and defaulting it on would make the
@@ -44,8 +51,9 @@ export const DEFAULT_PREFERENCES: NotificationPreferences = {
 /**
  * Parses a preferences submission. Rejects rather than corrects: every event
  * type must be stated as a boolean (a missing one is not defaulted to either
- * side), and the mute list must be an array of non-empty strings within the
- * bound. Throws HttpError(400) on any violation; never partially applies.
+ * side), and the mute list must be an array of bounded, non-empty, distinct
+ * strings within the bound. Throws HttpError(400) on any violation; never
+ * partially applies.
  */
 export function parseNotificationPreferences(input: unknown): NotificationPreferences {
   if (typeof input !== "object" || input === null || Array.isArray(input)) {
@@ -72,10 +80,21 @@ export function parseNotificationPreferences(input: unknown): NotificationPrefer
   if (raw.mutedTripIds.length > MAX_MUTED_TRIPS) {
     throw badRequest(`mutedTripIds must contain at most ${MAX_MUTED_TRIPS} entries`);
   }
+  const seen = new Set<string>();
   const mutedTripIds = raw.mutedTripIds.map((id, index) => {
     if (typeof id !== "string" || id === "") {
       throw badRequest(`mutedTripIds[${index}] must be a non-empty string`);
     }
+    if (id.length > MAX_MUTED_TRIP_ID_LENGTH) {
+      throw badRequest(`mutedTripIds[${index}] must be at most ${MAX_MUTED_TRIP_ID_LENGTH} characters`);
+    }
+    // Duplicates are rejected rather than collapsed: a stored list with a
+    // duplicate would make a client's "did anything change?" size comparison
+    // lie, and rejecting keeps every stored list canonical.
+    if (seen.has(id)) {
+      throw badRequest(`mutedTripIds[${index}] is a duplicate`);
+    }
+    seen.add(id);
     return id;
   });
 

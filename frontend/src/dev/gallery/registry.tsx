@@ -5,7 +5,11 @@ import { UnsavedChangesDialog } from "../../components/UnsavedChangesDialog";
 import { CardWinStatus } from "../../components/CardWinStatus";
 import { DEFAULT_COLOR_SCHEME } from "../../lib/colorScheme";
 import { DEFAULT_EMOJI_SCHEME } from "../../lib/emojiScheme";
-import type { Notification } from "../../lib/notificationTypes";
+import {
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  type Notification,
+  type StoredNotificationPreferences,
+} from "../../lib/notificationTypes";
 import {
   FEW_ENTRIES,
   MANDATORY_OVERFLOW_ENTRIES,
@@ -56,6 +60,24 @@ const sampleNotification = (overrides: Partial<Notification>): Notification => (
   read: false,
   ...overrides,
 });
+
+/** Never saved: every value is the default, and every row says so. */
+const defaultPreferences: StoredNotificationPreferences = {
+  ...DEFAULT_NOTIFICATION_PREFERENCES,
+  updatedAt: null,
+};
+
+/**
+ * Saved, and away from the defaults in both directions: marks turned on, wins
+ * turned off, one trip muted. The state that shows a muted switch in its "on"
+ * position and a type row without the "(default)" tag — neither of which the
+ * defaults fixture above can reach.
+ */
+const customisedPreferences: StoredNotificationPreferences = {
+  types: { progress_marked: true, one_away: true, victory: false },
+  mutedTripIds: ["trip-1"],
+  updatedAt: "2026-08-01T00:00:00.000Z",
+};
 
 /**
  * The gallery registry.
@@ -321,7 +343,9 @@ export const GALLERY_ENTRIES: GalleryEntry[] = [
       // a popover portals off-canvas.
       { label: "No unread", node: <NotificationBellButtonSample unread={0} /> },
       { label: "Some unread", node: <NotificationBellButtonSample unread={3} /> },
-      { label: "Many unread (saturates)", node: <NotificationBellButtonSample unread={99} /> },
+      // 132, not 99: the cap is `> 99`, so 99 renders as "99" and never
+      // exercises the wider three-character pill.
+      { label: "Many unread (saturates to 99+)", node: <NotificationBellButtonSample unread={132} /> },
     ],
   },
   {
@@ -357,11 +381,11 @@ export const GALLERY_ENTRIES: GalleryEntry[] = [
     states: [
       {
         label: "Never saved — the defaults in effect",
-        node: <NotificationPreferencesFormSample savedBefore={false} />,
+        node: <NotificationPreferencesFormSample initial={defaultPreferences} />,
       },
       {
-        label: "Previously saved, one trip muted",
-        node: <NotificationPreferencesFormSample savedBefore />,
+        label: "Saved — marks on, wins off, one trip muted",
+        node: <NotificationPreferencesFormSample initial={customisedPreferences} />,
       },
     ],
   },

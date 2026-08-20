@@ -155,8 +155,8 @@ export function TripDetailPage() {
    * individually.
    */
   const [celebrations, setCelebrations] = useState<ReadonlySet<string>>(new Set());
-  /** The trip's activity feed, most-recent-first. */
-  const [activity, setActivity] = useState<TripActivityEvent[] | null>(null);
+  /** The trip's activity feed, most-recent-first. Null = loading, false = failed. */
+  const [activity, setActivity] = useState<TripActivityEvent[] | null | false>(null);
 
   const [confirm, setConfirm] = useState<{
     title: string;
@@ -286,7 +286,9 @@ export function TripDetailPage() {
     try {
       setActivity(await getTripActivity(api, tripId));
     } catch {
-      setActivity([]);
+      // Say the feed failed rather than "nothing has happened" — an empty
+      // trip and a dead fetch are different truths.
+      setActivity(false);
     }
   }, [api, tripId]);
 
@@ -734,6 +736,13 @@ export function TripDetailPage() {
           {activity === null ? (
             <div className="flex justify-center py-4">
               <Spinner label="Loading activity" />
+            </div>
+          ) : activity === false ? (
+            <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
+              <span>Could not load this trip&apos;s activity.</span>
+              <Button variant="ghost" size="sm" onClick={() => void loadActivity()}>
+                Retry
+              </Button>
             </div>
           ) : (
             <ActivityFeed

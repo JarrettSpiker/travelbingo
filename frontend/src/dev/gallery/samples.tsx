@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactNode } from "react";
-import { User, Bell } from "lucide-react";
+import { User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ActivityFeed } from "../../components/ActivityFeed";
@@ -11,6 +11,7 @@ import { ColorSchemeForm } from "../../components/ColorSchemeForm";
 import { EmojiSchemeForm } from "../../components/EmojiSchemeForm";
 import { EntryInput } from "../../components/EntryInput";
 import { FontSchemeForm } from "../../components/FontSchemeForm";
+import { NotificationBellButton } from "../../components/NotificationBell";
 import { NotificationList } from "../../components/NotificationList";
 import { NotificationPreferencesForm } from "../../components/NotificationPreferencesForm";
 import { Panel } from "../../components/Panel";
@@ -21,8 +22,8 @@ import { type ColorScheme } from "../../lib/colorScheme";
 import { type EmojiScheme } from "../../lib/emojiScheme";
 import { DEFAULT_FONT_SCHEME, type FontScheme } from "../../lib/fontScheme";
 import {
-  DEFAULT_NOTIFICATION_PREFERENCES,
   type Notification,
+  type StoredNotificationPreferences,
   type TripActivityEvent,
 } from "../../lib/notificationTypes";
 import { type WinCondition } from "../../lib/winCondition";
@@ -71,18 +72,13 @@ const galleryDate = (iso: string) => {
   return `${d.toLocaleString("en-US", { month: "short", day: "numeric" })}`;
 };
 
-/** The bell button alone, in its three badge states (popover not needed). */
+/**
+ * The bell's trigger alone, in its badge states. The real component — the
+ * popover around it is what needs a session, and is not what these states are
+ * about.
+ */
 export function NotificationBellButtonSample({ unread }: { unread: number | null }) {
-  return (
-    <Button variant="ghost" size="icon" className="relative">
-      <Bell aria-hidden />
-      {unread !== null && unread > 0 && (
-        <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
-          {unread > 99 ? "99+" : unread}
-        </span>
-      )}
-    </Button>
-  );
+  return <NotificationBellButton unread={unread} />;
 }
 
 /** The dropdown's contents, inline. */
@@ -97,14 +93,11 @@ export function NotificationListSample({ items }: { items: Notification[] }) {
 }
 
 export function NotificationPreferencesFormSample({
-  savedBefore,
+  initial,
 }: {
-  savedBefore: boolean;
+  initial: StoredNotificationPreferences;
 }) {
-  const [prefs, setPrefs] = useState({
-    ...DEFAULT_NOTIFICATION_PREFERENCES,
-    updatedAt: savedBefore ? "2026-08-01T00:00:00.000Z" : null,
-  });
+  const [prefs, setPrefs] = useState(initial);
   return (
     <NotificationPreferencesForm
       initial={prefs}

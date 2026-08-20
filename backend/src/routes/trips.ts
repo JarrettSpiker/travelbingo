@@ -54,12 +54,12 @@ import {
 } from "../lib/tripPayload.ts";
 import { CELLS_PER_CARD, DEFAULT_WIN_CONDITION, hasWon, squaresFromWin, type WinCondition } from "../lib/winCondition.ts";
 import { isWithinPlayWindow } from "../lib/playWindow.ts";
-import { putWithUniqueToken } from "../lib/shareToken.ts";
 import {
   NOTIFICATION_PAGE_LIMIT,
   queryLatestByPrefix,
   unreadNotificationCount,
-} from "./notifications.ts";
+} from "../lib/notificationQueries.ts";
+import { putWithUniqueToken } from "../lib/shareToken.ts";
 import type { RouteRequest } from "../request.ts";
 
 /** Bounds what one account can accumulate, mirroring MAX_CARDS_PER_USER. */
@@ -912,8 +912,11 @@ interface PlayEvent {
  *    own preferences (never the actor's — the actor is excluded outright).
  *
  * Membership comes from the trip's live MEMBER# roster, so a removed member
- * simply stops being a recipient. Bounded by MAX_MEMBERS_PER_TRIP: worst case
- * 1 + 49 writes, which is two BatchWriteItem calls.
+ * simply stops being a recipient. The bound is per event: 1 EVENT# + up to
+ * MAX_MEMBERS_PER_TRIP - 1 NOTIF# writes. A single mark can emit two events
+ * (a winning or near-missing mark still emits its progress_marked), so the
+ * per-request worst case is ~100 items — four BatchWriteItem calls — and the
+ * common case, with progress_marked off by default, is one feed item and none.
  */
 async function emitPlayEvents(
   deps: Deps,
