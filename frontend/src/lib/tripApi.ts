@@ -128,15 +128,20 @@ export async function unmarkTripCardSlot(
   return api.request<TripCardProgress>(markPath(tripId, tripCardId, slotIndex), { method: "DELETE" });
 }
 
-/** The polled endpoint: every card's marks, and nothing else. */
-export async function getTripProgress(
-  api: ApiClient,
-  tripId: string,
-): Promise<TripCardProgress[]> {
-  const body = await api.request<{ cards: TripCardProgress[] }>(
+/**
+ * The polled endpoint: every card's marks, the caller's unread notification
+ * count (so the bell refreshes on this same interval), and nothing else.
+ */
+export interface TripProgressBody {
+  cards: TripCardProgress[];
+  unreadNotifications?: number;
+}
+
+export async function getTripProgress(api: ApiClient, tripId: string): Promise<TripProgressBody> {
+  const body = await api.request<{ cards?: TripCardProgress[]; unreadNotifications?: number }>(
     `/api/trips/${encodeURIComponent(tripId)}/progress`,
   );
-  return body.cards ?? [];
+  return { cards: body.cards ?? [], unreadNotifications: body.unreadNotifications ?? 0 };
 }
 
 /** The one call reachable without an account: shows the trip title on the invite landing page. */

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { NavLink } from "react-router";
 import { MapPin } from "lucide-react";
 import { useAuth } from "@/auth/authContext";
+import { NotificationBell } from "@/components/NotificationBell";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { cn } from "@/lib/utils";
 
@@ -97,6 +98,9 @@ export function SiteHeader({ actions }: SiteHeaderProps) {
             anchor. Whatever else has to give, these stay on screen. */}
         <div className="ml-auto flex shrink-0 items-center gap-1">
           {actions}
+          {/* Notifications are account-only: no bell, and no request, for a
+              signed-out visitor. */}
+          {accountsEnabled && status === "authenticated" && <NotificationBell />}
           <ThemeToggle />
         </div>
       </div>

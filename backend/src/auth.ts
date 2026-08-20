@@ -139,6 +139,8 @@ interface PlayableTripMeta {
   mode: "cooperative" | "competitive";
   /** Absent on trips created before win conditions existed — read as a line. */
   winCondition?: WinCondition;
+  /** The trip's title, for notification fan-out; absent only on corrupt items. */
+  title?: string;
   startDate?: string;
   endDate?: string;
 }

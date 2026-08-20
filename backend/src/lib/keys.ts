@@ -17,6 +17,12 @@
 //                                   markedSlots?: Set<Number>, progressUpdatedAt?  <- play progress
 //   TRIP#<tripId>   INVITE#<token>  createdAt                                    <- admin-facing pointer (list/revoke)
 //   INVITE#<token>  META            tripId, title, createdAt, revokedAt?        <- redemption record
+//
+//   TRIP#<tripId>   EVENT#<ts>#<r>  type, actorId, tripCardId, detail{}, createdAt, expiresAt  <- activity feed, TTL-bound
+//   USER#<sub>      NOTIF#<ts>#<r>  type, tripId, tripTitle, actorId, tripCardId, createdAt,
+//                                   expiresAt                                          <- per-user bell, TTL-bound
+//   USER#<sub>      NOTIFREAD       readUpTo, updatedAt                          <- read marker (one item, not one per row)
+//   USER#<sub>      NOTIFPREFS      types{progress_marked,one_away,victory}, mutedTripIds[], createdAt, updatedAt
 
 export interface TableKey {
   PK: string;
@@ -29,6 +35,8 @@ export const SHARE_SK_PREFIX = "SHARE#";
 export const TRIP_SK_PREFIX = "TRIP#";
 export const TRIPCARD_SK_PREFIX = "TRIPCARD#";
 export const INVITE_SK_PREFIX = "INVITE#";
+export const EVENT_SK_PREFIX = "EVENT#";
+export const NOTIF_SK_PREFIX = "NOTIF#";
 
 export function cardMetaKey(cardId: string): TableKey {
   return { PK: `CARD#${cardId}`, SK: "META" };
@@ -134,4 +142,43 @@ export function tripIdFromMembershipSk(sk: string): string | null {
 /** Recovers the token from a trip invite pointer's sort key. */
 export function tokenFromInvitePointerSk(sk: string): string | null {
   return sk.startsWith(INVITE_SK_PREFIX) ? sk.slice(INVITE_SK_PREFIX.length) : null;
+}
+
+// --- Play events and notifications ------------------------------------------
+
+/**
+ * A play event in the trip's own partition — the activity feed's row. The
+ * `<isoTs>#<rand>` sort suffix gives most-recent-first ordering from a
+ * descending query with no GSI, and the random tail keeps two events in the
+ * same millisecond from colliding.
+ */
+export function tripEventKey(tripId: string, sortId: string): TableKey {
+  return { PK: `TRIP#${tripId}`, SK: `${EVENT_SK_PREFIX}${sortId}` };
+}
+
+/**
+ * A notification in a member's partition — the bell's row. Carries the trip
+ * title denormalized (the bell must render without reading fifty trips) but
+ * never an actor name, which is resolved at read time so renames don't drift.
+ */
+export function userNotificationKey(userId: string, sortId: string): TableKey {
+  return { PK: `USER#${userId}`, SK: `${NOTIF_SK_PREFIX}${sortId}` };
+}
+
+/** The caller's notification preferences, sibling of PROFILE. */
+export function notificationPrefsKey(userId: string): TableKey {
+  return { PK: `USER#${userId}`, SK: "NOTIFPREFS" };
+}
+
+/**
+ * The caller's read marker: a single read-up-to timestamp rather than a
+ * per-notification read bit, so marking read is one small write.
+ */
+export function notificationReadKey(userId: string): TableKey {
+  return { PK: `USER#${userId}`, SK: "NOTIFREAD" };
+}
+
+/** Recovers the `<ts>#<rand>` sort id from a notification item's sort key. */
+export function sortIdFromNotificationSk(sk: string): string | null {
+  return sk.startsWith(NOTIF_SK_PREFIX) ? sk.slice(NOTIF_SK_PREFIX.length) : null;
 }

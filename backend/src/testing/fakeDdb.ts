@@ -145,6 +145,17 @@ export class FakeDdb {
 
     matches.sort((a, b) => String(a.SK).localeCompare(String(b.SK)));
 
+    // Descending queries (the bell and the activity feed) read most-recent-first
+    // from `<isoTs>#<rand>` sort keys. Honored rather than ignored, with Limit:
+    // a fake returning everything ascending would make a bounded read look
+    // correct while the real service returned the wrong page.
+    if (input.ScanIndexForward === false) {
+      matches.reverse();
+    }
+    if (typeof input.Limit === "number" && input.Limit > 0) {
+      matches = matches.slice(0, input.Limit);
+    }
+
     // Honor ExclusiveStartKey (exclusive): resume strictly after the last key
     // returned on the previous page.
     const start = input.ExclusiveStartKey as { PK: string; SK: string } | undefined;

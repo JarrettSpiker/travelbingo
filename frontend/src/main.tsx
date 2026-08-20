@@ -19,6 +19,7 @@ import { createBrowserRouter, RouterProvider } from 'react-router'
 import { applyColorMode, readStoredColorMode } from './lib/colorMode'
 import { TooltipProvider } from './components/ui/tooltip'
 import { AuthProvider } from './auth/AuthProvider.tsx'
+import { NotificationsProvider } from './notifications/NotificationsProvider.tsx'
 import { AppRoutes } from './routes.tsx'
 
 /*
@@ -62,7 +63,13 @@ const router = createBrowserRouter([
     element: (
       <TooltipProvider delayDuration={300}>
         <AuthProvider>
-          <AppRoutes />
+          {/* Inside AuthProvider because it reads the auth state (one fetch of
+              the bell count when a session appears); inside AppRoutes so every
+              page — and the header's bell — share the one count. Like
+              AuthProvider, it renders children immediately and gates nothing. */}
+          <NotificationsProvider>
+            <AppRoutes />
+          </NotificationsProvider>
         </AuthProvider>
       </TooltipProvider>
     ),

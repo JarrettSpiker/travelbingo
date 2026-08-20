@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router";
+import { useLocation, useNavigate, useParams } from "react-router";
 import {
+  Activity,
   CalendarDays,
   Compass,
   Copy,
@@ -18,6 +19,7 @@ import {
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { AuthMenu } from "@/components/AuthMenu";
+import { ActivityFeed } from "@/components/ActivityFeed";
 import { CardGrid } from "@/components/CardGrid";
 import { CardWinStatus } from "@/components/CardWinStatus";
 import { Panel } from "@/components/Panel";
@@ -41,6 +43,7 @@ import {
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { useAuth } from "@/auth/authContext";
+import { useNotifications } from "@/notifications/notificationsContext";
 import { listCards } from "@/lib/cardsApi";
 import type { SavedCardSummary } from "@/lib/savedCard";
 import { cardFromSlots } from "@/lib/bingo";
@@ -56,6 +59,8 @@ import {
   revokeInvite,
 } from "@/lib/tripApi";
 import { downloadCardPng } from "@/lib/cardPngExport";
+import { getTripActivity } from "@/lib/notificationApi";
+import type { TripActivityEvent } from "@/lib/notificationTypes";
 import { playWindowState } from "@/lib/playWindow";
 import {
   WIN_CONDITION_LABELS,
@@ -133,7 +138,9 @@ function assigneeLabel(
 
 export function TripDetailPage() {
   const { tripId = "" } = useParams();
+  const location = useLocation();
   const { api, status, accountsEnabled, email, displayName, userId: currentUserId } = useAuth();
+  const { setUnread } = useNotifications();
   const navigate = useNavigate();
 
   const [trip, setTrip] = useState<TripDetail | null | undefined>(undefined);
@@ -148,6 +155,8 @@ export function TripDetailPage() {
    * individually.
    */
   const [celebrations, setCelebrations] = useState<ReadonlySet<string>>(new Set());
+  /** The trip's activity feed, most-recent-first. */
+  const [activity, setActivity] = useState<TripActivityEvent[] | null>(null);
 
   const [confirm, setConfirm] = useState<{
     title: string;
@@ -169,7 +178,15 @@ export function TripDetailPage() {
     error: progressError,
     clearError: clearProgressError,
     toggle,
-  } = useTripProgress(api, tripId, trip?.cards, accountsEnabled && status === "authenticated");
+  } = useTripProgress(
+    api,
+    tripId,
+    trip?.cards,
+    accountsEnabled && status === "authenticated",
+    // The poll response carries the bell's unread count; the header refreshes
+    // on this interval instead of running a timer of its own.
+    setUnread,
+  );
 
   /**
    * Each rendered card's `.bingo-card` node, so an export can hand the right one
@@ -226,6 +243,9 @@ export function TripDetailPage() {
     if (accepted && completing) {
       setCelebrations((prev) => new Set(prev).add(card.tripCardId));
     }
+    // The viewer's own mark is the one event they always learn about at once;
+    // refresh the feed so it lands immediately.
+    void loadActivity();
   }
 
   function dismissCelebration(tripCardId: string) {
@@ -258,10 +278,23 @@ export function TripDetailPage() {
     }
   }, [api, tripId]);
 
+  // The activity feed loads with the trip and after any of the viewer's own
+  // actions that change it (a mark, an assignment change). Other members'
+  // events arrive on the next visit or when their own poll nudges a refresh —
+  // the feed is pull, not push.
+  const loadActivity = useCallback(async () => {
+    try {
+      setActivity(await getTripActivity(api, tripId));
+    } catch {
+      setActivity([]);
+    }
+  }, [api, tripId]);
+
   useEffect(() => {
     if (status !== "authenticated") return;
     void load();
-  }, [status, load]);
+    void loadActivity();
+  }, [status, load, loadActivity]);
 
   async function run(action: () => Promise<void>, failureMessage: string) {
     setBusy(true);
@@ -373,12 +406,20 @@ export function TripDetailPage() {
   }
 
   if (trip === null) {
+    // Arriving from a notification that points at a trip the viewer can no
+    // longer open — removed from it, or the trip is gone — reads as the trip
+    // no longer being available, not as an error or a broken link.
+    const fromNotification = (location.state as { fromNotification?: boolean } | null)?.fromNotification === true;
     return (
       <AppShell size="narrow" headerActions={<AuthMenu />}>
         <div className="grid justify-items-start gap-4">
-          <Alert variant="destructive">
+          <Alert variant="info">
             <TriangleAlert />
-            <AlertDescription>This trip could not be found, or you are not a member.</AlertDescription>
+            <AlertDescription>
+              {fromNotification
+                ? "That trip is no longer available — you may have been removed from it, or it may have been deleted."
+                : "This trip could not be found, or you are not a member."}
+            </AlertDescription>
           </Alert>
           <Button onClick={() => void navigate("/trips")}>Back to trips</Button>
         </div>
@@ -683,6 +724,22 @@ export function TripDetailPage() {
                 );
               })}
             </ul>
+          )}
+        </Panel>
+
+        {/* Activity: the "show everything" surface, for every member —
+            including one who has muted the trip, whose bell stays quiet while
+            this feed does not. */}
+        <Panel title="Activity" icon={Activity}>
+          {activity === null ? (
+            <div className="flex justify-center py-4">
+              <Spinner label="Loading activity" />
+            </div>
+          ) : (
+            <ActivityFeed
+              events={activity}
+              formatTimestamp={(iso) => formatTripTimestamp(iso, DATE_FORMAT)}
+            />
           )}
         </Panel>
 

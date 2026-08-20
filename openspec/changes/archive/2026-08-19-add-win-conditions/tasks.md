@@ -33,7 +33,7 @@
 
 - [x] 5.1 `npm run lint && npm test && npm run build` pass in **both** `frontend/` and `backend/`.
 - [x] 5.2 Confirm the mirrored `winCondition.ts` files agree by running both packages' test suites; the shared test table is the only thing linking them.
-- [ ] 5.3 Visual QA via `npm run capture -- /trips/new` and `/trips/:tripId` in light and dark at 390px and 1440px, with a card one square away, a won card, and an unreachable card on screen.
+- [x] 5.3 Visual QA via `npm run capture -- /trips/new` and `/trips/:tripId` in light and dark at 390px and 1440px, with a card one square away, a won card, and an unreachable card on screen.
 - [x] 5.4 Confirm the card renderer is untouched: `cardGrid.guard.test.ts` passes unchanged and `CardGrid.tsx`/`App.css` carry no diff from this change — a win is announced around the card, not drawn on it.
-- [ ] 5.5 Multi-member verification in dev with `scripts/dev-user.sh`: in a competitive two-lines trip, the assignee completes a row then a crossing column and the win records on the second; the admin then tightens the trip to a full card and the recorded win survives; the assignee unmarks a square and the badge stays while the distance-to-target updates; a second member's card wins independently and both wins show.
+- [x] 5.5 Multi-member verification in dev with `scripts/dev-user.sh`: in a competitive two-lines trip, the assignee completes a row then a crossing column and the win records on the second; the admin then tightens the trip to a full card and the recorded win survives; the assignee unmarks a square and the badge stays while the distance-to-target updates; a second member's card wins independently and both wins show.
 - [x] 5.6 Confirm the saved-card contract tests are unchanged — this change does not touch the stored card shape or `TripCardSnapshot`.

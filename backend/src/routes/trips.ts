@@ -18,15 +18,18 @@ import {
 import type { Deps } from "../context.ts";
 import { badRequest, json, noContent, notFound, unauthorized, type JsonResponse } from "../http.ts";
 import type { CardPayload } from "../lib/cardPayload.ts";
-import { deleteKeys } from "../lib/batch.ts";
+import { deleteKeys, putItems } from "../lib/batch.ts";
+import { fetchDisplayNames } from "../lib/displayNames.ts";
 import {
   cardMetaKey,
+  EVENT_SK_PREFIX,
   INVITE_SK_PREFIX,
   inviteKey,
   MEMBER_SK_PREFIX,
-  profileKey,
+  notificationPrefsKey,
   tokenFromInvitePointerSk,
   tripCardKey,
+  tripEventKey,
   tripIdFromMembershipSk,
   tripInvitePointerKey,
   tripMemberKey,
@@ -35,8 +38,11 @@ import {
   tripPartition,
   TRIP_SK_PREFIX,
   TRIPCARD_SK_PREFIX,
+  userNotificationKey,
   userPartition,
 } from "../lib/keys.ts";
+import { preferencesFromItem, type NotificationEventType } from "../lib/notificationPayload.ts";
+import { newSortId, recipientsFor, shouldEmitOneAway } from "../lib/notificationEvents.ts";
 import {
   isMarkablePosition,
   parseOptionalEmail,
@@ -46,9 +52,14 @@ import {
   parseTripUpdate,
   type TripCardSnapshot,
 } from "../lib/tripPayload.ts";
-import { DEFAULT_WIN_CONDITION, hasWon, type WinCondition } from "../lib/winCondition.ts";
+import { CELLS_PER_CARD, DEFAULT_WIN_CONDITION, hasWon, squaresFromWin, type WinCondition } from "../lib/winCondition.ts";
 import { isWithinPlayWindow } from "../lib/playWindow.ts";
 import { putWithUniqueToken } from "../lib/shareToken.ts";
+import {
+  NOTIFICATION_PAGE_LIMIT,
+  queryLatestByPrefix,
+  unreadNotificationCount,
+} from "./notifications.ts";
 import type { RouteRequest } from "../request.ts";
 
 /** Bounds what one account can accumulate, mirroring MAX_CARDS_PER_USER. */
@@ -114,30 +125,6 @@ async function getTripMeta(deps: Deps, tripId: string): Promise<TripMeta | undef
     new GetCommand({ TableName: deps.tableName, Key: tripMetaKey(tripId) }),
   );
   return result.Item as TripMeta | undefined;
-}
-
-/**
- * Fetches the display name for each given user id in one BatchGet. Profiles are
- * written lazily, so an absent item (no name set) maps to null rather than
- * missing the user. Used to surface member names in a trip without storing them
- * on the membership (which would drift on rename).
- */
-async function fetchDisplayNames(deps: Deps, userIds: string[]): Promise<Map<string, string | null>> {
-  const names = new Map<string, string | null>();
-  if (userIds.length === 0) return names;
-
-  const result = await deps.ddb.send(
-    new BatchGetCommand({
-      RequestItems: { [deps.tableName]: { Keys: userIds.map((uid) => profileKey(uid)) } },
-    }),
-  );
-
-  for (const item of (result.Responses?.[deps.tableName] ?? []) as { PK: string; displayName?: string }[]) {
-    // PK is USER#<sub>; recover the id it was fetched by.
-    const sub = String(item.PK).startsWith("USER#") ? String(item.PK).slice("USER#".length) : null;
-    if (sub !== null) names.set(sub, item.displayName ?? null);
-  }
-  return names;
 }
 
 /**
@@ -902,6 +889,90 @@ export async function assignTripCard(deps: Deps, request: RouteRequest): Promise
 
 // --- Play progress ---------------------------------------------------------
 
+/** How long events and notifications are retained before TTL removes them. */
+const NOTIFICATION_RETENTION_DAYS = 90;
+
+/**
+ * One play event to record: a feed item in the trip's partition plus, for each
+ * eligible recipient, a notification item in their own.
+ */
+interface PlayEvent {
+  type: NotificationEventType;
+  tripCardId: string;
+  detail: Record<string, unknown>;
+}
+
+/**
+ * Writes an event to the trip's activity feed and fans notifications out to
+ * the members entitled to them, per the design in add-play-notifications:
+ *
+ *  - one EVENT# item per event, always, regardless of anyone's preferences —
+ *    the feed is the "show everything" surface and must not have holes;
+ *  - zero or more NOTIF# items, filtered at write time by the recipients'
+ *    own preferences (never the actor's — the actor is excluded outright).
+ *
+ * Membership comes from the trip's live MEMBER# roster, so a removed member
+ * simply stops being a recipient. Bounded by MAX_MEMBERS_PER_TRIP: worst case
+ * 1 + 49 writes, which is two BatchWriteItem calls.
+ */
+async function emitPlayEvents(
+  deps: Deps,
+  params: { tripId: string; tripTitle: string; actorId: string; events: PlayEvent[] },
+): Promise<void> {
+  const { tripId, tripTitle, actorId, events } = params;
+  if (events.length === 0) return;
+
+  const memberRows = await queryByPrefix(deps, tripPartition(tripId), MEMBER_SK_PREFIX);
+  const memberIds = memberRows.map((row) => String(row.SK).slice(MEMBER_SK_PREFIX.length));
+
+  // One batched read of every member's preferences; an absent item is the
+  // defaults, resolved inside recipientsFor.
+  const prefsResult = await deps.ddb.send(
+    new BatchGetCommand({
+      RequestItems: {
+        [deps.tableName]: { Keys: memberIds.map((id) => notificationPrefsKey(id)) },
+      },
+    }),
+  );
+  const prefsByUser = new Map<string, ReturnType<typeof preferencesFromItem>>();
+  for (const item of (prefsResult.Responses?.[deps.tableName] ?? []) as { PK: string }[]) {
+    const id = String(item.PK).startsWith("USER#") ? String(item.PK).slice("USER#".length) : null;
+    if (id !== null) prefsByUser.set(id, preferencesFromItem(item));
+  }
+
+  const now = deps.now();
+  const expiresAt = Math.floor((Date.parse(now) + NOTIFICATION_RETENTION_DAYS * 86_400_000) / 1000);
+  const nextSortId = () => newSortId(now, () => deps.randomBytes(8).toString("base64url"));
+
+  const items: (ReturnType<typeof tripEventKey> & Record<string, unknown>)[] = [];
+  for (const event of events) {
+    items.push({
+      ...tripEventKey(tripId, nextSortId()),
+      type: event.type,
+      actorId,
+      tripCardId: event.tripCardId,
+      detail: event.detail,
+      createdAt: now,
+      expiresAt,
+    });
+
+    for (const recipientId of recipientsFor({ type: event.type, tripId }, memberIds, actorId, prefsByUser)) {
+      items.push({
+        ...userNotificationKey(recipientId, nextSortId()),
+        type: event.type,
+        tripId,
+        tripTitle,
+        actorId,
+        tripCardId: event.tripCardId,
+        createdAt: now,
+        expiresAt,
+      });
+    }
+  }
+
+  await putItems(deps, items);
+}
+
 /**
  * Marks or unmarks one square, as a single atomic set operation.
  *
@@ -937,6 +1008,18 @@ async function setTripCardSlot(
     throw badRequest("this trip is outside the dates it can be played");
   }
 
+  // The distances the near-miss edge trigger needs, computable from the card
+  // item the authorization check already holds — no extra read. A blank square
+  // is not markable, so it keeps a line through it from ever completing.
+  const condition = winConditionOf(trip);
+  const markable = new Set(
+    Array.from({ length: CELLS_PER_CARD }, (_, index) => index).filter((index) =>
+      isMarkablePosition(snapshot, index),
+    ),
+  );
+  const markedBefore = new Set(markedSlotsResponse(card.markedSlots));
+  const distanceBefore = squaresFromWin(markedBefore, markable, condition);
+
   const timestamp = deps.now();
   let result;
   try {
@@ -969,7 +1052,9 @@ async function setTripCardSlot(
   // operation that can move a card to its target, and unmarking must never
   // create or destroy one. The set update above returned the card's whole mark
   // set, so this evaluates fresh state without another read.
-  if (marked && hasWon(new Set(markedSlotsResponse(result.Attributes?.markedSlots)), winConditionOf(trip))) {
+  let wonNow = false;
+  const markedAfter = new Set(markedSlotsResponse(result.Attributes?.markedSlots));
+  if (marked && hasWon(markedAfter, condition)) {
     // The member entitled to the win: the assignee in a competitive trip, the
     // member who placed the completing mark in a cooperative one.
     const winnerId = trip.mode === "competitive" ? String(card.assignedMemberId) : userId;
@@ -987,8 +1072,42 @@ async function setTripCardSlot(
           ConditionExpression: "attribute_not_exists(wonAt)",
         }),
       );
+      wonNow = true;
     } catch (error) {
       if (!isConditionFailure(error)) throw error;
+    }
+  }
+
+  // Emission: marks only, and only when the mark actually changed the set — a
+  // re-tap of an already-marked square is a no-op above and must not produce an
+  // event either. Runs after the mark and any win record are durable, and a
+  // failure here is logged and swallowed: the member's square landing matters
+  // more than the announcement of it. Logged without card text.
+  if (marked && !markedBefore.has(slotIndex)) {
+    const distanceAfter = squaresFromWin(markedAfter, markable, condition);
+    const events: PlayEvent[] = [];
+    // A winning mark is a victory, never a near-miss — the else keeps the
+    // exclusion structural rather than relying on the distances to agree.
+    if (wonNow) {
+      events.push({ type: "victory", tripCardId, detail: {} });
+    } else if (shouldEmitOneAway(distanceBefore, distanceAfter)) {
+      events.push({ type: "one_away", tripCardId, detail: {} });
+    }
+    events.push({ type: "progress_marked", tripCardId, detail: { slotIndex } });
+
+    try {
+      await emitPlayEvents(deps, {
+        tripId,
+        tripTitle: trip.title ?? "",
+        actorId: userId,
+        events,
+      });
+    } catch (error) {
+      console.error("play-event emission failed", {
+        tripId,
+        name: error instanceof Error ? error.name : "unknown",
+        message: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 
@@ -1013,23 +1132,28 @@ export async function unmarkTripCardSlot(deps: Deps, request: RouteRequest): Pro
  *
  * It deliberately projects away the snapshots — a poll must not carry the
  * payload `getTrip` carries — and stays readable outside the play window, since
- * the window bounds who may write, not who may look.
+ * the window bounds who may write, not who may look. The caller's unread
+ * notification count rides along so an open trip page refreshes the bell on
+ * the interval it is already running, rather than on a second timer.
  */
 export async function getTripProgress(deps: Deps, request: RouteRequest): Promise<JsonResponse> {
   const userId = requireUser(request);
   const tripId = request.params.tripId ?? "";
   await requireTripRole(deps, userId, tripId, ADMIN_OR_MEMBER);
 
-  const items = await queryByPrefix(deps, tripPartition(tripId), TRIPCARD_SK_PREFIX, {
-    expression: "#SK, #markedSlots, #progressUpdatedAt, #wonAt, #winnerId",
-    names: {
-      "#SK": "SK",
-      "#markedSlots": "markedSlots",
-      "#progressUpdatedAt": "progressUpdatedAt",
-      "#wonAt": "wonAt",
-      "#winnerId": "winnerId",
-    },
-  });
+  const [items, unreadNotifications] = await Promise.all([
+    queryByPrefix(deps, tripPartition(tripId), TRIPCARD_SK_PREFIX, {
+      expression: "#SK, #markedSlots, #progressUpdatedAt, #wonAt, #winnerId",
+      names: {
+        "#SK": "SK",
+        "#markedSlots": "markedSlots",
+        "#progressUpdatedAt": "progressUpdatedAt",
+        "#wonAt": "wonAt",
+        "#winnerId": "winnerId",
+      },
+    }),
+    unreadNotificationCount(deps, userId),
+  ]);
 
   const cards = items.map((item) => ({
     tripCardId: String(item.SK).slice(TRIPCARD_SK_PREFIX.length),
@@ -1038,5 +1162,41 @@ export async function getTripProgress(deps: Deps, request: RouteRequest): Promis
     ...(item.wonAt !== undefined ? { wonAt: item.wonAt, winnerId: item.winnerId } : {}),
   }));
 
-  return json(200, { cards });
+  return json(200, { cards, unreadNotifications });
+}
+
+/**
+ * The trip's activity feed: a bounded, most-recent-first page of the play
+ * events emitted in it. Visible to every member regardless of preferences —
+ * including a member who has muted the trip — because the feed is the "show
+ * everything" surface; the bell, not the feed, is what preferences govern.
+ */
+export async function getTripActivity(deps: Deps, request: RouteRequest): Promise<JsonResponse> {
+  const userId = requireUser(request);
+  const tripId = request.params.tripId ?? "";
+  await requireTripRole(deps, userId, tripId, ADMIN_OR_MEMBER);
+
+  const items = await queryLatestByPrefix(
+    deps,
+    tripPartition(tripId),
+    EVENT_SK_PREFIX,
+    NOTIFICATION_PAGE_LIMIT,
+  );
+
+  // Actor names resolve at read time so a rename never leaves a stale name on
+  // an old event.
+  const actorNames = await fetchDisplayNames(
+    deps,
+    [...new Set(items.map((item) => String(item.actorId)))],
+  );
+
+  const events = items.map((item) => ({
+    type: item.type,
+    actorId: item.actorId,
+    actorName: actorNames.get(String(item.actorId)) ?? null,
+    tripCardId: item.tripCardId,
+    createdAt: item.createdAt,
+  }));
+
+  return json(200, { events });
 }

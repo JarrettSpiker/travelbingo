@@ -193,6 +193,10 @@ export interface TripProgress {
  * ended, the card was reassigned — the square reverts to its true state and the
  * caller is given a message to show, rather than being left with a mark that
  * only exists on their screen.
+ *
+ * `onUnreadCount`, when given, receives the unread-notification count the poll
+ * response carries — the header's bell refreshes on this same interval rather
+ * than on a timer of its own.
  */
 export function useTripProgress(
   api: ApiClient,
@@ -205,6 +209,7 @@ export function useTripProgress(
    * that is a property of a callee, and this constraint is the page's to state.
    */
   isAuthenticated: boolean,
+  onUnreadCount?: (count: number) => void,
 ): TripProgress {
   const [progress, setProgress] = useState<ProgressMap>(() => seedProgress(cards ?? []));
   const [error, setError] = useState<string | null>(null);
@@ -239,6 +244,11 @@ export function useTripProgress(
     if (latest) setProgress(seedProgress(latest));
   }, [seedKey]);
 
+  // Read through a ref so the poller effect below does not depend on the
+  // callback's identity — a fresh closure per render must not restart polling.
+  const onUnreadCountRef = useRef(onUnreadCount);
+  onUnreadCountRef.current = onUnreadCount;
+
   useEffect(() => {
     if (!tripId || !isAuthenticated) return;
 
@@ -249,8 +259,9 @@ export function useTripProgress(
       cancel: (handle) => window.clearTimeout(handle),
       poll: async () => {
         try {
-          const incoming = await getTripProgress(api, tripId);
-          setProgress((current) => mergeProgress(current, incoming, pendingCardIds(pending.current)));
+          const body = await getTripProgress(api, tripId);
+          if (onUnreadCountRef.current) onUnreadCountRef.current(body.unreadNotifications ?? 0);
+          setProgress((current) => mergeProgress(current, body.cards, pendingCardIds(pending.current)));
         } catch {
           // A failed poll is not worth telling anyone about: the next one is ten
           // seconds away, and the marks on screen are still the last known good

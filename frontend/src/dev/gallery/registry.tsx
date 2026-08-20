@@ -5,6 +5,7 @@ import { UnsavedChangesDialog } from "../../components/UnsavedChangesDialog";
 import { CardWinStatus } from "../../components/CardWinStatus";
 import { DEFAULT_COLOR_SCHEME } from "../../lib/colorScheme";
 import { DEFAULT_EMOJI_SCHEME } from "../../lib/emojiScheme";
+import type { Notification } from "../../lib/notificationTypes";
 import {
   FEW_ENTRIES,
   MANDATORY_OVERFLOW_ENTRIES,
@@ -31,6 +32,10 @@ import {
   EmojiSchemeFormSample,
   EntryInputSample,
   FontSchemeFormSample,
+  NotificationBellButtonSample,
+  NotificationListSample,
+  NotificationPreferencesFormSample,
+  ActivityFeedSample,
   PlayableCardGridSample,
   SettingsPageSample,
   WinConditionSelectSample,
@@ -38,6 +43,19 @@ import {
 
 /** Fixed date formatting for the win-status states, so captures are stable. */
 const sampleWinDate = () => "Aug 4, 2026";
+
+/** A fixed notification fixture, so the list states are comparable. */
+const sampleNotification = (overrides: Partial<Notification>): Notification => ({
+  type: "one_away",
+  tripId: "trip-1",
+  tripTitle: "Summer Road Trip",
+  actorId: "user-b",
+  actorName: "Priya",
+  tripCardId: "tc-1",
+  createdAt: "2026-08-02T12:00:00.000Z",
+  read: false,
+  ...overrides,
+});
 
 /**
  * The gallery registry.
@@ -289,6 +307,78 @@ export const GALLERY_ENTRIES: GalleryEntry[] = [
             celebration="Bingo! You completed one line."
             formatTimestamp={sampleWinDate}
             onDismissCelebration={() => {}}
+          />
+        ),
+      },
+    ],
+  },
+  {
+    source: "src/components/NotificationBell.tsx",
+    title: "Notification bell",
+    states: [
+      // The button is covered here in its three badge states; the dropdown's
+      // contents are the NotificationList entry below, rendered inline because
+      // a popover portals off-canvas.
+      { label: "No unread", node: <NotificationBellButtonSample unread={0} /> },
+      { label: "Some unread", node: <NotificationBellButtonSample unread={3} /> },
+      { label: "Many unread (saturates)", node: <NotificationBellButtonSample unread={99} /> },
+    ],
+  },
+  {
+    source: "src/components/NotificationList.tsx",
+    title: "Notification list",
+    states: [
+      { label: "Empty", node: <NotificationListSample items={[]} /> },
+      {
+        label: "Populated — a mix of read and unread",
+        node: (
+          <NotificationListSample
+            items={[
+              sampleNotification({ type: "victory", actorName: "Sam", read: true }),
+              sampleNotification({ type: "one_away", actorName: "Priya" }),
+              sampleNotification({ type: "progress_marked", actorName: null, tripTitle: "Weekend at the Lake" }),
+            ]}
+          />
+        ),
+      },
+      {
+        label: "Pointing at a trip no longer openable — followed, it reads as no longer available",
+        node: (
+          <NotificationListSample
+            items={[sampleNotification({ type: "victory", actorName: "Sam", tripTitle: "Deleted Trip" })]}
+          />
+        ),
+      },
+    ],
+  },
+  {
+    source: "src/components/NotificationPreferencesForm.tsx",
+    title: "Notification preferences",
+    states: [
+      {
+        label: "Never saved — the defaults in effect",
+        node: <NotificationPreferencesFormSample savedBefore={false} />,
+      },
+      {
+        label: "Previously saved, one trip muted",
+        node: <NotificationPreferencesFormSample savedBefore />,
+      },
+    ],
+  },
+  {
+    source: "src/components/ActivityFeed.tsx",
+    title: "Activity feed",
+    states: [
+      { label: "Empty", node: <ActivityFeedSample events={[]} /> },
+      {
+        label: "Populated — the newest thing a trip did",
+        node: (
+          <ActivityFeedSample
+            events={[
+              { type: "victory", actorId: "u1", actorName: "Priya", tripCardId: "tc", createdAt: "2026-08-02T12:00:00.000Z" },
+              { type: "one_away", actorId: "u2", actorName: "Sam", tripCardId: "tc", createdAt: "2026-08-02T11:00:00.000Z" },
+              { type: "progress_marked", actorId: "u1", actorName: null, tripCardId: "tc", createdAt: "2026-08-02T10:00:00.000Z" },
+            ]}
           />
         ),
       },

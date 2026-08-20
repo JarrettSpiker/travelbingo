@@ -25,6 +25,12 @@ locals {
     "DELETE /api/cards/{cardId}/shares/{token}"     = { authorized = true }
     "GET /api/me/profile"                           = { authorized = true }
     "PUT /api/me/profile"                           = { authorized = true }
+    # The notification bell and its preference controls. Self-scoped to the
+    # verified identity; none is public.
+    "GET /api/me/notifications"                     = { authorized = true }
+    "POST /api/me/notifications/read"               = { authorized = true }
+    "GET /api/me/notification-preferences"          = { authorized = true }
+    "PUT /api/me/notification-preferences"          = { authorized = true }
     (local.public_share_route)                      = { authorized = false }
     "GET /api/trips"                                = { authorized = true }
     "POST /api/trips"                               = { authorized = true }
@@ -43,6 +49,8 @@ locals {
     "GET /api/trips/{tripId}/progress"                                = { authorized = true }
     "PUT /api/trips/{tripId}/cards/{tripCardId}/marks/{slotIndex}"    = { authorized = true }
     "DELETE /api/trips/{tripId}/cards/{tripCardId}/marks/{slotIndex}" = { authorized = true }
+    # The trip's activity feed, members-only like the rest of the trip reads.
+    "GET /api/trips/{tripId}/activity"                                = { authorized = true }
     (local.public_invite_route)                                       = { authorized = false }
     "POST /api/invites/{token}/redeem"                                = { authorized = true }
   }

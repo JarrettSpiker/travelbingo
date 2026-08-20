@@ -168,20 +168,23 @@ describe("tripApi routing", () => {
     expect(headersOf(calls[0]).Authorization).toBe("Bearer token");
   });
 
-  it("GETs the polled progress endpoint and unwraps its cards", async () => {
+  it("GETs the polled progress endpoint, unwrapping cards and the unread count", async () => {
     const { client, calls } = makeClient([
-      jsonResponse(200, { cards: [{ tripCardId: "tc", markedSlots: [0, 6] }] }),
+      jsonResponse(200, {
+        cards: [{ tripCardId: "tc", markedSlots: [0, 6] }],
+        unreadNotifications: 2,
+      }),
     ]);
 
     const progress = await getTripProgress(client, "t1");
 
-    expect(progress).toEqual([{ tripCardId: "tc", markedSlots: [0, 6] }]);
+    expect(progress).toEqual({ cards: [{ tripCardId: "tc", markedSlots: [0, 6] }], unreadNotifications: 2 });
     expect(calls[0].url).toBe("/api/trips/t1/progress");
     expect(calls[0].init.method).toBe("GET");
   });
 
-  it("tolerates a progress response with no cards array", async () => {
+  it("tolerates a progress response with no cards array or count", async () => {
     const { client } = makeClient([jsonResponse(200, {})]);
-    expect(await getTripProgress(client, "t1")).toEqual([]);
+    expect(await getTripProgress(client, "t1")).toEqual({ cards: [], unreadNotifications: 0 });
   });
 });
