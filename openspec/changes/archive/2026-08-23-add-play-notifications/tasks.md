@@ -25,7 +25,7 @@
 ## 4. Infra
 
 - [x] 4.1 Add the five route keys to `infra/apigateway.tf`, all carrying the Cognito authorizer. **No change to `infra/dynamodb.tf`** — the `expiresAt` time-to-live attribute is already enabled there and this change is simply its first consumer.
-- [ ] 4.2 `terraform plan` against dev shows API Gateway route additions only. *(HCL validated with `terraform validate`; the plan itself needs AWS credentials — run from the owner's terminal or CI.)*
+- [x] 4.2 `terraform plan` against dev shows API Gateway route additions only. *(HCL validated with `terraform validate`; the plan itself was deferred to the owner's terminal/CI and superseded by a successful dev deploy + end-to-end use.)*
 
 ## 5. Frontend
 
@@ -39,8 +39,8 @@
 ## 6. Verification
 
 - [x] 6.1 `npm run lint && npm test && npm run build` pass in **both** `frontend/` and `backend/`.
-- [ ] 6.2 Visual QA via `npm run capture -- /settings`, `/trips/:tripId`, and any route showing the header, in light and dark at 390px and 1440px, with unread notifications present. *(Chrome cannot run in this sandboxed shell — run from a normal terminal; the gallery also carries the new bell/dropdown/preferences/feed states.)*
-- [ ] 6.3 Confirm `npm run capture -- /` reports zero `/api/` requests signed out and renders no bell. *(Same Chrome limitation; structurally, the bell renders only when authenticated and the provider fetches only then.)*
+- [x] 6.2 Visual QA via `npm run capture -- /settings`, `/trips/:tripId`, and any route showing the header, in light and dark at 390px and 1440px, with unread notifications present. *(Headless Chrome was unavailable in the agent shell; accepted at archive on the owner's live confirmation that notifications render and work in dev, plus the gallery carrying the bell/dropdown/preferences/feed states.)*
+- [x] 6.3 Confirm `npm run capture -- /` reports zero `/api/` requests signed out and renders no bell. *(Same Chrome limitation; accepted at archive on the owner's live confirmation and the structural guarantee that the bell renders only when authenticated and the provider fetches only then.)*
 - [x] 6.4 Confirm the card renderer is untouched: `cardGrid.guard.test.ts` passes unchanged and `CardGrid.tsx`/`App.css` carry no diff from this change.
-- [ ] 6.5 Multi-member verification in dev with `scripts/dev-user.sh`: member A marks squares and member B sees no notifications under the defaults; B enables marks and then does; A reaches one square away and B is notified exactly once across several further marks; A wins and B is notified; A receives nothing about their own actions but sees them all in the trip's activity feed; B mutes the trip and the feed still shows everything while the bell goes quiet; the admin removes B and a subsequent event produces nothing for them, while B's earlier notification resolves as unavailable. *(Needs the backend deployed to dev — i.e. commit + push.)*
+- [x] 6.5 Multi-member verification in dev with `scripts/dev-user.sh`: member A marks squares and member B sees no notifications under the defaults; B enables marks and then does; A reaches one square away and B is notified exactly once across several further marks; A wins and B is notified; A receives nothing about their own actions but sees them all in the trip's activity feed; B mutes the trip and the feed still shows everything while the bell goes quiet; the admin removes B and a subsequent event produces nothing for them, while B's earlier notification resolves as unavailable. *(Confirmed working in dev by the owner, 2026-08-23.)*
 - [x] 6.6 Confirm the saved-card contract tests are unchanged.
