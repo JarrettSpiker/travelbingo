@@ -2,8 +2,14 @@ import { type ReactNode } from "react";
 import { ShareLinkDialog } from "../../components/ShareLinkDialog";
 import { SuggestionsDialog } from "../../components/SuggestionsDialog";
 import { UnsavedChangesDialog } from "../../components/UnsavedChangesDialog";
+import { CardWinStatus } from "../../components/CardWinStatus";
 import { DEFAULT_COLOR_SCHEME } from "../../lib/colorScheme";
 import { DEFAULT_EMOJI_SCHEME } from "../../lib/emojiScheme";
+import {
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  type Notification,
+  type StoredNotificationPreferences,
+} from "../../lib/notificationTypes";
 import {
   FEW_ENTRIES,
   MANDATORY_OVERFLOW_ENTRIES,
@@ -30,9 +36,48 @@ import {
   EmojiSchemeFormSample,
   EntryInputSample,
   FontSchemeFormSample,
+  NotificationBellButtonSample,
+  NotificationListSample,
+  NotificationPreferencesFormSample,
+  ActivityFeedSample,
   PlayableCardGridSample,
   SettingsPageSample,
+  WinConditionSelectSample,
 } from "./samples";
+
+/** Fixed date formatting for the win-status states, so captures are stable. */
+const sampleWinDate = () => "Aug 4, 2026";
+
+/** A fixed notification fixture, so the list states are comparable. */
+const sampleNotification = (overrides: Partial<Notification>): Notification => ({
+  type: "one_away",
+  tripId: "trip-1",
+  tripTitle: "Summer Road Trip",
+  actorId: "user-b",
+  actorName: "Priya",
+  tripCardId: "tc-1",
+  createdAt: "2026-08-02T12:00:00.000Z",
+  read: false,
+  ...overrides,
+});
+
+/** Never saved: every value is the default, and every row says so. */
+const defaultPreferences: StoredNotificationPreferences = {
+  ...DEFAULT_NOTIFICATION_PREFERENCES,
+  updatedAt: null,
+};
+
+/**
+ * Saved, and away from the defaults in both directions: marks turned on, wins
+ * turned off, one trip muted. The state that shows a muted switch in its "on"
+ * position and a type row without the "(default)" tag — neither of which the
+ * defaults fixture above can reach.
+ */
+const customisedPreferences: StoredNotificationPreferences = {
+  types: { progress_marked: true, one_away: true, victory: false },
+  mutedTripIds: ["trip-1"],
+  updatedAt: "2026-08-01T00:00:00.000Z",
+};
 
 /**
  * The gallery registry.
@@ -232,6 +277,136 @@ export const GALLERY_ENTRIES: GalleryEntry[] = [
     source: "src/components/CardView.tsx",
     title: "Card view",
     states: [{ label: "Default", node: <CardViewSample colorScheme={DEFAULT_COLOR_SCHEME} /> }],
+  },
+  {
+    source: "src/components/WinConditionSelect.tsx",
+    title: "Win condition select",
+    states: [
+      { label: "One line", node: <WinConditionSelectSample initial="line" /> },
+      { label: "Two lines", node: <WinConditionSelectSample initial="two-lines" /> },
+      { label: "Full card", node: <WinConditionSelectSample initial="full-card" /> },
+    ],
+  },
+  {
+    source: "src/components/CardWinStatus.tsx",
+    title: "Card win status",
+    states: [
+      {
+        label: "One square from winning",
+        node: <CardWinStatus distance={1} formatTimestamp={sampleWinDate} />,
+      },
+      {
+        label: "Won — the badge names the member and the date",
+        node: (
+          <CardWinStatus
+            distance={0}
+            wonAt="2026-08-04T12:00:00.000Z"
+            winnerLabel="Sam"
+            formatTimestamp={sampleWinDate}
+          />
+        ),
+      },
+      {
+        label: "Target unreachable — blank squares in every route",
+        node: <CardWinStatus distance={Infinity} formatTimestamp={sampleWinDate} />,
+      },
+      {
+        label: "Won, then unmarked below the target — two truths at once",
+        node: (
+          <CardWinStatus
+            distance={3}
+            wonAt="2026-08-04T12:00:00.000Z"
+            winnerLabel="Sam"
+            formatTimestamp={sampleWinDate}
+          />
+        ),
+      },
+      {
+        label: "Celebrating the viewer's own completing mark",
+        node: (
+          <CardWinStatus
+            distance={0}
+            celebration="Bingo! You completed one line."
+            formatTimestamp={sampleWinDate}
+            onDismissCelebration={() => {}}
+          />
+        ),
+      },
+    ],
+  },
+  {
+    source: "src/components/NotificationBell.tsx",
+    title: "Notification bell",
+    states: [
+      // The button is covered here in its three badge states; the dropdown's
+      // contents are the NotificationList entry below, rendered inline because
+      // a popover portals off-canvas.
+      { label: "No unread", node: <NotificationBellButtonSample unread={0} /> },
+      { label: "Some unread", node: <NotificationBellButtonSample unread={3} /> },
+      // 132, not 99: the cap is `> 99`, so 99 renders as "99" and never
+      // exercises the wider three-character pill.
+      { label: "Many unread (saturates to 99+)", node: <NotificationBellButtonSample unread={132} /> },
+    ],
+  },
+  {
+    source: "src/components/NotificationList.tsx",
+    title: "Notification list",
+    states: [
+      { label: "Empty", node: <NotificationListSample items={[]} /> },
+      {
+        label: "Populated — a mix of read and unread",
+        node: (
+          <NotificationListSample
+            items={[
+              sampleNotification({ type: "victory", actorName: "Sam", read: true }),
+              sampleNotification({ type: "one_away", actorName: "Priya" }),
+              sampleNotification({ type: "progress_marked", actorName: null, tripTitle: "Weekend at the Lake" }),
+            ]}
+          />
+        ),
+      },
+      {
+        label: "Pointing at a trip no longer openable — followed, it reads as no longer available",
+        node: (
+          <NotificationListSample
+            items={[sampleNotification({ type: "victory", actorName: "Sam", tripTitle: "Deleted Trip" })]}
+          />
+        ),
+      },
+    ],
+  },
+  {
+    source: "src/components/NotificationPreferencesForm.tsx",
+    title: "Notification preferences",
+    states: [
+      {
+        label: "Never saved — the defaults in effect",
+        node: <NotificationPreferencesFormSample initial={defaultPreferences} />,
+      },
+      {
+        label: "Saved — marks on, wins off, one trip muted",
+        node: <NotificationPreferencesFormSample initial={customisedPreferences} />,
+      },
+    ],
+  },
+  {
+    source: "src/components/ActivityFeed.tsx",
+    title: "Activity feed",
+    states: [
+      { label: "Empty", node: <ActivityFeedSample events={[]} /> },
+      {
+        label: "Populated — the newest thing a trip did",
+        node: (
+          <ActivityFeedSample
+            events={[
+              { type: "victory", actorId: "u1", actorName: "Priya", tripCardId: "tc", createdAt: "2026-08-02T12:00:00.000Z" },
+              { type: "one_away", actorId: "u2", actorName: "Sam", tripCardId: "tc", createdAt: "2026-08-02T11:00:00.000Z" },
+              { type: "progress_marked", actorId: "u1", actorName: null, tripCardId: "tc", createdAt: "2026-08-02T10:00:00.000Z" },
+            ]}
+          />
+        ),
+      },
+    ],
   },
   {
     source: "src/components/AuthMenu.tsx",

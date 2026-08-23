@@ -3,6 +3,7 @@ import { HttpError } from "../http.ts";
 import {
   cardMetaKey,
   inviteKey,
+  notificationPrefsKey,
   profileKey,
   tripCardKey,
   tripInvitePointerKey,
@@ -21,6 +22,7 @@ import {
   createTrip,
   deleteTrip,
   getTrip,
+  getTripActivity,
   getTripProgress,
   listTrips,
   listInvites,
@@ -80,6 +82,21 @@ async function seedCard(deps: TestDeps, userId = "user-a"): Promise<string> {
   return JSON.parse(response.body).cardId as string;
 }
 
+/**
+ * A card with all 24 slots filled, so every position on the rendered grid is
+ * markable — the default fixture's three real squares can never complete a
+ * line, which is exactly what its unreachability tests rely on.
+ */
+const fullCard = {
+  ...card,
+  slots: Array.from({ length: 24 }, (_, i) => `Entry ${i}`),
+};
+
+async function seedFullCard(deps: TestDeps, userId = "user-a"): Promise<string> {
+  const response = await createCard(deps, request({ userId, body: fullCard }));
+  return JSON.parse(response.body).cardId as string;
+}
+
 async function mintInvite(deps: TestDeps, tripId: string, userId = "user-a"): Promise<string> {
   const response = await createInvite(deps, request({ userId, params: { tripId } }));
   return JSON.parse(response.body).token as string;
@@ -89,6 +106,9 @@ interface TripCardItem {
   snapshot: { title: string; slots: (string | null)[] };
   ownerId: string;
   assignedMemberId?: string;
+  markedSlots?: Set<number>;
+  wonAt?: string;
+  winnerId?: string;
 }
 
 function tripCardItem(deps: TestDeps, tripId: string, tripCardId: string): TripCardItem {
@@ -1042,7 +1062,10 @@ describe("card progress", () => {
     await mark(deps, tripId, tripCardId, ENTRY);
 
     const body = JSON.parse((await getTripProgress(deps, request({ params: { tripId } }))).body);
-    expect(Object.keys(body)).toEqual(["cards"]);
+    // The unread-notification count rides on the poll by design (the bell
+    // refreshes on the interval the trip page already runs).
+    expect(Object.keys(body)).toEqual(["cards", "unreadNotifications"]);
+    expect(body.unreadNotifications).toBe(0);
     expect(body.cards).toEqual([
       { tripCardId, markedSlots: [ENTRY], progressUpdatedAt: "2026-08-02T00:00:00.000Z" },
     ]);
@@ -1067,6 +1090,513 @@ describe("card progress", () => {
 
     // Entitlement to play decides who may change marks, never who may see them.
     expect(await marksOf(deps, tripId, "user-a")).toEqual([ENTRY]);
+  });
+});
+
+describe("win conditions", () => {
+  const ROW1 = [5, 6, 7, 8, 9];
+  const ROW2 = [10, 11, 12, 13, 14];
+  const WON_AT = "2026-08-02T00:00:00.000Z";
+
+  async function joinAs(deps: TestDeps, tripId: string, userId: string): Promise<void> {
+    const token = await mintInvite(deps, tripId);
+    await redeemInvite(deps, request({ userId, params: { token } }));
+  }
+
+  async function addFullCard(deps: TestDeps, tripId: string, userId = "user-a"): Promise<string> {
+    const cardId = await seedFullCard(deps, userId);
+    const response = await addTripCard(deps, request({ userId, params: { tripId }, body: { cardId } }));
+    return JSON.parse(response.body).tripCardId as string;
+  }
+
+  function mark(deps: TestDeps, tripId: string, tripCardId: string, slotIndex: number, userId = "user-a") {
+    return markTripCardSlot(deps, request({ userId, params: { tripId, tripCardId, slotIndex: String(slotIndex) } }));
+  }
+
+  function unmark(deps: TestDeps, tripId: string, tripCardId: string, slotIndex: number, userId = "user-a") {
+    return unmarkTripCardSlot(deps, request({ userId, params: { tripId, tripCardId, slotIndex: String(slotIndex) } }));
+  }
+
+  async function completeRow(
+    deps: TestDeps,
+    tripId: string,
+    tripCardId: string,
+    row: number[],
+    marker = "user-a",
+    finalMarker = marker,
+  ): Promise<void> {
+    const others = row.slice(0, -1);
+    for (const slotIndex of others) await mark(deps, tripId, tripCardId, slotIndex, marker);
+    const last = row[row.length - 1];
+    if (last === undefined) throw new Error("completeRow needs a non-empty row");
+    await mark(deps, tripId, tripCardId, last, finalMarker);
+  }
+
+  it("stores a chosen win condition, defaults to a line, and reads a legacy trip as a line", async () => {
+    const deps = makeTestDeps();
+    const chosen = await seedTrip(deps, "user-a", { winCondition: "two-lines" });
+    expect(deps.ddb.get(tripMetaKey(chosen).PK, "META")).toMatchObject({ winCondition: "two-lines" });
+    expect(JSON.parse((await getTrip(deps, request({ params: { tripId: chosen } }))).body).winCondition).toBe(
+      "two-lines",
+    );
+
+    // Omitted on create: the default is stored explicitly.
+    const defaulted = await seedTrip(deps);
+    expect(deps.ddb.get(tripMetaKey(defaulted).PK, "META")).toMatchObject({ winCondition: "line" });
+
+    // A trip created before win conditions existed carries no attribute at all;
+    // getTrip derives the default so no reader has to know it.
+    const legacyId = "legacy-trip";
+    deps.ddb.seed({
+      ...tripMetaKey(legacyId),
+      ownerId: "user-a",
+      title: "Old trip",
+      mode: "cooperative",
+      createdAt: "t",
+      updatedAt: "t",
+    });
+    deps.ddb.seed({ ...tripMembershipKey("user-a", legacyId), role: "admin", title: "Old trip", updatedAt: "t" });
+    expect(JSON.parse((await getTrip(deps, request({ params: { tripId: legacyId } }))).body).winCondition).toBe("line");
+  });
+
+  it("rejects an unsupported win condition on create and on update, changing nothing", async () => {
+    const deps = makeTestDeps();
+    expect(
+      await statusOf(createTrip(deps, request({ body: { title: "x", mode: "cooperative", winCondition: "diagonal" } }))),
+    ).toBe(400);
+    const tripId = await seedTrip(deps);
+    expect(
+      await statusOf(updateTrip(deps, request({ params: { tripId }, body: { title: "x", winCondition: "everything" } }))),
+    ).toBe(400);
+    expect(deps.ddb.get(tripMetaKey(tripId).PK, "META")?.winCondition).toBe("line");
+  });
+
+  it("lets the administrator change the condition and refuses a member with 403", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    await joinAs(deps, tripId, "user-b");
+
+    expect(
+      await statusOf(updateTrip(deps, request({ userId: "user-b", params: { tripId }, body: { title: "x", winCondition: "full-card" } }))),
+    ).toBe(403);
+
+    await updateTrip(deps, request({ params: { tripId }, body: { title: "x", winCondition: "full-card" } }));
+    expect(deps.ddb.get(tripMetaKey(tripId).PK, "META")?.winCondition).toBe("full-card");
+    expect(JSON.parse((await getTrip(deps, request({ params: { tripId } }))).body).winCondition).toBe("full-card");
+  });
+
+  it("changing the condition leaves marks and a recorded win untouched", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps, "user-a", { mode: "competitive" });
+    const tripCardId = await addFullCard(deps, tripId);
+    await joinAs(deps, tripId, "user-b");
+    await assignTripCard(deps, request({ params: { tripId, tripCardId }, body: { assignedMemberId: "user-b" } }));
+    await completeRow(deps, tripId, tripCardId, ROW1, "user-b");
+    expect(tripCardItem(deps, tripId, tripCardId)).toMatchObject({ wonAt: WON_AT, winnerId: "user-b" });
+
+    // Tightening to a full card invalidates nothing that already happened.
+    await updateTrip(deps, request({ params: { tripId }, body: { title: "Summer Road Trip", winCondition: "full-card" } }));
+    const item = tripCardItem(deps, tripId, tripCardId);
+    expect([...(item.markedSlots ?? new Set())].sort((a, b) => a - b)).toEqual(ROW1);
+    expect(item).toMatchObject({ wonAt: WON_AT, winnerId: "user-b" });
+  });
+
+  it("cooperative: a mark completing the target records the marker as the winner", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const tripCardId = await addFullCard(deps, tripId);
+    await joinAs(deps, tripId, "user-b");
+
+    await completeRow(deps, tripId, tripCardId, ROW1, "user-b");
+
+    expect(tripCardItem(deps, tripId, tripCardId)).toMatchObject({ wonAt: WON_AT, winnerId: "user-b" });
+    // Both read surfaces carry the record, straight from the stored attributes.
+    const trip = JSON.parse((await getTrip(deps, request({ params: { tripId } }))).body);
+    expect(trip.cards[0]).toMatchObject({ wonAt: WON_AT, winnerId: "user-b" });
+    const progress = JSON.parse((await getTripProgress(deps, request({ params: { tripId } }))).body);
+    expect(progress.cards[0]).toMatchObject({ wonAt: WON_AT, winnerId: "user-b" });
+  });
+
+  it("competitive: the winner is the assignee", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps, "user-a", { mode: "competitive" });
+    const tripCardId = await addFullCard(deps, tripId);
+    await joinAs(deps, tripId, "user-b");
+    await assignTripCard(deps, request({ params: { tripId, tripCardId }, body: { assignedMemberId: "user-b" } }));
+
+    await completeRow(deps, tripId, tripCardId, ROW1, "user-b");
+
+    expect(tripCardItem(deps, tripId, tripCardId)).toMatchObject({ wonAt: WON_AT, winnerId: "user-b" });
+  });
+
+  it("a mark that does not complete the target records nothing", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const tripCardId = await addFullCard(deps, tripId);
+
+    // Four of row 1, plus an unrelated square: one line one square short.
+    await completeRow(deps, tripId, tripCardId, [5, 6, 7, 8, 0]);
+
+    const item = tripCardItem(deps, tripId, tripCardId);
+    expect(item.wonAt).toBeUndefined();
+    expect(item.winnerId).toBeUndefined();
+  });
+
+  it("marks on a card that cannot reach the target never record a win", async () => {
+    // The default fixture card has three real squares (0, 2, and the free
+    // space); no line is completable, so marking all of them records nothing.
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const cardId = await seedCard(deps);
+    const { tripCardId } = JSON.parse(
+      (await addTripCard(deps, request({ params: { tripId }, body: { cardId } }))).body,
+    );
+
+    for (const slotIndex of [0, 2, 12]) await mark(deps, tripId, tripCardId, slotIndex);
+
+    const item = tripCardItem(deps, tripId, tripCardId);
+    expect(item.wonAt).toBeUndefined();
+    expect(item.winnerId).toBeUndefined();
+  });
+
+  it("a further mark does not overwrite the record", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const tripCardId = await addFullCard(deps, tripId);
+    await completeRow(deps, tripId, tripCardId, ROW1);
+    expect(tripCardItem(deps, tripId, tripCardId).wonAt).toBe(WON_AT);
+
+    deps.now = () => "2026-08-03T00:00:00.000Z";
+    expect((await mark(deps, tripId, tripCardId, 0)).statusCode).toBe(200);
+    expect(tripCardItem(deps, tripId, tripCardId).wonAt).toBe(WON_AT);
+  });
+
+  it("unmarking below the threshold leaves the record, and unmarks are never evaluated", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const tripCardId = await addFullCard(deps, tripId);
+    await completeRow(deps, tripId, tripCardId, ROW1);
+
+    expect((await unmark(deps, tripId, tripCardId, 5)).statusCode).toBe(200);
+
+    expect(tripCardItem(deps, tripId, tripCardId)).toMatchObject({ wonAt: WON_AT, winnerId: "user-a" });
+  });
+
+  it("two concurrent completing marks yield exactly one record", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const tripCardId = await addFullCard(deps, tripId);
+    // Row 0 awaits its fifth square (4); column 4 awaits its fifth (24).
+    for (const slotIndex of [0, 1, 2, 3, 9, 14, 19]) await mark(deps, tripId, tripCardId, slotIndex);
+
+    const [a, b] = await Promise.all([mark(deps, tripId, tripCardId, 4), mark(deps, tripId, tripCardId, 24)]);
+
+    // Both marks land; the second's win write loses the condition race and is
+    // swallowed, leaving the first achievement as the single record.
+    expect(a.statusCode).toBe(200);
+    expect(b.statusCode).toBe(200);
+    expect(tripCardItem(deps, tripId, tripCardId).wonAt).toBe(WON_AT);
+  });
+
+  it("a trip can carry two won cards", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const first = await addFullCard(deps, tripId);
+    const second = await addFullCard(deps, tripId);
+
+    await completeRow(deps, tripId, first, ROW1);
+    await completeRow(deps, tripId, second, ROW2, "user-a");
+
+    expect(tripCardItem(deps, tripId, first)).toMatchObject({ wonAt: WON_AT, winnerId: "user-a" });
+    expect(tripCardItem(deps, tripId, second)).toMatchObject({ wonAt: WON_AT, winnerId: "user-a" });
+    const trip = JSON.parse((await getTrip(deps, request({ params: { tripId } }))).body);
+    expect(trip.cards.filter((card: { wonAt?: string }) => card.wonAt === WON_AT)).toHaveLength(2);
+  });
+});
+
+describe("play events", () => {
+  // Row 0 of the grid; marking [0,1,2] then [3] takes a line-target card from
+  // distance 2 to distance 1 (the near-miss edge), and [4] completes the win.
+  const ROW0 = [0, 1, 2, 3, 4];
+
+  async function joinAs(deps: TestDeps, tripId: string, userId: string): Promise<void> {
+    const token = await mintInvite(deps, tripId);
+    await redeemInvite(deps, request({ userId, params: { token } }));
+  }
+
+  async function addFullCard(deps: TestDeps, tripId: string, userId = "user-a"): Promise<string> {
+    const response = await createCard(
+      deps,
+      request({ userId, body: { ...card, slots: Array.from({ length: 24 }, (_, i) => `Entry ${i}`) } }),
+    );
+    const cardId = JSON.parse(response.body).cardId as string;
+    const added = await addTripCard(deps, request({ userId, params: { tripId }, body: { cardId } }));
+    return JSON.parse(added.body).tripCardId as string;
+  }
+
+  function mark(deps: TestDeps, tripId: string, tripCardId: string, slotIndex: number, userId = "user-a") {
+    return markTripCardSlot(deps, request({ userId, params: { tripId, tripCardId, slotIndex: String(slotIndex) } }));
+  }
+
+  function unmark(deps: TestDeps, tripId: string, tripCardId: string, slotIndex: number, userId = "user-a") {
+    return unmarkTripCardSlot(deps, request({ userId, params: { tripId, tripCardId, slotIndex: String(slotIndex) } }));
+  }
+
+  /** The play events recorded in a trip's partition, oldest first. */
+  function eventsOf(deps: TestDeps, tripId: string) {
+    return [...deps.ddb.items.values()]
+      .filter((item) => item.PK === `TRIP#${tripId}` && String(item.SK).startsWith("EVENT#"))
+      .sort((a, b) => String(a.SK).localeCompare(String(b.SK)));
+  }
+
+  /** The notification types a user holds, in arrival order. */
+  function notificationsOf(deps: TestDeps, userId: string): string[] {
+    return [...deps.ddb.items.values()]
+      .filter((item) => item.PK === `USER#${userId}` && String(item.SK).startsWith("NOTIF#"))
+      .sort((a, b) => String(a.SK).localeCompare(String(b.SK)))
+      .map((item) => String(item.type));
+  }
+
+  function seedPrefs(deps: TestDeps, userId: string, prefs: { types?: Record<string, boolean>; mutedTripIds?: string[] }) {
+    deps.ddb.seed({
+      ...notificationPrefsKey(userId),
+      types: {
+        progress_marked: false,
+        one_away: true,
+        victory: true,
+        ...(prefs.types ?? {}),
+      },
+      mutedTripIds: prefs.mutedTripIds ?? [],
+      createdAt: "t",
+      updatedAt: "t",
+    });
+  }
+
+  it("a plain mark writes a feed event but, under the defaults, no notifications", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const tripCardId = await addFullCard(deps, tripId);
+    await joinAs(deps, tripId, "user-b");
+
+    expect((await mark(deps, tripId, tripCardId, ROW0[0]!)).statusCode).toBe(200);
+
+    expect(eventsOf(deps, tripId).map((item) => item.type)).toEqual(["progress_marked"]);
+    expect(notificationsOf(deps, "user-a")).toEqual([]);
+    expect(notificationsOf(deps, "user-b")).toEqual([]);
+  });
+
+  it("a near-miss notifies the other members but never the actor", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const tripCardId = await addFullCard(deps, tripId);
+    await joinAs(deps, tripId, "user-b");
+
+    for (const slotIndex of [0, 1, 2]) await mark(deps, tripId, tripCardId, slotIndex!);
+    expect((await mark(deps, tripId, tripCardId, ROW0[3]!)).statusCode).toBe(200);
+
+    // The actor is never notified of their own action; the other member is.
+    expect(notificationsOf(deps, "user-a")).toEqual([]);
+    expect(notificationsOf(deps, "user-b")).toEqual(["one_away"]);
+    // The feed carries both the mark and the near-miss, for everyone. (The
+    // relative order of two events from the same millisecond is not
+    // meaningful, so contents are compared rather than sequence.)
+    expect(eventsOf(deps, tripId).map((item) => String(item.type)).sort()).toEqual([
+      "one_away",
+      "progress_marked",
+      "progress_marked",
+      "progress_marked",
+      "progress_marked",
+    ]);
+  });
+
+  it("a member who opted into marks is notified of them", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const tripCardId = await addFullCard(deps, tripId);
+    await joinAs(deps, tripId, "user-b");
+    seedPrefs(deps, "user-b", { types: { progress_marked: true } });
+
+    await mark(deps, tripId, tripCardId, ROW0[0]!);
+
+    expect(notificationsOf(deps, "user-b")).toEqual(["progress_marked"]);
+  });
+
+  it("a muted trip is silent while another trip is not", async () => {
+    const deps = makeTestDeps();
+    const mutedTrip = await seedTrip(deps);
+    const loudTrip = await seedTrip(deps);
+    await joinAs(deps, mutedTrip, "user-b");
+    await joinAs(deps, loudTrip, "user-b");
+    seedPrefs(deps, "user-b", { mutedTripIds: [mutedTrip] });
+
+    const mutedCard = await addFullCard(deps, mutedTrip);
+    const loudCard = await addFullCard(deps, loudTrip);
+    for (const slotIndex of [0, 1, 2, 3]) await mark(deps, mutedTrip, mutedCard, slotIndex!);
+    for (const slotIndex of [0, 1, 2, 3]) await mark(deps, loudTrip, loudCard, slotIndex!);
+
+    // Only the un-muted trip reached the bell.
+    expect(notificationsOf(deps, "user-b")).toEqual(["one_away"]);
+    // The muted trip's feed still records everything.
+    expect(eventsOf(deps, mutedTrip).map((item) => item.type)).toContain("one_away");
+  });
+
+  it("a removed member receives nothing further", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const tripCardId = await addFullCard(deps, tripId);
+    await joinAs(deps, tripId, "user-b");
+
+    for (const slotIndex of [0, 1, 2, 3]) await mark(deps, tripId, tripCardId, slotIndex!);
+    expect(notificationsOf(deps, "user-b")).toEqual(["one_away"]);
+
+    await removeMember(deps, request({ params: { tripId, userId: "user-b" } }));
+    // The winning mark: a removed member is not on the roster, so nothing new.
+    await mark(deps, tripId, tripCardId, ROW0[4]!);
+
+    expect(notificationsOf(deps, "user-b")).toEqual(["one_away"]);
+    expect(eventsOf(deps, tripId).map((item) => item.type)).toContain("victory");
+  });
+
+  it("a newly joined member receives only subsequent events", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const tripCardId = await addFullCard(deps, tripId);
+
+    for (const slotIndex of [0, 1, 2, 3]) await mark(deps, tripId, tripCardId, slotIndex!);
+    expect(notificationsOf(deps, "user-b")).toEqual([]);
+
+    await joinAs(deps, tripId, "user-b");
+    await mark(deps, tripId, tripCardId, ROW0[4]!);
+
+    expect(notificationsOf(deps, "user-b")).toEqual(["victory"]);
+    // And the feed still shows them everything, including the earlier marks.
+    const feed = JSON.parse((await getTripActivity(deps, request({ userId: "user-b", params: { tripId } }))).body);
+    expect(feed.events.map((event: { type: string }) => event.type).sort()).toEqual([
+      "one_away",
+      "progress_marked",
+      "progress_marked",
+      "progress_marked",
+      "progress_marked",
+      "progress_marked",
+      "victory",
+    ]);
+  });
+
+  it("the feed is visible to a member who has muted the trip", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const tripCardId = await addFullCard(deps, tripId);
+    await joinAs(deps, tripId, "user-b");
+    seedPrefs(deps, "user-b", { mutedTripIds: [tripId] });
+
+    await mark(deps, tripId, tripCardId, ROW0[0]!);
+
+    const feed = JSON.parse((await getTripActivity(deps, request({ userId: "user-b", params: { tripId } }))).body);
+    expect(feed.events.map((event: { type: string }) => event.type)).toEqual(["progress_marked"]);
+  });
+
+  it("the feed resolves actor names at read time", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const tripCardId = await addFullCard(deps, tripId);
+    deps.ddb.seed({ ...profileKey("user-a"), displayName: "Alex", createdAt: "t", updatedAt: "t" });
+
+    await mark(deps, tripId, tripCardId, ROW0[0]!);
+    const feed = JSON.parse((await getTripActivity(deps, request({ params: { tripId } }))).body);
+
+    expect(feed.events[0].actorId).toBe("user-a");
+    expect(feed.events[0].actorName).toBe("Alex");
+  });
+
+  it("a non-member's feed request is a 404, not a 403", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const tripCardId = await addFullCard(deps, tripId);
+    await mark(deps, tripId, tripCardId, ROW0[0]!);
+
+    expect(await statusOf(getTripActivity(deps, request({ userId: "user-z", params: { tripId } })))).toBe(404);
+  });
+
+  it("the near-miss fires exactly once across a run of marks, and the win is not also a near-miss", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const tripCardId = await addFullCard(deps, tripId);
+    await joinAs(deps, tripId, "user-b");
+
+    // Distances for a line target: 5,4,3,2 then [3] → 1 (edge), [6] stays 1,
+    // [4] completes the line → victory.
+    for (const slotIndex of [0, 1, 2, 5, 3, 6, 4]) {
+      expect((await mark(deps, tripId, tripCardId, slotIndex!)).statusCode).toBe(200);
+    }
+
+    expect(notificationsOf(deps, "user-b")).toEqual(["one_away", "victory"]);
+    const types = eventsOf(deps, tripId).map((item) => item.type);
+    expect(types.filter((type) => type === "one_away")).toHaveLength(1);
+    expect(types.filter((type) => type === "victory")).toHaveLength(1);
+  });
+
+  it("unmarking emits nothing, and an idempotent re-tap emits nothing either", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const tripCardId = await addFullCard(deps, tripId);
+
+    await mark(deps, tripId, tripCardId, ROW0[0]!);
+    await unmark(deps, tripId, tripCardId, ROW0[0]!);
+    // Unmarking produced no event; the feed still holds only the first mark.
+    expect(eventsOf(deps, tripId).map((item) => item.type)).toEqual(["progress_marked"]);
+
+    // A re-mark after an unmark is a real mark and emits; an idempotent re-tap
+    // of an already-marked square is a no-op and emits nothing.
+    await mark(deps, tripId, tripCardId, ROW0[0]!);
+    await mark(deps, tripId, tripCardId, ROW0[0]!);
+
+    expect(eventsOf(deps, tripId).map((item) => item.type)).toEqual(["progress_marked", "progress_marked"]);
+  });
+
+  it("deleting a trip removes its feed along with the rest of its partition", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const tripCardId = await addFullCard(deps, tripId);
+    await mark(deps, tripId, tripCardId, ROW0[0]!);
+    expect(eventsOf(deps, tripId)).toHaveLength(1);
+
+    await deleteTrip(deps, request({ params: { tripId } }));
+
+    expect(eventsOf(deps, tripId)).toEqual([]);
+  });
+
+  it("a fan-out failure leaves the mark recorded and the response successful", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const tripCardId = await addFullCard(deps, tripId);
+
+    const realSend = deps.ddb.send.bind(deps.ddb);
+    deps.ddb.send = (async (command: Parameters<typeof realSend>[0]) => {
+      if (command.constructor.name === "BatchWriteCommand") {
+        throw new Error("batch write unavailable");
+      }
+      return realSend(command);
+    }) as typeof deps.ddb.send;
+
+    const response = await mark(deps, tripId, tripCardId, ROW0[0]!);
+    expect(response.statusCode).toBe(200);
+    expect(JSON.parse(response.body).markedSlots).toEqual([ROW0[0]]);
+    // The mark landed; only the announcement was lost.
+    expect((tripCardItem(deps, tripId, tripCardId).markedSlots ?? new Set()).has(ROW0[0]!)).toBe(true);
+    expect(eventsOf(deps, tripId)).toEqual([]);
+  });
+
+  it("emitted items carry the retention expiry", async () => {
+    const deps = makeTestDeps();
+    const tripId = await seedTrip(deps);
+    const tripCardId = await addFullCard(deps, tripId);
+    await joinAs(deps, tripId, "user-b");
+
+    for (const slotIndex of [0, 1, 2, 3]) await mark(deps, tripId, tripCardId, slotIndex!);
+
+    const event = eventsOf(deps, tripId).find((item) => item.type === "one_away");
+    // 90 days after the fixed test clock (2026-08-02), in epoch seconds.
+    expect(event?.expiresAt).toBe(Math.floor((Date.parse("2026-08-02T00:00:00.000Z") + 90 * 86_400_000) / 1000));
   });
 });
 

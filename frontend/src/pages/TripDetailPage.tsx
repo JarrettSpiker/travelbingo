@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router";
+import { useLocation, useNavigate, useParams } from "react-router";
 import {
+  Activity,
   CalendarDays,
   Compass,
   Copy,
@@ -10,6 +11,7 @@ import {
   Lock,
   Pencil,
   Plus,
+  Target,
   Trash2,
   TriangleAlert,
   UserMinus,
@@ -17,7 +19,9 @@ import {
 } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { AuthMenu } from "@/components/AuthMenu";
+import { ActivityFeed } from "@/components/ActivityFeed";
 import { CardGrid } from "@/components/CardGrid";
+import { CardWinStatus } from "@/components/CardWinStatus";
 import { Panel } from "@/components/Panel";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +43,7 @@ import {
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { useAuth } from "@/auth/authContext";
+import { useNotifications } from "@/notifications/notificationsContext";
 import { listCards } from "@/lib/cardsApi";
 import type { SavedCardSummary } from "@/lib/savedCard";
 import { cardFromSlots } from "@/lib/bingo";
@@ -54,7 +59,16 @@ import {
   revokeInvite,
 } from "@/lib/tripApi";
 import { downloadCardPng } from "@/lib/cardPngExport";
+import { getTripActivity } from "@/lib/notificationApi";
+import type { TripActivityEvent } from "@/lib/notificationTypes";
 import { playWindowState } from "@/lib/playWindow";
+import {
+  WIN_CONDITION_LABELS,
+  DEFAULT_WIN_CONDITION,
+  hasWon,
+  markableSlots,
+  squaresFromWin,
+} from "@/lib/winCondition";
 import { markedSlotsFor, useTripProgress } from "@/hooks/useTripProgress";
 import { formatTripDate, formatTripRange, formatTripTimestamp } from "@/lib/tripDates";
 import type { TripCard, TripDetail, TripMember } from "@/lib/tripTypes";
@@ -90,6 +104,20 @@ function memberLabel(
   return member.displayName ?? member.email ?? `Member ${index + 1}`;
 }
 
+/** A member's display label looked up by id, or null when they are no longer in the trip. */
+function memberLabelById(
+  trip: TripDetail,
+  userId: string | undefined,
+  currentUserId: string | null,
+  email: string | null,
+  displayName: string | null,
+): string | null {
+  if (!userId) return null;
+  const index = trip.members.findIndex((m) => m.userId === userId);
+  if (index === -1) return null;
+  return memberLabel(trip.members[index]!, index, currentUserId, email, displayName);
+}
+
 /**
  * The label for a card's assignee. "Unassigned" when nobody holds the card;
  * "Unknown member" only when the assignment points at someone no longer in the
@@ -103,14 +131,16 @@ function assigneeLabel(
   displayName: string | null,
 ): string {
   if (!assignedMemberId) return "Unassigned";
-  const index = trip.members.findIndex((m) => m.userId === assignedMemberId);
-  if (index === -1) return "Unknown member";
-  return memberLabel(trip.members[index], index, currentUserId, email, displayName);
+  return (
+    memberLabelById(trip, assignedMemberId, currentUserId, email, displayName) ?? "Unknown member"
+  );
 }
 
 export function TripDetailPage() {
   const { tripId = "" } = useParams();
+  const location = useLocation();
   const { api, status, accountsEnabled, email, displayName, userId: currentUserId } = useAuth();
+  const { setUnread } = useNotifications();
   const navigate = useNavigate();
 
   const [trip, setTrip] = useState<TripDetail | null | undefined>(undefined);
@@ -119,6 +149,14 @@ export function TripDetailPage() {
   const [notice, setNotice] = useState<string | null>(null);
   /** The tripCardId currently being assigned, so that card alone shows a spinner. */
   const [assigningId, setAssigningId] = useState<string | null>(null);
+  /**
+   * Cards whose completed target the viewer has just been told about — the
+   * celebration follows their own completing mark, and each is dismissed
+   * individually.
+   */
+  const [celebrations, setCelebrations] = useState<ReadonlySet<string>>(new Set());
+  /** The trip's activity feed, most-recent-first. Null = loading, false = failed. */
+  const [activity, setActivity] = useState<TripActivityEvent[] | null | false>(null);
 
   const [confirm, setConfirm] = useState<{
     title: string;
@@ -140,7 +178,15 @@ export function TripDetailPage() {
     error: progressError,
     clearError: clearProgressError,
     toggle,
-  } = useTripProgress(api, tripId, trip?.cards, accountsEnabled && status === "authenticated");
+  } = useTripProgress(
+    api,
+    tripId,
+    trip?.cards,
+    accountsEnabled && status === "authenticated",
+    // The poll response carries the bell's unread count; the header refreshes
+    // on this interval instead of running a timer of its own.
+    setUnread,
+  );
 
   /**
    * Each rendered card's `.bingo-card` node, so an export can hand the right one
@@ -178,6 +224,39 @@ export function TripDetailPage() {
     return null;
   }
 
+  /**
+   * Toggles a square and, when the viewer's own *mark* completes the trip's
+   * target, celebrates on that card. The winning evaluation runs on the
+   * optimistic mark set the toggle is about to apply — the same pure function
+   * the backend records the win with — and only celebrates when the server
+   * accepted the mark.
+   */
+  async function handleToggleMark(card: TripCard, index: number) {
+    if (!trip) return;
+    const current = markedSlotsFor(progress, card.tripCardId);
+    const marking = !current.has(index);
+    const next = new Set(current);
+    next.add(index);
+    const completing = marking && hasWon(next, winCondition);
+
+    const accepted = await toggle(card.tripCardId, index);
+    if (accepted && completing) {
+      setCelebrations((prev) => new Set(prev).add(card.tripCardId));
+    }
+    // The viewer's own mark is the one event they always learn about at once;
+    // refresh the feed so it lands immediately.
+    void loadActivity();
+  }
+
+  function dismissCelebration(tripCardId: string) {
+    setCelebrations((prev) => {
+      if (!prev.has(tripCardId)) return prev;
+      const next = new Set(prev);
+      next.delete(tripCardId);
+      return next;
+    });
+  }
+
   async function handleExportPng(card: TripCard) {
     const node = cardNodes.current.get(card.tripCardId);
     if (!node) return;
@@ -199,10 +278,25 @@ export function TripDetailPage() {
     }
   }, [api, tripId]);
 
+  // The activity feed loads with the trip and after any of the viewer's own
+  // actions that change it (a mark, an assignment change). Other members'
+  // events arrive on the next visit or when their own poll nudges a refresh —
+  // the feed is pull, not push.
+  const loadActivity = useCallback(async () => {
+    try {
+      setActivity(await getTripActivity(api, tripId));
+    } catch {
+      // Say the feed failed rather than "nothing has happened" — an empty
+      // trip and a dead fetch are different truths.
+      setActivity(false);
+    }
+  }, [api, tripId]);
+
   useEffect(() => {
     if (status !== "authenticated") return;
     void load();
-  }, [status, load]);
+    void loadActivity();
+  }, [status, load, loadActivity]);
 
   async function run(action: () => Promise<void>, failureMessage: string) {
     setBusy(true);
@@ -314,18 +408,31 @@ export function TripDetailPage() {
   }
 
   if (trip === null) {
+    // Arriving from a notification that points at a trip the viewer can no
+    // longer open — removed from it, or the trip is gone — reads as the trip
+    // no longer being available, not as an error or a broken link.
+    const fromNotification = (location.state as { fromNotification?: boolean } | null)?.fromNotification === true;
     return (
       <AppShell size="narrow" headerActions={<AuthMenu />}>
         <div className="grid justify-items-start gap-4">
-          <Alert variant="destructive">
+          <Alert variant="info">
             <TriangleAlert />
-            <AlertDescription>This trip could not be found, or you are not a member.</AlertDescription>
+            <AlertDescription>
+              {fromNotification
+                ? "That trip is no longer available — you may have been removed from it, or it may have been deleted."
+                : "This trip could not be found, or you are not a member."}
+            </AlertDescription>
           </Alert>
           <Button onClick={() => void navigate("/trips")}>Back to trips</Button>
         </div>
       </AppShell>
     );
   }
+
+  // The wire always carries winCondition once the API change deploys; until
+  // then a local bundle can be ahead of it, and "line" is the correct reading
+  // of a trip the old API never stored one for.
+  const winCondition = trip.winCondition ?? DEFAULT_WIN_CONDITION;
 
   const range = formatTripRange(trip.startDate, trip.endDate, DATE_FORMAT);
 
@@ -340,6 +447,9 @@ export function TripDetailPage() {
                 <Users className="size-3" aria-hidden /> {isAdmin ? "Admin" : "Member"}
               </Badge>
               <Badge variant="outline">{trip.mode}</Badge>
+              <Badge variant="outline">
+                <Target className="size-3" aria-hidden /> {WIN_CONDITION_LABELS[winCondition]}
+              </Badge>
               {range && (
                 <span className="inline-flex items-center gap-1">
                   <CalendarDays className="size-3" aria-hidden /> {range}
@@ -496,6 +606,14 @@ export function TripDetailPage() {
                 });
                 const playable = canPlay(card);
                 const reason = readOnlyReason(card);
+                // Live distance from the current marks — optimistic ones
+                // included — against the trip's target. A recorded win and
+                // this number are two separate truths, shown side by side.
+                const distance = squaresFromWin(
+                  markedSlotsFor(progress, card.tripCardId),
+                  markableSlots(card.snapshot),
+                  winCondition,
+                );
                 return (
                   // `1fr auto`: a card with a title renders taller than one
                   // without, so without this the meta boxes in a row start and
@@ -517,7 +635,7 @@ export function TripDetailPage() {
                         // cells then render exactly as they do for a card
                         // nobody is playing, with no affordance to mislead.
                         onToggleSlot={
-                          playable ? (index) => void toggle(card.tripCardId, index) : undefined
+                          playable ? (index) => void handleToggleMark(card, index) : undefined
                         }
                       />
                     </div>
@@ -525,6 +643,21 @@ export function TripDetailPage() {
                       <span className="text-muted-foreground">
                         Added {formatTripTimestamp(card.createdAt, DATE_FORMAT)}
                       </span>
+                      <CardWinStatus
+                        distance={distance}
+                        wonAt={card.wonAt}
+                        winnerLabel={
+                          memberLabelById(trip, card.winnerId, currentUserId, email, displayName) ??
+                          undefined
+                        }
+                        formatTimestamp={(iso) => formatTripTimestamp(iso, DATE_FORMAT)}
+                        celebration={
+                          celebrations.has(card.tripCardId)
+                            ? `Bingo! You completed ${WIN_CONDITION_LABELS[winCondition].toLowerCase()}.`
+                            : null
+                        }
+                        onDismissCelebration={() => dismissCelebration(card.tripCardId)}
+                      />
                       {reason && (
                         <span className="inline-flex items-start gap-1.5 text-muted-foreground">
                           <Lock className="mt-0.5 size-3 shrink-0" aria-hidden /> {reason}
@@ -593,6 +726,29 @@ export function TripDetailPage() {
                 );
               })}
             </ul>
+          )}
+        </Panel>
+
+        {/* Activity: the "show everything" surface, for every member —
+            including one who has muted the trip, whose bell stays quiet while
+            this feed does not. */}
+        <Panel title="Activity" icon={Activity}>
+          {activity === null ? (
+            <div className="flex justify-center py-4">
+              <Spinner label="Loading activity" />
+            </div>
+          ) : activity === false ? (
+            <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
+              <span>Could not load this trip&apos;s activity.</span>
+              <Button variant="ghost" size="sm" onClick={() => void loadActivity()}>
+                Retry
+              </Button>
+            </div>
+          ) : (
+            <ActivityFeed
+              events={activity}
+              formatTimestamp={(iso) => formatTripTimestamp(iso, DATE_FORMAT)}
+            />
           )}
         </Panel>
 

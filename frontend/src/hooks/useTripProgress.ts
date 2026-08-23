@@ -176,7 +176,11 @@ export interface TripProgress {
   /** Set when a mark was refused; cleared on the next successful toggle. */
   error: string | null;
   clearError: () => void;
-  toggle: (tripCardId: string, slotIndex: number) => Promise<void>;
+  /**
+   * Resolves false when the toggle was refused, so a caller can react to the
+   * outcome (e.g. hold back a celebration) without watching the error state.
+   */
+  toggle: (tripCardId: string, slotIndex: number) => Promise<boolean>;
 }
 
 /**
@@ -189,6 +193,10 @@ export interface TripProgress {
  * ended, the card was reassigned — the square reverts to its true state and the
  * caller is given a message to show, rather than being left with a mark that
  * only exists on their screen.
+ *
+ * `onUnreadCount`, when given, receives the unread-notification count the poll
+ * response carries — the header's bell refreshes on this same interval rather
+ * than on a timer of its own.
  */
 export function useTripProgress(
   api: ApiClient,
@@ -201,6 +209,7 @@ export function useTripProgress(
    * that is a property of a callee, and this constraint is the page's to state.
    */
   isAuthenticated: boolean,
+  onUnreadCount?: (count: number) => void,
 ): TripProgress {
   const [progress, setProgress] = useState<ProgressMap>(() => seedProgress(cards ?? []));
   const [error, setError] = useState<string | null>(null);
@@ -235,6 +244,11 @@ export function useTripProgress(
     if (latest) setProgress(seedProgress(latest));
   }, [seedKey]);
 
+  // Read through a ref so the poller effect below does not depend on the
+  // callback's identity — a fresh closure per render must not restart polling.
+  const onUnreadCountRef = useRef(onUnreadCount);
+  onUnreadCountRef.current = onUnreadCount;
+
   useEffect(() => {
     if (!tripId || !isAuthenticated) return;
 
@@ -245,8 +259,9 @@ export function useTripProgress(
       cancel: (handle) => window.clearTimeout(handle),
       poll: async () => {
         try {
-          const incoming = await getTripProgress(api, tripId);
-          setProgress((current) => mergeProgress(current, incoming, pendingCardIds(pending.current)));
+          const body = await getTripProgress(api, tripId);
+          if (onUnreadCountRef.current) onUnreadCountRef.current(body.unreadNotifications ?? 0);
+          setProgress((current) => mergeProgress(current, body.cards, pendingCardIds(pending.current)));
         } catch {
           // A failed poll is not worth telling anyone about: the next one is ten
           // seconds away, and the marks on screen are still the last known good
@@ -282,11 +297,13 @@ export function useTripProgress(
         // the next poll healed it. Each request is authoritative about its own
         // square and nothing else.
         setProgress((current) => withSlot(current, tripCardId, slotIndex, !wasMarked));
+        return true;
       } catch {
         // Revert to the square's true state rather than leaving a mark that
         // exists only here.
         setProgress((current) => withSlot(current, tripCardId, slotIndex, wasMarked));
         setError("That square could not be updated. It may not be yours to mark, or the trip's dates may have passed.");
+        return false;
       } finally {
         pending.current.delete(key);
       }

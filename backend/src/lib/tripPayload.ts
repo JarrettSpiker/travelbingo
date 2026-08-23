@@ -9,6 +9,12 @@ import {
   MAX_SLOT_LENGTH,
   MAX_TITLE_LENGTH,
 } from "./cardPayload.ts";
+import {
+  CELLS_PER_CARD,
+  DEFAULT_WIN_CONDITION,
+  WIN_CONDITIONS,
+  type WinCondition,
+} from "./winCondition.ts";
 
 // Trip payloads are validated here, mirroring cardPayload.ts's reject-don't-
 // correct philosophy. The render-only rules reuse the exported constants from
@@ -51,12 +57,12 @@ export interface TripCardSnapshot {
 }
 
 /**
- * The grid is a fixed 5x5. Mirrors GRID_SIZE/CELLS_PER_CARD/FREE_SPACE_INDEX in
- * frontend/src/lib/bingo.ts — the renderer walks these same positions, and a
- * mark names one of them.
+ * The grid is a fixed 5x5. The geometry lives in (and is re-exported from)
+ * winCondition.ts, which owns the lines derived from it; it mirrors
+ * GRID_SIZE/CELLS_PER_CARD/FREE_SPACE_INDEX in frontend/src/lib/bingo.ts — the
+ * renderer walks these same positions, and a mark names one of them.
  */
-export const GRID_SIZE = 5;
-export const CELLS_PER_CARD = GRID_SIZE * GRID_SIZE;
+export { GRID_SIZE, CELLS_PER_CARD } from "./winCondition.ts";
 export const FREE_SPACE_INDEX = Math.floor(CELLS_PER_CARD / 2);
 
 /** A well-formed calendar date in ISO order, so dates compare lexicographically. */
@@ -135,12 +141,16 @@ export function parseOptionalEmail(value: unknown): string | null {
 export interface TripInput {
   title: string;
   mode: TripMode;
+  /** Defaults to a line when the create payload does not state one. */
+  winCondition: WinCondition;
   startDate?: string;
   endDate?: string;
 }
 
 export interface TripUpdateInput {
   title: string;
+  /** Optional: absent means "leave the trip's target as it is". */
+  winCondition?: WinCondition;
   startDate?: string;
   endDate?: string;
 }
@@ -193,6 +203,19 @@ function requireDate(value: unknown, field: string): string {
   return value;
 }
 
+/**
+ * An optional win condition: undefined or null reads as "not stated" the same
+ * way an omitted date does; anything else must be in the allowlist. Rejected
+ * rather than corrected, like every field here.
+ */
+function optionalWinCondition(value: unknown): WinCondition | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== "string" || !WIN_CONDITIONS.has(value as WinCondition)) {
+    throw badRequest("winCondition must be one of: line, two-lines, full-card");
+  }
+  return value as WinCondition;
+}
+
 function parseDates(raw: Record<string, unknown>): { startDate?: string; endDate?: string } {
   const hasStart = raw.startDate !== undefined && raw.startDate !== null;
   const hasEnd = raw.endDate !== undefined && raw.endDate !== null;
@@ -210,9 +233,9 @@ function parseDates(raw: Record<string, unknown>): { startDate?: string; endDate
 
 /**
  * Validates a create-trip payload: a non-empty bounded title, a supported play
- * mode, and optional start/end calendar dates where the end does not precede the
- * start. Throws HttpError(400) on any violation; never repairs, never partially
- * accepts.
+ * mode, an optional win condition defaulting to a line, and optional start/end
+ * calendar dates where the end does not precede the start. Throws
+ * HttpError(400) on any violation; never repairs, never partially accepts.
  */
 export function parseTripInput(input: unknown): TripInput {
   const raw = asRecord(input, "trip");
@@ -225,18 +248,21 @@ export function parseTripInput(input: unknown): TripInput {
   return {
     title: requireTitle(raw.title),
     mode: mode as TripMode,
+    winCondition: optionalWinCondition(raw.winCondition) ?? DEFAULT_WIN_CONDITION,
     ...parseDates(raw),
   };
 }
 
 /**
- * Validates an update-trip payload: title and optional dates. The play mode is
- * fixed at creation and is not editable, so it is not accepted here.
+ * Validates an update-trip payload: title, optional dates, and an optional win
+ * condition. The play mode is fixed at creation and is not editable, so it is
+ * not accepted here.
  */
 export function parseTripUpdate(input: unknown): TripUpdateInput {
   const raw = asRecord(input, "trip");
   return {
     title: requireTitle(raw.title),
+    winCondition: optionalWinCondition(raw.winCondition),
     ...parseDates(raw),
   };
 }

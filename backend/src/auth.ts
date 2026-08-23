@@ -2,6 +2,7 @@ import { GetCommand } from "@aws-sdk/lib-dynamodb";
 import type { Deps } from "./context.ts";
 import { forbidden, notFound, unauthorized } from "./http.ts";
 import { membershipKey, tripCardKey, tripMembershipKey, tripMetaKey } from "./lib/keys.ts";
+import type { WinCondition } from "./lib/winCondition.ts";
 
 /**
  * Roles a membership can carry. Only "owner" is issued today; the parameter
@@ -136,6 +137,10 @@ export async function requireTripRole(
  */
 interface PlayableTripMeta {
   mode: "cooperative" | "competitive";
+  /** Absent on trips created before win conditions existed — read as a line. */
+  winCondition?: WinCondition;
+  /** The trip's title, for notification fan-out; absent only on corrupt items. */
+  title?: string;
   startDate?: string;
   endDate?: string;
 }

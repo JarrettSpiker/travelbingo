@@ -18,15 +18,18 @@ import {
 import type { Deps } from "../context.ts";
 import { badRequest, json, noContent, notFound, unauthorized, type JsonResponse } from "../http.ts";
 import type { CardPayload } from "../lib/cardPayload.ts";
-import { deleteKeys } from "../lib/batch.ts";
+import { deleteKeys, putItems } from "../lib/batch.ts";
+import { fetchDisplayNames } from "../lib/displayNames.ts";
 import {
   cardMetaKey,
+  EVENT_SK_PREFIX,
   INVITE_SK_PREFIX,
   inviteKey,
   MEMBER_SK_PREFIX,
-  profileKey,
+  notificationPrefsKey,
   tokenFromInvitePointerSk,
   tripCardKey,
+  tripEventKey,
   tripIdFromMembershipSk,
   tripInvitePointerKey,
   tripMemberKey,
@@ -35,8 +38,11 @@ import {
   tripPartition,
   TRIP_SK_PREFIX,
   TRIPCARD_SK_PREFIX,
+  userNotificationKey,
   userPartition,
 } from "../lib/keys.ts";
+import { preferencesFromItem, type NotificationEventType } from "../lib/notificationPayload.ts";
+import { newSortId, recipientsFor, shouldEmitOneAway } from "../lib/notificationEvents.ts";
 import {
   isMarkablePosition,
   parseOptionalEmail,
@@ -46,7 +52,13 @@ import {
   parseTripUpdate,
   type TripCardSnapshot,
 } from "../lib/tripPayload.ts";
+import { CELLS_PER_CARD, DEFAULT_WIN_CONDITION, hasWon, squaresFromWin, type WinCondition } from "../lib/winCondition.ts";
 import { isWithinPlayWindow } from "../lib/playWindow.ts";
+import {
+  NOTIFICATION_PAGE_LIMIT,
+  queryLatestByPrefix,
+  unreadNotificationCount,
+} from "../lib/notificationQueries.ts";
 import { putWithUniqueToken } from "../lib/shareToken.ts";
 import type { RouteRequest } from "../request.ts";
 
@@ -95,10 +107,17 @@ interface TripMeta {
   ownerId: string;
   title: string;
   mode: "cooperative" | "competitive";
+  /** Absent on trips created before win conditions existed — read as a line. */
+  winCondition?: WinCondition;
   startDate?: string;
   endDate?: string;
   createdAt: string;
   updatedAt: string;
+}
+
+/** Schema-on-read: an item with no `winCondition` attribute is a `"line"` trip. */
+function winConditionOf(meta: { winCondition?: WinCondition }): WinCondition {
+  return meta.winCondition ?? DEFAULT_WIN_CONDITION;
 }
 
 async function getTripMeta(deps: Deps, tripId: string): Promise<TripMeta | undefined> {
@@ -106,30 +125,6 @@ async function getTripMeta(deps: Deps, tripId: string): Promise<TripMeta | undef
     new GetCommand({ TableName: deps.tableName, Key: tripMetaKey(tripId) }),
   );
   return result.Item as TripMeta | undefined;
-}
-
-/**
- * Fetches the display name for each given user id in one BatchGet. Profiles are
- * written lazily, so an absent item (no name set) maps to null rather than
- * missing the user. Used to surface member names in a trip without storing them
- * on the membership (which would drift on rename).
- */
-async function fetchDisplayNames(deps: Deps, userIds: string[]): Promise<Map<string, string | null>> {
-  const names = new Map<string, string | null>();
-  if (userIds.length === 0) return names;
-
-  const result = await deps.ddb.send(
-    new BatchGetCommand({
-      RequestItems: { [deps.tableName]: { Keys: userIds.map((uid) => profileKey(uid)) } },
-    }),
-  );
-
-  for (const item of (result.Responses?.[deps.tableName] ?? []) as { PK: string; displayName?: string }[]) {
-    // PK is USER#<sub>; recover the id it was fetched by.
-    const sub = String(item.PK).startsWith("USER#") ? String(item.PK).slice("USER#".length) : null;
-    if (sub !== null) names.set(sub, item.displayName ?? null);
-  }
-  return names;
 }
 
 /**
@@ -217,6 +212,12 @@ function tripCardResponse(item: Record<string, unknown>) {
   if (item.progressUpdatedAt !== undefined) {
     response.progressUpdatedAt = item.progressUpdatedAt;
   }
+  // A recorded win is returned as stored, never re-evaluated — it is a fact
+  // about the past, not a value derived from the current marks.
+  if (item.wonAt !== undefined) {
+    response.wonAt = item.wonAt;
+    response.winnerId = item.winnerId;
+  }
   return response;
 }
 
@@ -275,6 +276,7 @@ export async function createTrip(deps: Deps, request: RouteRequest): Promise<Jso
               ownerId: userId,
               title: input.title,
               mode: input.mode,
+              winCondition: input.winCondition,
               createdAt: timestamp,
               updatedAt: timestamp,
               ...dateFields(input.startDate, input.endDate),
@@ -311,7 +313,13 @@ export async function createTrip(deps: Deps, request: RouteRequest): Promise<Jso
     }),
   );
 
-  return json(201, { tripId, title: input.title, mode: input.mode, updatedAt: timestamp });
+  return json(201, {
+    tripId,
+    title: input.title,
+    mode: input.mode,
+    winCondition: input.winCondition,
+    updatedAt: timestamp,
+  });
 }
 
 /**
@@ -367,6 +375,7 @@ export async function getTrip(deps: Deps, request: RouteRequest): Promise<JsonRe
     tripId,
     title: meta.title,
     mode: meta.mode,
+    winCondition: winConditionOf(meta),
     createdAt: meta.createdAt,
     updatedAt: meta.updatedAt,
     role: membership.role,
@@ -385,12 +394,26 @@ export async function getTrip(deps: Deps, request: RouteRequest): Promise<JsonRe
  * Builds a SET/REMOVE update for the title and dates, used for both the META and
  * every member's listing row. Absent dates are REMOVEd (clearing them); present
  * dates are SET. The play mode is fixed at creation and is not editable.
+ *
+ * `winCondition` is META-only — the denormalized listing rows do not carry it
+ * (the trips list does not render it), so it is passed separately and only the
+ * META's update includes it.
  */
-function buildFieldUpdate(input: { title: string; startDate?: string; endDate?: string }, timestamp: string) {
+function buildFieldUpdate(
+  input: { title: string; startDate?: string; endDate?: string },
+  timestamp: string,
+  winCondition?: WinCondition,
+) {
   const names: Record<string, string> = { "#title": "title", "#updatedAt": "updatedAt" };
   const values: Record<string, unknown> = { ":title": input.title, ":updatedAt": timestamp };
   const setParts = ["#title = :title", "#updatedAt = :updatedAt"];
   const removeParts: string[] = [];
+
+  if (winCondition !== undefined) {
+    names["#winCondition"] = "winCondition";
+    values[":winCondition"] = winCondition;
+    setParts.push("#winCondition = :winCondition");
+  }
 
   if (input.startDate !== undefined) {
     names["#startDate"] = "startDate";
@@ -426,7 +449,8 @@ export async function updateTrip(deps: Deps, request: RouteRequest): Promise<Jso
 
   const input = parseTripUpdate(request.body);
   const timestamp = deps.now();
-  const update = buildFieldUpdate(input, timestamp);
+  const metaUpdate = buildFieldUpdate(input, timestamp, input.winCondition);
+  const memberUpdate = buildFieldUpdate(input, timestamp);
 
   // Update the META and every member's denormalized listing row in a single
   // transaction. The title and dates are duplicated onto each membership row so
@@ -439,11 +463,11 @@ export async function updateTrip(deps: Deps, request: RouteRequest): Promise<Jso
   await deps.ddb.send(
     new TransactWriteCommand({
       TransactItems: [
-        { Update: { TableName: deps.tableName, Key: tripMetaKey(tripId), ...update } },
+        { Update: { TableName: deps.tableName, Key: tripMetaKey(tripId), ...metaUpdate } },
         ...memberRows.map((row) => {
           const memberUserId = String(row.SK).slice(MEMBER_SK_PREFIX.length);
           return {
-            Update: { TableName: deps.tableName, Key: tripMembershipKey(memberUserId, tripId), ...update },
+            Update: { TableName: deps.tableName, Key: tripMembershipKey(memberUserId, tripId), ...memberUpdate },
           };
         }),
       ],
@@ -865,6 +889,93 @@ export async function assignTripCard(deps: Deps, request: RouteRequest): Promise
 
 // --- Play progress ---------------------------------------------------------
 
+/** How long events and notifications are retained before TTL removes them. */
+const NOTIFICATION_RETENTION_DAYS = 90;
+
+/**
+ * One play event to record: a feed item in the trip's partition plus, for each
+ * eligible recipient, a notification item in their own.
+ */
+interface PlayEvent {
+  type: NotificationEventType;
+  tripCardId: string;
+  detail: Record<string, unknown>;
+}
+
+/**
+ * Writes an event to the trip's activity feed and fans notifications out to
+ * the members entitled to them, per the design in add-play-notifications:
+ *
+ *  - one EVENT# item per event, always, regardless of anyone's preferences —
+ *    the feed is the "show everything" surface and must not have holes;
+ *  - zero or more NOTIF# items, filtered at write time by the recipients'
+ *    own preferences (never the actor's — the actor is excluded outright).
+ *
+ * Membership comes from the trip's live MEMBER# roster, so a removed member
+ * simply stops being a recipient. The bound is per event: 1 EVENT# + up to
+ * MAX_MEMBERS_PER_TRIP - 1 NOTIF# writes. A single mark can emit two events
+ * (a winning or near-missing mark still emits its progress_marked), so the
+ * per-request worst case is ~100 items — four BatchWriteItem calls — and the
+ * common case, with progress_marked off by default, is one feed item and none.
+ */
+async function emitPlayEvents(
+  deps: Deps,
+  params: { tripId: string; tripTitle: string; actorId: string; events: PlayEvent[] },
+): Promise<void> {
+  const { tripId, tripTitle, actorId, events } = params;
+  if (events.length === 0) return;
+
+  const memberRows = await queryByPrefix(deps, tripPartition(tripId), MEMBER_SK_PREFIX);
+  const memberIds = memberRows.map((row) => String(row.SK).slice(MEMBER_SK_PREFIX.length));
+
+  // One batched read of every member's preferences; an absent item is the
+  // defaults, resolved inside recipientsFor.
+  const prefsResult = await deps.ddb.send(
+    new BatchGetCommand({
+      RequestItems: {
+        [deps.tableName]: { Keys: memberIds.map((id) => notificationPrefsKey(id)) },
+      },
+    }),
+  );
+  const prefsByUser = new Map<string, ReturnType<typeof preferencesFromItem>>();
+  for (const item of (prefsResult.Responses?.[deps.tableName] ?? []) as { PK: string }[]) {
+    const id = String(item.PK).startsWith("USER#") ? String(item.PK).slice("USER#".length) : null;
+    if (id !== null) prefsByUser.set(id, preferencesFromItem(item));
+  }
+
+  const now = deps.now();
+  const expiresAt = Math.floor((Date.parse(now) + NOTIFICATION_RETENTION_DAYS * 86_400_000) / 1000);
+  const nextSortId = () => newSortId(now, () => deps.randomBytes(8).toString("base64url"));
+
+  const items: (ReturnType<typeof tripEventKey> & Record<string, unknown>)[] = [];
+  for (const event of events) {
+    items.push({
+      ...tripEventKey(tripId, nextSortId()),
+      type: event.type,
+      actorId,
+      tripCardId: event.tripCardId,
+      detail: event.detail,
+      createdAt: now,
+      expiresAt,
+    });
+
+    for (const recipientId of recipientsFor({ type: event.type, tripId }, memberIds, actorId, prefsByUser)) {
+      items.push({
+        ...userNotificationKey(recipientId, nextSortId()),
+        type: event.type,
+        tripId,
+        tripTitle,
+        actorId,
+        tripCardId: event.tripCardId,
+        createdAt: now,
+        expiresAt,
+      });
+    }
+  }
+
+  await putItems(deps, items);
+}
+
 /**
  * Marks or unmarks one square, as a single atomic set operation.
  *
@@ -900,6 +1011,18 @@ async function setTripCardSlot(
     throw badRequest("this trip is outside the dates it can be played");
   }
 
+  // The distances the near-miss edge trigger needs, computable from the card
+  // item the authorization check already holds — no extra read. A blank square
+  // is not markable, so it keeps a line through it from ever completing.
+  const condition = winConditionOf(trip);
+  const markable = new Set(
+    Array.from({ length: CELLS_PER_CARD }, (_, index) => index).filter((index) =>
+      isMarkablePosition(snapshot, index),
+    ),
+  );
+  const markedBefore = new Set(markedSlotsResponse(card.markedSlots));
+  const distanceBefore = squaresFromWin(markedBefore, markable, condition);
+
   const timestamp = deps.now();
   let result;
   try {
@@ -928,6 +1051,69 @@ async function setTripCardSlot(
     throw error;
   }
 
+  // A win is evaluated on the mark path only — adding a square is the only
+  // operation that can move a card to its target, and unmarking must never
+  // create or destroy one. The set update above returned the card's whole mark
+  // set, so this evaluates fresh state without another read.
+  let wonNow = false;
+  const markedAfter = new Set(markedSlotsResponse(result.Attributes?.markedSlots));
+  if (marked && hasWon(markedAfter, condition)) {
+    // The member entitled to the win: the assignee in a competitive trip, the
+    // member who placed the completing mark in a cooperative one.
+    const winnerId = trip.mode === "competitive" ? String(card.assignedMemberId) : userId;
+    try {
+      await deps.ddb.send(
+        new UpdateCommand({
+          TableName: deps.tableName,
+          Key: tripCardKey(tripId, tripCardId),
+          UpdateExpression: "SET #wonAt = :wonAt, #winnerId = :winnerId",
+          ExpressionAttributeNames: { "#wonAt": "wonAt", "#winnerId": "winnerId" },
+          ExpressionAttributeValues: { ":wonAt": timestamp, ":winnerId": winnerId },
+          // The first achievement sticks: a concurrent completing mark loses
+          // the race, which is the correct outcome — someone else's record is
+          // already there — not an error.
+          ConditionExpression: "attribute_not_exists(wonAt)",
+        }),
+      );
+      wonNow = true;
+    } catch (error) {
+      if (!isConditionFailure(error)) throw error;
+    }
+  }
+
+  // Emission: marks only, and only when the mark actually changed the set — a
+  // re-tap of an already-marked square is a no-op above and must not produce an
+  // event either. Runs after the mark and any win record are durable, and a
+  // failure here is logged and swallowed: the member's square landing matters
+  // more than the announcement of it. Logged without card text.
+  if (marked && !markedBefore.has(slotIndex)) {
+    const distanceAfter = squaresFromWin(markedAfter, markable, condition);
+    const events: PlayEvent[] = [];
+    // A winning mark is a victory, never a near-miss — the else keeps the
+    // exclusion structural rather than relying on the distances to agree.
+    if (wonNow) {
+      events.push({ type: "victory", tripCardId, detail: {} });
+    } else if (shouldEmitOneAway(distanceBefore, distanceAfter)) {
+      events.push({ type: "one_away", tripCardId, detail: {} });
+    }
+    events.push({ type: "progress_marked", tripCardId, detail: { slotIndex } });
+
+    try {
+      await emitPlayEvents(deps, {
+        tripId,
+        tripTitle: trip.title ?? "",
+        actorId: userId,
+        events,
+      });
+    } catch (error) {
+      console.error("play-event emission failed", {
+        tripId,
+        name: error instanceof Error ? error.name : "unknown",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
   return json(200, {
     tripCardId,
     markedSlots: markedSlotsResponse(result.Attributes?.markedSlots),
@@ -949,23 +1135,71 @@ export async function unmarkTripCardSlot(deps: Deps, request: RouteRequest): Pro
  *
  * It deliberately projects away the snapshots — a poll must not carry the
  * payload `getTrip` carries — and stays readable outside the play window, since
- * the window bounds who may write, not who may look.
+ * the window bounds who may write, not who may look. The caller's unread
+ * notification count rides along so an open trip page refreshes the bell on
+ * the interval it is already running, rather than on a second timer.
  */
 export async function getTripProgress(deps: Deps, request: RouteRequest): Promise<JsonResponse> {
   const userId = requireUser(request);
   const tripId = request.params.tripId ?? "";
   await requireTripRole(deps, userId, tripId, ADMIN_OR_MEMBER);
 
-  const items = await queryByPrefix(deps, tripPartition(tripId), TRIPCARD_SK_PREFIX, {
-    expression: "#SK, #markedSlots, #progressUpdatedAt",
-    names: { "#SK": "SK", "#markedSlots": "markedSlots", "#progressUpdatedAt": "progressUpdatedAt" },
-  });
+  const [items, unreadNotifications] = await Promise.all([
+    queryByPrefix(deps, tripPartition(tripId), TRIPCARD_SK_PREFIX, {
+      expression: "#SK, #markedSlots, #progressUpdatedAt, #wonAt, #winnerId",
+      names: {
+        "#SK": "SK",
+        "#markedSlots": "markedSlots",
+        "#progressUpdatedAt": "progressUpdatedAt",
+        "#wonAt": "wonAt",
+        "#winnerId": "winnerId",
+      },
+    }),
+    unreadNotificationCount(deps, userId),
+  ]);
 
   const cards = items.map((item) => ({
     tripCardId: String(item.SK).slice(TRIPCARD_SK_PREFIX.length),
     markedSlots: markedSlotsResponse(item.markedSlots),
     ...(item.progressUpdatedAt !== undefined ? { progressUpdatedAt: item.progressUpdatedAt } : {}),
+    ...(item.wonAt !== undefined ? { wonAt: item.wonAt, winnerId: item.winnerId } : {}),
   }));
 
-  return json(200, { cards });
+  return json(200, { cards, unreadNotifications });
+}
+
+/**
+ * The trip's activity feed: a bounded, most-recent-first page of the play
+ * events emitted in it. Visible to every member regardless of preferences —
+ * including a member who has muted the trip — because the feed is the "show
+ * everything" surface; the bell, not the feed, is what preferences govern.
+ */
+export async function getTripActivity(deps: Deps, request: RouteRequest): Promise<JsonResponse> {
+  const userId = requireUser(request);
+  const tripId = request.params.tripId ?? "";
+  await requireTripRole(deps, userId, tripId, ADMIN_OR_MEMBER);
+
+  const items = await queryLatestByPrefix(
+    deps,
+    tripPartition(tripId),
+    EVENT_SK_PREFIX,
+    NOTIFICATION_PAGE_LIMIT,
+  );
+
+  // Actor names resolve at read time so a rename never leaves a stale name on
+  // an old event.
+  const actorNames = await fetchDisplayNames(
+    deps,
+    [...new Set(items.map((item) => String(item.actorId)))],
+  );
+
+  const events = items.map((item) => ({
+    type: item.type,
+    actorId: item.actorId,
+    actorName: actorNames.get(String(item.actorId)) ?? null,
+    tripCardId: item.tripCardId,
+    createdAt: item.createdAt,
+  }));
+
+  return json(200, { events });
 }

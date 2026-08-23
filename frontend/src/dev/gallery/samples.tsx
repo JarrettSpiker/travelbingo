@@ -2,6 +2,7 @@ import { useRef, useState, type ReactNode } from "react";
 import { User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ActivityFeed } from "../../components/ActivityFeed";
 import { AuthMenu } from "../../components/AuthMenu";
 import { CardDetailsForm } from "../../components/CardDetailsForm";
 import { CardGrid } from "../../components/CardGrid";
@@ -10,12 +11,22 @@ import { ColorSchemeForm } from "../../components/ColorSchemeForm";
 import { EmojiSchemeForm } from "../../components/EmojiSchemeForm";
 import { EntryInput } from "../../components/EntryInput";
 import { FontSchemeForm } from "../../components/FontSchemeForm";
+import { NotificationBellButton } from "../../components/NotificationBell";
+import { NotificationList } from "../../components/NotificationList";
+import { NotificationPreferencesForm } from "../../components/NotificationPreferencesForm";
 import { Panel } from "../../components/Panel";
+import { WinConditionSelect } from "../../components/WinConditionSelect";
 import { MAX_DISPLAY_NAME_LENGTH } from "../../lib/profileApi";
 import { type BingoEntry } from "../../lib/bingo";
 import { type ColorScheme } from "../../lib/colorScheme";
 import { type EmojiScheme } from "../../lib/emojiScheme";
 import { DEFAULT_FONT_SCHEME, type FontScheme } from "../../lib/fontScheme";
+import {
+  type Notification,
+  type StoredNotificationPreferences,
+  type TripActivityEvent,
+} from "../../lib/notificationTypes";
+import { type WinCondition } from "../../lib/winCondition";
 import { SAMPLE_CARD, SAMPLE_MARKED_SLOTS, sampleEntry } from "./sampleData";
 
 /**
@@ -48,6 +59,60 @@ export function ColorSchemeFormSample({ initial }: { initial: ColorScheme }) {
 export function FontSchemeFormSample() {
   const [fontScheme, setFontScheme] = useState<FontScheme>(DEFAULT_FONT_SCHEME);
   return <FontSchemeForm fontScheme={fontScheme} onChange={setFontScheme} />;
+}
+
+export function WinConditionSelectSample({ initial }: { initial: WinCondition }) {
+  const [value, setValue] = useState<WinCondition>(initial);
+  return <WinConditionSelect value={value} onChange={setValue} />;
+}
+
+/** Fixed dates so gallery captures are stable. */
+const galleryDate = (iso: string) => {
+  const d = new Date(iso);
+  return `${d.toLocaleString("en-US", { month: "short", day: "numeric" })}`;
+};
+
+/**
+ * The bell's trigger alone, in its badge states. The real component — the
+ * popover around it is what needs a session, and is not what these states are
+ * about.
+ */
+export function NotificationBellButtonSample({ unread }: { unread: number | null }) {
+  return <NotificationBellButton unread={unread} />;
+}
+
+/** The dropdown's contents, inline. */
+export function NotificationListSample({ items }: { items: Notification[] }) {
+  return (
+    <NotificationList
+      notifications={items}
+      onMarkAllRead={items.length > 0 ? () => {} : undefined}
+      formatTimestamp={galleryDate}
+    />
+  );
+}
+
+export function NotificationPreferencesFormSample({
+  initial,
+}: {
+  initial: StoredNotificationPreferences;
+}) {
+  const [prefs, setPrefs] = useState(initial);
+  return (
+    <NotificationPreferencesForm
+      initial={prefs}
+      trips={[
+        { tripId: "trip-1", title: "Summer Road Trip" },
+        { tripId: "trip-2", title: "Weekend at the Lake" },
+      ]}
+      saving={false}
+      onSave={(next) => setPrefs({ ...next, updatedAt: "2026-08-02T00:00:00.000Z" })}
+    />
+  );
+}
+
+export function ActivityFeedSample({ events }: { events: TripActivityEvent[] }) {
+  return <ActivityFeed events={events} formatTimestamp={galleryDate} />;
 }
 
 export function EmojiSchemeFormSample({ initial }: { initial: EmojiScheme }) {

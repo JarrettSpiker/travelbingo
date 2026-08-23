@@ -3,6 +3,12 @@ import type { Deps } from "./context.ts";
 import { badRequest, errorResponse, HttpError, json, type JsonResponse } from "./http.ts";
 import type { RouteRequest } from "./request.ts";
 import { createCard, deleteCard, getCard, listCards, renameCard, replaceCard } from "./routes/cards.ts";
+import {
+  getNotificationPreferences,
+  listNotifications,
+  markNotificationsRead,
+  updateNotificationPreferences,
+} from "./routes/notifications.ts";
 import { getProfile, updateProfile } from "./routes/profile.ts";
 import { createShare, listShares, resolveShare, revokeShare } from "./routes/shares.ts";
 import {
@@ -12,6 +18,7 @@ import {
   createTrip,
   deleteTrip,
   getTrip,
+  getTripActivity,
   getTripProgress,
   listInvites,
   listTrips,
@@ -61,6 +68,11 @@ const ROUTES: Record<string, Route> = {
   "DELETE /api/cards/{cardId}/shares/{token}": { handler: revokeShare },
   "GET /api/me/profile": { handler: getProfile },
   "PUT /api/me/profile": { handler: updateProfile },
+  // The bell and its controls — all self-scoped, none public.
+  "GET /api/me/notifications": { handler: listNotifications },
+  "POST /api/me/notifications/read": { handler: markNotificationsRead },
+  "GET /api/me/notification-preferences": { handler: getNotificationPreferences },
+  "PUT /api/me/notification-preferences": { handler: updateNotificationPreferences },
   "GET /api/shares/{token}": { handler: resolveShare, public: true },
   "GET /api/trips": { handler: listTrips },
   "POST /api/trips": { handler: createTrip },
@@ -75,6 +87,7 @@ const ROUTES: Record<string, Route> = {
   "PATCH /api/trips/{tripId}/cards/{tripCardId}": { handler: assignTripCard },
   "DELETE /api/trips/{tripId}/cards/{tripCardId}": { handler: removeTripCard },
   "GET /api/trips/{tripId}/progress": { handler: getTripProgress },
+  "GET /api/trips/{tripId}/activity": { handler: getTripActivity },
   "PUT /api/trips/{tripId}/cards/{tripCardId}/marks/{slotIndex}": { handler: markTripCardSlot },
   "DELETE /api/trips/{tripId}/cards/{tripCardId}/marks/{slotIndex}": { handler: unmarkTripCardSlot },
   "GET /api/invites/{token}": { handler: resolveInvite, public: true },

@@ -57,8 +57,11 @@ A single event produces one **trip activity item** and zero or more **per-user n
 ```
 TRIP#<tripId>   EVENT#<isoTs>#<rand>   type, actorId, tripCardId, detail{}, createdAt, expiresAt
 USER#<sub>      NOTIF#<isoTs>#<rand>   type, tripId, tripTitle, actorId, tripCardId,
-                                       readAt?, createdAt, expiresAt
+                                       createdAt, expiresAt
+USER#<sub>      NOTIFREAD              readUpTo, updatedAt
 ```
+
+(Read state is one read-up-to marker item per user rather than a `readAt` per notification — "mark all read" is then a single small write, and unread is any sort id greater than the marker.)
 
 They answer different questions. The feed is "what has happened in this trip", scoped to one partition, read by anyone who opens the trip, and independent of preferences — a member who has muted a trip can still scroll its history. The bell is "what should I be told about", scoped to one user, spanning all their trips, and filtered by preferences at write time.
 
@@ -72,7 +75,7 @@ The `<isoTs>#<rand>` sort key gives most-recent-first ordering from a `ScanIndex
 
 On emission the handler reads the trip's `MEMBER#` roster (already in the partition it is working in), removes the actor — **a member is never notified of their own action** — loads each remaining member's preferences, and writes notification items only for those subscribed to that type in that trip. Writes go through the existing `backend/src/lib/batch.ts` batch writer.
 
-The worst case is bounded by `MAX_MEMBERS_PER_TRIP = 50`: 49 notification items, which is two `BatchWriteItem` calls. In practice it is far smaller, because `progress_marked` — the only high-frequency type — is off by default, so the common case for a mark is zero notification writes and one feed item.
+The worst case is bounded per *event* by `MAX_MEMBERS_PER_TRIP = 50`: 1 feed item + up to 49 notification items, which is two `BatchWriteItem` calls. A single mark can emit two events (a winning or near-missing mark still emits its `progress_marked`), so the per-request worst case is ~100 items across four calls. In practice it is far smaller, because `progress_marked` — the only high-frequency type — is off by default, so the common case for a mark is zero notification writes and one feed item.
 
 Preferences are read with a single `BatchGetCommand` across the recipients' `NOTIFPREFS` keys, mirroring how `fetchDisplayNames` batches profile reads. A member with no preferences item gets the defaults.
 
@@ -122,6 +125,7 @@ Endpoints: `GET /api/me/notifications` (most-recent-first, `Limit`-bounded, with
 - **A mark's write path now does more work than the mark.** → Bounded: one roster read the handler already has, one batched preferences read, and up to two batch writes — and zero notification writes in the common case, since `progress_marked` is off by default. Emission runs after the mark is durable and never fails it.
 - **Notification writes can fail silently.** → Deliberate, and stated in the spec: a member's square landing matters more than the announcement of it. Failures are logged, not surfaced to the actor, who did nothing wrong.
 - **`one_away` can re-announce if a square is toggled off and back on.** → Accepted. Suppressing it needs a stored per-card flag and a reset rule, to prevent an event that requires deliberate double-toggling.
+- **Concurrent cooperative marks can double-announce `one_away`.** → The pre-mark distance is read before the atomic set update, so a second member's mark landing in between can leave the stale before-distance claiming "further away than one", firing the edge trigger a second time. Same rarity and consequence class as the toggle re-announcement above (at most one extra notification), and fixing it would mean a conditional-update retry loop on a human-speed write path. Accepted.
 - **Denormalized `tripTitle` on notifications goes stale when a trip is renamed.** → It is the label on a historical entry, and the link resolves to the current trip. Chasing renames across every recipient's notification history is a fan-out far larger than the one that created them. `actorId` is deliberately *not* denormalized, so names — the thing people actually notice — never go stale.
 - **Expiry means the feed is not an audit log.** → By design, and the only thing that keeps the partitions bounded. Nothing reads an event older than the feed shows.
 - **A muted trip still produces feed items nobody sees.** → One small write per event regardless of preferences. Making the feed conditional would mean the trip's history had holes depending on who was muted when.
