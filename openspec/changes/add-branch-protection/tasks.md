@@ -32,7 +32,7 @@
 
 ## 4. Contain untrusted contributions
 
-- [ ] 4.1 (manual) Settings → Actions → set fork pull request workflows to **require approval for all outside collaborators**
+- [x] 4.1 (manual) Settings → Actions → set fork pull request workflows to **require approval for all outside collaborators**
 
 > No REST endpoint exists for this on user-owned repositories (only the UI).
 > Toggle: Settings → Actions → General → "Fork pull request workflows from
