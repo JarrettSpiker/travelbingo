@@ -1,0 +1,106 @@
+{
+  "themes": [
+    {
+      "id": "slide-deck",
+      "label": "Slide Deck",
+      "colorScheme": {
+        "backgroundColor": "#1f3864",
+        "cellColor": "#ffffff",
+        "textColor": "#1f3864",
+        "titleColor": "#ffd966"
+      },
+      "fontScheme": {
+        "titleFont": "'Anton', sans-serif",
+        "cellFont": "'Poppins', sans-serif"
+      },
+      "emojiScheme": {
+        "emojis": ["📊", "📈", "🎯"]
+      }
+    },
+    {
+      "id": "spreadsheet",
+      "label": "Spreadsheet",
+      "colorScheme": {
+        "backgroundColor": "#e8ece9",
+        "cellColor": "#ffffff",
+        "textColor": "#1e4620",
+        "titleColor": "#217346"
+      },
+      "fontScheme": {
+        "titleFont": "'Arial Narrow', Arial, sans-serif",
+        "cellFont": "system-ui, sans-serif"
+      },
+      "emojiScheme": {
+        "emojis": ["🧮", "📉", "🟩"]
+      }
+    },
+    {
+      "id": "legal-pad",
+      "label": "Legal Pad",
+      "colorScheme": {
+        "backgroundColor": "#f5e79e",
+        "cellColor": "#fffdf0",
+        "textColor": "#1a3a6b",
+        "titleColor": "#8b2f2f"
+      },
+      "fontScheme": {
+        "titleFont": "'Courier New', Courier, monospace",
+        "cellFont": "Georgia, 'Times New Roman', serif"
+      },
+      "emojiScheme": {
+        "emojis": ["📝", "✏️", "📎"]
+      }
+    },
+    {
+      "id": "whiteboard",
+      "label": "Whiteboard",
+      "colorScheme": {
+        "backgroundColor": "#f2f4f5",
+        "cellColor": "#ffffff",
+        "textColor": "#2b2b2b",
+        "titleColor": "#c0392b"
+      },
+      "fontScheme": {
+        "titleFont": "'Comic Sans MS', 'Comic Sans', cursive",
+        "cellFont": "'Comic Sans MS', 'Comic Sans', cursive"
+      },
+      "emojiScheme": {
+        "emojis": ["🖊️", "🧽", "💡"]
+      }
+    },
+    {
+      "id": "redline",
+      "label": "Redline",
+      "colorScheme": {
+        "backgroundColor": "#fbf7f7",
+        "cellColor": "#ffffff",
+        "textColor": "#2b2b2b",
+        "titleColor": "#b3261e"
+      },
+      "fontScheme": {
+        "titleFont": "'Playfair Display', serif",
+        "cellFont": "Georgia, 'Times New Roman', serif"
+      },
+      "emojiScheme": {
+        "emojis": ["🖍️", "⚖️", "📄"]
+      }
+    },
+    {
+      "id": "q4-earnings",
+      "label": "Q4 Earnings",
+      "colorScheme": {
+        "backgroundColor": "#0b1f33",
+        "cellColor": "#12283f",
+        "textColor": "#dbe7f3",
+        "titleColor": "#4caf50"
+      },
+      "fontScheme": {
+        "titleFont": "'Anton', sans-serif",
+        "cellFont": "'Arial Narrow', Arial, sans-serif"
+      },
+      "emojiScheme": {
+        "emojis": ["💹", "💰", "🏦"]
+      }
+    }
+  ]
+}

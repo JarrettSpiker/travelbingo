@@ -3,7 +3,6 @@ import { useLocation, useNavigate, useParams } from "react-router";
 import {
   Activity,
   CalendarDays,
-  Compass,
   Copy,
   Download,
   LayoutGrid,
@@ -72,6 +71,11 @@ import {
 import { markedSlotsFor, useTripProgress } from "@/hooks/useTripProgress";
 import { formatTripDate, formatTripRange, formatTripTimestamp } from "@/lib/tripDates";
 import type { TripCard, TripDetail, TripMember } from "@/lib/tripTypes";
+import { ROUTES } from "@/lib/routes";
+import { brand } from "@/brand";
+
+/* Capitalized so JSX reads it as a component; a build-time constant. */
+const TripIcon = brand.TripIcon;
 
 /** The detail page names specific days, so unlike the list it carries the year. */
 const DATE_FORMAT: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", year: "numeric" };
@@ -273,7 +277,7 @@ export function TripDetailPage() {
       setTrip(await getTrip(api, tripId));
       setError(null);
     } catch {
-      setError("Could not load this trip.");
+      setError(`Could not load this ${brand.copy.noun.trip}.`);
       setTrip(null);
     }
   }, [api, tripId]);
@@ -358,7 +362,7 @@ export function TripDetailPage() {
       setAddCardOpen(false);
       await load();
     } catch {
-      setError("Could not add that card to the trip.");
+      setError(`Could not add that card to the ${brand.copy.noun.trip}.`);
     } finally {
       setBusy(false);
     }
@@ -389,9 +393,9 @@ export function TripDetailPage() {
         <div className="grid justify-items-start gap-4">
           <Alert variant="info">
             <TriangleAlert />
-            <AlertDescription>Sign in to view this trip.</AlertDescription>
+            <AlertDescription>Sign in to view this {brand.copy.noun.trip}.</AlertDescription>
           </Alert>
-          <Button onClick={() => void navigate("/trips")}>Back to trips</Button>
+          <Button onClick={() => void navigate(ROUTES.trips)}>Back to {brand.copy.noun.trips}</Button>
         </div>
       </AppShell>
     );
@@ -401,7 +405,7 @@ export function TripDetailPage() {
     return (
       <AppShell size="narrow" headerActions={<AuthMenu />}>
         <div className="flex justify-center py-12">
-          <Spinner label="Loading trip" />
+          <Spinner label={`Loading ${brand.copy.noun.trip}`} />
         </div>
       </AppShell>
     );
@@ -419,11 +423,11 @@ export function TripDetailPage() {
             <TriangleAlert />
             <AlertDescription>
               {fromNotification
-                ? "That trip is no longer available — you may have been removed from it, or it may have been deleted."
-                : "This trip could not be found, or you are not a member."}
+                ? brand.copy.trips.noLongerAvailable
+                : brand.copy.trips.notFoundOrNotMember}
             </AlertDescription>
           </Alert>
-          <Button onClick={() => void navigate("/trips")}>Back to trips</Button>
+          <Button onClick={() => void navigate(ROUTES.trips)}>Back to {brand.copy.noun.trips}</Button>
         </div>
       </AppShell>
     );
@@ -441,7 +445,7 @@ export function TripDetailPage() {
       <div className="grid gap-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="grid gap-1">
-            <h1 className="font-display text-2xl font-semibold">{trip.title || "Untitled trip"}</h1>
+            <h1 className="font-display text-2xl font-semibold">{trip.title || `Untitled ${brand.copy.noun.trip}`}</h1>
             <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
               <Badge variant={isAdmin ? "default" : "secondary"}>
                 <Users className="size-3" aria-hidden /> {isAdmin ? "Admin" : "Member"}
@@ -458,12 +462,12 @@ export function TripDetailPage() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button variant="ghost" onClick={() => void navigate("/trips")}>
-              Back to trips
+            <Button variant="ghost" onClick={() => void navigate(ROUTES.trips)}>
+              Back to {brand.copy.noun.trips}
             </Button>
             {isAdmin && (
               <>
-                <Button variant="outline" onClick={() => void navigate(`/trips/${tripId}/edit`)}>
+                <Button variant="outline" onClick={() => void navigate(ROUTES.editTrip(tripId))}>
                   <Pencil aria-hidden /> Edit
                 </Button>
                 <Button
@@ -471,12 +475,11 @@ export function TripDetailPage() {
                   disabled={busy}
                   onClick={() =>
                     setConfirm({
-                      title: "Delete this trip?",
-                      description:
-                        "The trip, its members, its cards, and its invite links will all be removed. This cannot be undone.",
+                      title: `Delete this ${brand.copy.noun.trip}?`,
+                      description: brand.copy.trips.deleteWarning,
                       action: async () => {
                         await deleteTrip(api, tripId);
-                        navigate("/trips", { replace: true });
+                        navigate(ROUTES.trips, { replace: true });
                       },
                     })
                   }
@@ -556,7 +559,7 @@ export function TripDetailPage() {
                       onClick={() =>
                         setConfirm({
                           title: "Remove this member?",
-                          description: "They will immediately lose access to the trip and its cards. Any cards they added stay.",
+                          description: brand.copy.trips.removeMemberWarning,
                           action: () => removeMember(api, tripId, member.userId),
                         })
                       }
@@ -573,24 +576,24 @@ export function TripDetailPage() {
         {/* Cards */}
         <Panel
           title="Cards"
-          icon={Compass}
+          icon={TripIcon}
           actions={
             <Button variant="outline" size="sm" onClick={() => void handleOpenAddCard()} disabled={busy}>
               <Plus aria-hidden /> Add a card
             </Button>
           }
         >
-          {/* The trip-wide reason a card is read-only, stated once rather than
+          {/* The whole-trip reason a card is read-only, stated once rather than
               repeated on every card in the list. */}
           {windowState !== null && (
             <Alert variant="info" className="mb-4">
               <CalendarDays />
               <AlertDescription>
                 {windowState === "before"
-                  ? `This trip hasn't started yet, so its cards can't be marked. Marking opens on ${
+                  ? `This ${brand.copy.noun.trip} hasn't started yet, so its cards can't be marked. Marking opens on ${
                       trip.startDate ? formatTripDate(trip.startDate, DATE_FORMAT) : "the start date"
                     }.`
-                  : "This trip has ended, so its cards can no longer be marked. Everyone's progress stays visible."}
+                  : brand.copy.trips.endedNotice}
               </AlertDescription>
             </Alert>
           )}
@@ -711,7 +714,7 @@ export function TripDetailPage() {
                             disabled={busy}
                             onClick={() =>
                               setConfirm({
-                                title: "Remove this card from the trip?",
+                                title: `Remove this card from the ${brand.copy.noun.trip}?`,
                                 description: "The original card in its owner's library is not affected.",
                                 action: () => removeTripCard(api, tripId, card.tripCardId),
                               })
@@ -739,7 +742,7 @@ export function TripDetailPage() {
             </div>
           ) : activity === false ? (
             <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
-              <span>Could not load this trip&apos;s activity.</span>
+              <span>Could not load this {brand.copy.noun.trip}&apos;s activity.</span>
               <Button variant="ghost" size="sm" onClick={() => void loadActivity()}>
                 Retry
               </Button>
@@ -853,7 +856,7 @@ export function TripDetailPage() {
       <Dialog open={addCardOpen} onOpenChange={setAddCardOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add a card to the trip</DialogTitle>
+            <DialogTitle>Add a card to the {brand.copy.noun.trip}</DialogTitle>
             <DialogDescription>
               A frozen snapshot of the card is added. Editing your original later won't change it.
             </DialogDescription>

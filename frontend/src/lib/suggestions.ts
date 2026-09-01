@@ -1,5 +1,4 @@
-import cellsData from "../data/suggestedCells.json";
-import themesData from "../data/suggestedThemes.json";
+import { brand } from "../brand";
 import type { BingoEntry } from "./bingo";
 import type { ColorScheme } from "./colorScheme";
 import { MAX_EMOJIS, type EmojiScheme } from "./emojiScheme";
@@ -78,22 +77,33 @@ function normalizeTheme(raw: unknown): SuggestedTheme | null {
   return { id, label, colorScheme, fontScheme, emojiScheme };
 }
 
-function normalizeCategories(raw: unknown): SuggestedCategory[] {
+export function normalizeCategories(raw: unknown): SuggestedCategory[] {
   if (!isRecord(raw) || !Array.isArray(raw.categories)) return [];
   return raw.categories
     .map(normalizeCategory)
     .filter((category): category is SuggestedCategory => category !== null);
 }
 
-function normalizeThemes(raw: unknown): SuggestedTheme[] {
+export function normalizeThemes(raw: unknown): SuggestedTheme[] {
   if (!isRecord(raw) || !Array.isArray(raw.themes)) return [];
   return raw.themes
     .map(normalizeTheme)
     .filter((theme): theme is SuggestedTheme => theme !== null);
 }
 
-export const SUGGESTED_CATEGORIES: SuggestedCategory[] = normalizeCategories(cellsData);
-export const SUGGESTED_THEMES: SuggestedTheme[] = normalizeThemes(themesData);
+/*
+  Suggestion content is brand-supplied — the categories a road-trip audience
+  wants are not the ones a meeting audience wants. Only the *content* varies:
+  the normalizer above, `appendCells` below, and everything the dialog does with
+  the result are identical in every brand.
+
+  Still bundled at build time, not fetched: the suggestions dialog works with no
+  network, which is the signed-out invariant this app is built around.
+*/
+export const SUGGESTED_CATEGORIES: SuggestedCategory[] = normalizeCategories(
+  brand.suggestions.cells,
+);
+export const SUGGESTED_THEMES: SuggestedTheme[] = normalizeThemes(brand.suggestions.themes);
 
 /**
  * Appends suggested cells to an existing entry pool as enabled, non-mandatory

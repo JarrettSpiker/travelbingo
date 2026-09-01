@@ -20,6 +20,7 @@ import {
   shouldFetchCard,
 } from "./lib/editorLoad";
 import type { CardUrlData } from "./lib/cardData";
+import { ROUTES } from "./lib/routes";
 
 interface EditorNavigationState {
   card?: CardUrlData;
@@ -153,7 +154,7 @@ export function AppRoutes() {
         />
       )}
       {/* Anything else lands on the editor rather than a dead end. */}
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<Navigate to={ROUTES.editor} replace />} />
     </Routes>
   );
 }

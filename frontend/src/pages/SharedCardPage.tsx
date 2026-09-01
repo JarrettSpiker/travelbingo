@@ -11,6 +11,8 @@ import { useAuth } from "@/auth/authContext";
 import { cardStateFrom } from "@/lib/cardState";
 import { createCard, resolveShare } from "@/lib/cardsApi";
 import type { CardUrlData } from "@/lib/cardData";
+import { ROUTES } from "@/lib/routes";
+import { brand } from "@/brand";
 
 export function SharedCardPage() {
   const { token } = useParams<{ token: string }>();
@@ -65,7 +67,7 @@ export function SharedCardPage() {
 
   function handleOpenInEditor() {
     if (!card) return;
-    void navigate("/", { state: { card } });
+    void navigate(ROUTES.editor, { state: { card } });
   }
 
   if (error) {
@@ -76,7 +78,7 @@ export function SharedCardPage() {
             <TriangleAlert />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
-          <Button onClick={() => void navigate("/")}>Make your own card</Button>
+          <Button onClick={() => void navigate(ROUTES.editor)}>Make your own card</Button>
         </div>
       </AppShell>
     );
@@ -100,7 +102,7 @@ export function SharedCardPage() {
       <div className="grid gap-4">
         <header className="grid gap-1">
           <h1 className="font-display text-2xl font-semibold">
-            {card.title || "A shared bingo card"}
+            {card.title || brand.copy.share.fallbackCardName}
           </h1>
           <p className="text-sm text-muted-foreground">
             Someone shared a copy of this card with you. It is yours — changes you make will not
@@ -132,7 +134,7 @@ export function SharedCardPage() {
           Same panel as the editor's preview, minus the perforated edge — that
           motif belongs to exactly one surface, and this is not it.
         */}
-        <div className="inline-block justify-self-start bg-paper p-4 shadow-postcard print:block print:bg-transparent print:p-0 print:shadow-none">
+        <div className="inline-block justify-self-start bg-paper p-4 shadow-raised print:block print:bg-transparent print:p-0 print:shadow-none">
           <CardGrid
             card={state.card}
             title={card.title}

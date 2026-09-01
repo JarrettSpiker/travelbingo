@@ -9,6 +9,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { useAuth } from "../auth/authContext";
 import { parseCallback } from "../lib/auth";
 import { clearPending, loadPending } from "../lib/authSession";
+import { ROUTES } from "@/lib/routes";
 
 /**
  * The registered OAuth redirect URI. It exists as its own route so the callback
@@ -70,7 +71,7 @@ export function AuthCallbackPage() {
             <TriangleAlert />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
-          <Button onClick={() => void navigate("/", { replace: true })}>
+          <Button onClick={() => void navigate(ROUTES.editor, { replace: true })}>
             Back to the card editor
           </Button>
         </div>

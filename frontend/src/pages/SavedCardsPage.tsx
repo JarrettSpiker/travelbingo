@@ -26,6 +26,7 @@ import { useAuth } from "@/auth/authContext";
 import { deleteCard, getCard, listCards, renameCard } from "@/lib/cardsApi";
 import { editorPathWithCard } from "@/lib/cardParam";
 import type { SavedCardSummary } from "@/lib/savedCard";
+import { ROUTES } from "@/lib/routes";
 
 export function SavedCardsPage() {
   const { api, status, signIn, accountsEnabled } = useAuth();
@@ -118,7 +119,7 @@ export function SavedCardsPage() {
             <Info />
             <AlertDescription>Accounts are not enabled in this build.</AlertDescription>
           </Alert>
-          <Button onClick={() => void navigate("/")}>Back to the card editor</Button>
+          <Button onClick={() => void navigate(ROUTES.editor)}>Back to the card editor</Button>
         </div>
       </AppShell>
     );
@@ -141,8 +142,8 @@ export function SavedCardsPage() {
           <h1 className="font-display text-2xl font-semibold">Saved cards</h1>
           <p className="text-sm text-muted-foreground">Sign in to see the cards you have saved.</p>
           <div className="flex gap-2">
-            <Button onClick={() => signIn("/cards")}>Sign in</Button>
-            <Button variant="ghost" onClick={() => void navigate("/")}>
+            <Button onClick={() => signIn(ROUTES.cards)}>Sign in</Button>
+            <Button variant="ghost" onClick={() => void navigate(ROUTES.editor)}>
               Back to the card editor
             </Button>
           </div>
@@ -156,7 +157,7 @@ export function SavedCardsPage() {
       <div className="grid gap-6">
         <div className="flex items-center justify-between gap-2">
           <h1 className="font-display text-2xl font-semibold">Saved cards</h1>
-          <Button variant="ghost" onClick={() => void navigate("/")}>
+          <Button variant="ghost" onClick={() => void navigate(ROUTES.editor)}>
             Back to the editor
           </Button>
         </div>
@@ -188,7 +189,7 @@ export function SavedCardsPage() {
             return (
               <li
                 key={card.cardId}
-                className="relative overflow-hidden rounded-lg border border-border bg-card shadow-postcard transition-transform focus-within:-translate-y-0.5 hover:-translate-y-0.5"
+                className="relative overflow-hidden rounded-lg border border-border bg-card shadow-raised transition-transform focus-within:-translate-y-0.5 hover:-translate-y-0.5"
               >
                 {/*
                   ONE click target, not two. This used to be a CardActionArea
@@ -265,7 +266,7 @@ export function SavedCardsPage() {
                       size="icon-sm"
                       aria-label={`Actions for ${card.title || "Untitled card"}`}
                       disabled={busy}
-                      className="absolute top-2 right-2 shadow-postcard"
+                      className="absolute top-2 right-2 shadow-raised"
                     >
                       <EllipsisVertical aria-hidden />
                     </Button>

@@ -1,24 +1,20 @@
 locals {
-  # table_name and function_name mirror the main config's local.resource_name,
-  # which equals the bucket name while name_prefix is empty. If name_prefix is
-  # ever set, these must be updated to match or the roles will be scoped to
-  # resources that do not exist.
+  # Derived per environment from `var.environments`. `table_name` and
+  # `function_name` mirror the main config's `local.resource_name`, which equals
+  # the bucket name while `name_prefix` is empty — the bucket name is the
+  # discriminator every other resource name falls out of, which is what lets a
+  # second brand be a second pair of entries here and no new Terraform anywhere.
+  # If `name_prefix` is ever set, these must be updated to match or the roles
+  # will be scoped to resources that do not exist.
   envs = {
-    dev = {
-      bucket                = var.dev_bucket_name
-      thumbnail_bucket_name = "${var.dev_bucket_name}-thumbnails"
-      workspace             = var.dev_workspace_name
-      role_suffix           = "dev"
-      table_name            = var.dev_bucket_name
-      function_name         = "${var.dev_bucket_name}-api"
-    }
-    prod = {
-      bucket                = var.prod_bucket_name
-      thumbnail_bucket_name = "${var.prod_bucket_name}-thumbnails"
-      workspace             = var.prod_workspace_name
-      role_suffix           = "prod"
-      table_name            = var.prod_bucket_name
-      function_name         = "${var.prod_bucket_name}-api"
+    for key, env in var.environments : key => {
+      bucket                = env.bucket
+      thumbnail_bucket_name = "${env.bucket}-thumbnails"
+      workspace             = env.workspace
+      role_name_prefix      = env.role_name_prefix
+      github_environment    = env.github_environment
+      table_name            = env.bucket
+      function_name         = "${env.bucket}-api"
     }
   }
 }
@@ -52,7 +48,7 @@ data "aws_iam_policy_document" "tfc_assume" {
 
 resource "aws_iam_role" "tfc" {
   for_each           = local.envs
-  name               = "travelbingo-tfc-${each.value.role_suffix}"
+  name               = "${each.value.role_name_prefix}-tfc-${each.key}"
   assume_role_policy = data.aws_iam_policy_document.tfc_assume[each.key].json
 }
 

@@ -1,0 +1,163 @@
+/*
+  The brand-independent half of the style layer: the structure that every brand
+  shares. The *values* live in `src/brand/<id>/theme.css`, selected at build
+  time by the `#brand-theme` alias; the motif *realizations* live in
+  `src/brand/<id>/motifs.css` behind `#brand-motifs`. See `src/index.css`.
+
+  What belongs here: the dark-mode variant, the `@theme inline` bridge, the base
+  page paint, third-party subtree theming, and the reduced-motion kill switch —
+  everything that is the same sentence in every brand.
+
+  What does NOT belong here: any brand-owned custom property. A `:root` block in
+  this file would be a token one brand can silently disagree with, and
+  `src/brand/tokens.contract.test.ts` fails the build if one appears. That
+  matters most right after `npx shadcn add`, which writes new `:root` tokens
+  into `src/index.css` — those must be moved into *every* brand's theme.css.
+*/
+
+/*
+  Dark mode is driven by an explicit attribute, not by `prefers-color-scheme`,
+  because the app offers a light/dark/system toggle and `system` is resolved to
+  a literal `light`/`dark` before it is written here. The consequence worth
+  knowing: dark mode is reachable in the review loop without touching an OS
+  setting. The consequence worth remembering: an attribute applies in EVERY
+  medium, including print — which is why `@media print` in App.css pins
+  `color-scheme` back to light.
+*/
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/*
+  The token bridge — the shared contract between components and brands.
+
+  `inline` is what makes the utilities resolve `var(--background)` at use time
+  rather than baking in the light value — without it, `bg-background` would be
+  frozen to whatever `:root` said and dark mode would do nothing.
+
+  Every `var(--x)` referenced below is a token every brand MUST declare, in both
+  `:root` and `[data-theme="dark"]`. `tokens.contract.test.ts` reads this file
+  as text to derive that list, so adding a line here is what obliges every brand
+  to supply the value — a token missing from one brand renders as *nothing*,
+  with no error anywhere, which is the failure this bridge-plus-guard exists to
+  turn into a red test.
+
+  The names are shadcn/ui's, verbatim, so `npx shadcn add` output works
+  unmodified. `--warning`, `--info`, `--brand-accent`, `--paper`, `--stamp`, and
+  `--shadow-raised` are additions: shadcn ships only `default`/`destructive`
+  alert variants where this app needs four severities, and the rest carry
+  whatever treatment the active brand gives them.
+
+  Deliberately absent: `--sidebar-*` and `--chart-*`. Nothing here has a sidebar
+  or a chart, and unused tokens are tokens that drift. Add them with the
+  component that needs them — in both brands.
+*/
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-brand-accent: var(--brand-accent);
+
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-paper: var(--paper);
+  --color-stamp: var(--stamp);
+
+  --shadow-raised: var(--shadow-raised);
+
+  /* shadcn's radius ladder, all derived from the single `--radius` knob. */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+/*
+  The page's base colour is painted on <html>, not on the shell component and
+  not on <body>.
+
+  - Not the shell, because the shell is React: on a cold load the bundle parses
+    for long enough that a dark-mode visitor would stare at a white page first.
+    A stylesheet paints before any of that.
+  - Not <body>, because MUI's CssBaseline owns body's background while both
+    systems are present, and would win. `theme.ts` tells CssBaseline to leave
+    body transparent so this shows through; that override disappears with MUI.
+
+  `@media print` in App.css resets this — a page background paints outside the
+  cascade that hides everything else, so it would otherwise reach the PDF.
+*/
+html {
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
+/*
+  Motion is decoration here — a hover lift, a fading popover, a spinner. None of
+  it carries meaning, so anyone who has asked for less of it can have none.
+
+  Not `motion-reduce:` variants on each component: that is a rule every future
+  component has to remember, and the failure is silent. `!important` because the
+  animation utilities it overrides are equally specific and come later.
+*/
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/*
+  `emoji-picker-react` cannot be shadcn-ified, and left alone it looks like a
+  widget from another app pasted into this one. It does expose its whole
+  palette as `--epr-*` custom properties, so mapping those onto the tokens gets
+  it most of the way there; its `theme` prop handles the rest and is driven from
+  `useResolvedColorMode` rather than from `prefers-color-scheme`, so it follows
+  the in-app toggle like everything else.
+
+  Brand-independent because it is a mapping, not a value: every `--epr-*` here
+  reads a token, so the picker follows whichever brand is built.
+
+  Not a `@utility`: these are plain custom properties for a third-party
+  subtree to inherit, not something you compose with other utilities.
+*/
+.emoji-picker-themed {
+  --epr-bg-color: var(--popover);
+  --epr-category-label-bg-color: var(--popover);
+  --epr-text-color: var(--popover-foreground);
+  --epr-hover-bg-color: var(--secondary);
+  --epr-focus-bg-color: var(--secondary);
+  --epr-highlight-color: var(--primary);
+  --epr-search-input-bg-color: var(--muted);
+  --epr-search-input-bg-color-active: var(--muted);
+  --epr-search-input-text-color: var(--foreground);
+  --epr-search-input-placeholder-color: var(--muted-foreground);
+  --epr-search-border-color: var(--ring);
+  --epr-picker-border-color: var(--border);
+  --epr-category-icon-active-color: var(--primary);
+  --epr-horizontal-padding: 0.75rem;
+  --epr-picker-border-radius: var(--radius);
+}

@@ -89,7 +89,7 @@ function ColorSwatchField({
             // and against a white card a white swatch needs the border to exist
             // at all, which is why the ring is on the wrapper, not the fill.
             className={cn(
-              "h-10 w-full rounded-md border border-border shadow-postcard transition-transform",
+              "h-10 w-full rounded-md border border-border shadow-raised transition-transform",
               "hover:-translate-y-0.5",
               "focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
             )}

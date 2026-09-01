@@ -20,6 +20,7 @@ import {
 } from "@/lib/notificationTypes";
 import { listTrips } from "@/lib/tripApi";
 import { MAX_DISPLAY_NAME_LENGTH, updateProfile } from "@/lib/profileApi";
+import { ROUTES } from "@/lib/routes";
 
 /**
  * Shown until the preferences fetch lands (and if it never does). Module-level
@@ -98,7 +99,7 @@ export function SettingsPage() {
             <Info />
             <AlertDescription>Accounts are not enabled in this build.</AlertDescription>
           </Alert>
-          <Button onClick={() => void navigate("/")}>Back to the card editor</Button>
+          <Button onClick={() => void navigate(ROUTES.editor)}>Back to the card editor</Button>
         </div>
       </AppShell>
     );
@@ -117,7 +118,7 @@ export function SettingsPage() {
   // A signed-out visitor cannot reach the settings page and must make zero
   // profile requests: redirect before rendering any settings surface.
   if (status === "anonymous") {
-    return <Navigate to="/" replace />;
+    return <Navigate to={ROUTES.editor} replace />;
   }
 
   const overLength = value.length > MAX_DISPLAY_NAME_LENGTH;
@@ -163,7 +164,7 @@ export function SettingsPage() {
       <div className="grid gap-6">
         <div className="flex items-center justify-between gap-2">
           <h1 className="font-display text-2xl font-semibold">Settings</h1>
-          <Button variant="ghost" onClick={() => void navigate("/")}>
+          <Button variant="ghost" onClick={() => void navigate(ROUTES.editor)}>
             Back to the editor
           </Button>
         </div>

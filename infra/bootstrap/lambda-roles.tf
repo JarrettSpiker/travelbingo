@@ -19,7 +19,7 @@ data "aws_iam_policy_document" "lambda_assume" {
 
 resource "aws_iam_role" "lambda" {
   for_each           = local.envs
-  name               = "travelbingo-lambda-${each.value.role_suffix}"
+  name               = "${each.value.role_name_prefix}-lambda-${each.key}"
   assume_role_policy = data.aws_iam_policy_document.lambda_assume.json
 }
 

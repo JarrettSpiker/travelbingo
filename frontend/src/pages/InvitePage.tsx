@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
-import { Compass, TriangleAlert } from "lucide-react";
+import { TriangleAlert } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { AuthMenu } from "@/components/AuthMenu";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -8,6 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { useAuth } from "@/auth/authContext";
 import { redeemInvite, resolveInvite } from "@/lib/tripApi";
+import { ROUTES } from "@/lib/routes";
+import { brand } from "@/brand";
+
+/* Capitalized so JSX reads it as a component; a build-time constant. */
+const TripIcon = brand.TripIcon;
 
 type Phase = "loading" | "not_found" | "ready" | "redeeming" | "done" | "error";
 
@@ -33,7 +38,8 @@ export function InvitePage() {
   const startedRedeem = useRef(false);
 
   // Resolve the invite once: the public call that works for anyone holding the
-  // token. A 404 here is "unknown, revoked, or trip deleted" — all identical.
+  // token. A 404 here is any of the reasons in `copy.trips.inviteInvalidReason`
+  // — all identical from here.
   useEffect(() => {
     let cancelled = false;
     void (async () => {
@@ -59,7 +65,7 @@ export function InvitePage() {
     void (async () => {
       try {
         const { tripId } = await redeemInvite(api, token, email);
-        navigate(`/trips/${tripId}`, { replace: true });
+        navigate(ROUTES.trip(tripId), { replace: true });
       } catch {
         setPhase("error");
       }
@@ -97,33 +103,36 @@ export function InvitePage() {
             <Alert variant="destructive">
               <TriangleAlert />
               <AlertDescription>
-                This invite is no longer valid. It may have been revoked, or the trip may be gone.
+                This invite is no longer valid. It may have been revoked, or the{" "}
+                {brand.copy.noun.trip} may be gone.
               </AlertDescription>
             </Alert>
-            <Button onClick={() => void navigate("/")}>Back to the card editor</Button>
+            <Button onClick={() => void navigate(ROUTES.editor)}>Back to the card editor</Button>
           </div>
         )}
 
         {(phase === "ready" || phase === "redeeming") && (
           <div className="grid justify-items-center gap-4 text-center">
             <span className="flex size-12 items-center justify-center rounded-full bg-secondary text-primary">
-              <Compass className="size-6" aria-hidden />
+              <TripIcon className="size-6" aria-hidden />
             </span>
             <div className="grid gap-1">
               <h1 className="font-display text-2xl font-semibold">You're invited</h1>
-              <p className="text-lg">{title ?? "a trip"}</p>
+              <p className="text-lg">{title ?? `a ${brand.copy.noun.trip}`}</p>
             </div>
 
             {phase === "redeeming" ? (
-              <Spinner label="Joining the trip" />
+              <Spinner label={`Joining the ${brand.copy.noun.trip}`} />
             ) : status === "authenticated" ? (
               <p className="text-sm text-muted-foreground">Joining…</p>
             ) : (
               <div className="grid gap-2">
-                <p className="text-sm text-muted-foreground">Sign in to join this trip.</p>
+                <p className="text-sm text-muted-foreground">
+                  Sign in to join this {brand.copy.noun.trip}.
+                </p>
                 <div className="flex justify-center gap-2">
                   <Button onClick={handleSignIn}>Sign in to join</Button>
-                  <Button variant="ghost" onClick={() => void navigate("/")}>
+                  <Button variant="ghost" onClick={() => void navigate(ROUTES.editor)}>
                     Maybe later
                   </Button>
                 </div>
@@ -136,9 +145,11 @@ export function InvitePage() {
           <div className="grid justify-items-start gap-4">
             <Alert variant="destructive">
               <TriangleAlert />
-              <AlertDescription>Could not join this trip. The invite may no longer be valid.</AlertDescription>
+              <AlertDescription>
+                Could not join this {brand.copy.noun.trip}. The invite may no longer be valid.
+              </AlertDescription>
             </Alert>
-            <Button onClick={() => void navigate("/trips")}>Back to trips</Button>
+            <Button onClick={() => void navigate(ROUTES.trips)}>Back to {brand.copy.noun.trips}</Button>
           </div>
         )}
       </div>

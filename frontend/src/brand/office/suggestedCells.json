@@ -1,0 +1,88 @@
+{
+  "categories": [
+    {
+      "id": "standup",
+      "label": "Standup",
+      "cells": [
+        "You're on mute",
+        "Sorry, go ahead",
+        "I'll keep this brief",
+        "Blocked on someone else",
+        "Same as yesterday",
+        "Let's take that offline",
+        "Quick question",
+        "Can everyone see my screen?",
+        "I have a hard stop at the top of the hour",
+        "Dog barks",
+        "Someone joins nine minutes late",
+        "This could have been an email",
+        "Just to piggyback on that",
+        "Ping me after",
+        "Circle back"
+      ]
+    },
+    {
+      "id": "all-hands",
+      "label": "All-Hands",
+      "cells": [
+        "Exciting journey",
+        "We're a family here",
+        "Record quarter",
+        "Doing more with less",
+        "Slide with a hockey stick chart",
+        "Any questions? Silence.",
+        "Our north star",
+        "Unprecedented headwinds",
+        "Realigning to our priorities",
+        "Someone forgets to stop sharing",
+        "Thanks for everything you do",
+        "Let's give a round of applause",
+        "The org chart appears",
+        "We're investing in AI",
+        "Values slide nobody reads"
+      ]
+    },
+    {
+      "id": "client-call",
+      "label": "Client Call",
+      "cells": [
+        "Let me share my screen",
+        "Great question",
+        "I'll have to check with the team",
+        "Table stakes",
+        "Low-hanging fruit",
+        "Move the needle",
+        "Let's not boil the ocean",
+        "Value add",
+        "Per my last email",
+        "Sounds good, send it over",
+        "Can you hear me now?",
+        "Awkward silence after a joke",
+        "We're aligned",
+        "Let's parking-lot that",
+        "Next steps and owners"
+      ]
+    },
+    {
+      "id": "performance-review",
+      "label": "Performance Review",
+      "cells": [
+        "Opportunities for growth",
+        "Exceeds expectations",
+        "Let's double-click on that",
+        "Where do you see yourself?",
+        "Feedback is a gift",
+        "Do you have the bandwidth?",
+        "Stretch assignment",
+        "Own your development",
+        "Compensation is a separate conversation",
+        "Socialize this with the team",
+        "Bring solutions, not problems",
+        "Levelling up",
+        "Wear more hats",
+        "Above and beyond",
+        "Let's revisit next cycle"
+      ]
+    }
+  ]
+}

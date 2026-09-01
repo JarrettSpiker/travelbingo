@@ -1,0 +1,175 @@
+/*
+  Travel Bingo's token values. Reached as `#brand-theme` — the alias
+  `vite.config.ts` points at the selected brand — so `src/index.css` never names
+  a brand and exactly one of these files reaches a build.
+
+  The token *names* are shared and live in `src/base.css`; only the values are
+  here. A token in the bridge that this file does not declare, in both
+  presentations, fails `src/brand/tokens.contract.test.ts`.
+
+  The look: sun-faded travel poster. Warm cream paper, terracotta ink, ocean
+  teal as the second voice. See `BRAND.md` in this directory for the reasoning
+  behind each choice, and `frontend/DESIGN.md` for the rules those choices obey.
+*/
+
+/*
+  App chrome only, and only for headings — one variable file. The five
+  @fontsource families in `main.tsx` are *card-content choices offered to the
+  user*; reusing one here would blur the line between "your card" and "the app",
+  which is the distinction this redesign exists to sharpen. Body text stays on
+  the system stack, which costs nothing to download.
+
+  Imported here rather than in `main.tsx` because it is a brand asset: a brand
+  that wants no chrome font downloads nothing simply by not importing one.
+*/
+@import "@fontsource-variable/outfit";
+
+/*
+  Light — the default, and what an unattributed document gets.
+*/
+:root {
+  color-scheme: light;
+
+  /* A warm cream page, not white. The card is white, so it has to sit ON
+     something — this one value carries most of the app's warmth. */
+  --background: oklch(0.975 0.012 85);
+  --foreground: oklch(0.24 0.02 70);
+
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.24 0.02 70);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.24 0.02 70);
+
+  /* Sun-faded terracotta — a vintage luggage tag. */
+  --primary: oklch(0.57 0.17 35);
+  --primary-foreground: oklch(0.99 0.008 85);
+
+  --secondary: oklch(0.94 0.018 80);
+  --secondary-foreground: oklch(0.32 0.03 60);
+
+  --muted: oklch(0.95 0.014 82);
+  --muted-foreground: oklch(0.52 0.025 70);
+
+  /*
+    `--accent` is shadcn's hover/active surface, NOT a brand colour: every
+    `ghost` and `outline` button and every menu item is `hover:bg-accent`. A
+    saturated value here turns each of them into a solid coloured block on
+    hover, which is exactly what happened when this held the teal below.
+    Keep it quiet — it is `--secondary` by another name, and deliberately so.
+    `--brand-accent` is the one that carries brand voice.
+  */
+  --accent: oklch(0.94 0.018 80);
+  --accent-foreground: oklch(0.32 0.03 60);
+
+  /*
+    Ocean teal — the travel-poster complement to terracotta, and the app's
+    second brand voice. Used sparingly and always by name: the background blot
+    and a success icon. Dark enough to read as text on the page.
+  */
+  --brand-accent: oklch(0.52 0.11 200);
+
+  /* Pushed to a deeper crimson than a default red so it cannot be mistaken for
+     the terracotta primary. Delete is the action this protects. */
+  --destructive: oklch(0.52 0.20 25);
+  --destructive-foreground: oklch(0.98 0.01 25);
+
+  --warning: oklch(0.72 0.15 75);
+  --warning-foreground: oklch(0.26 0.04 75);
+  --info: oklch(0.58 0.10 235);
+  --info-foreground: oklch(0.99 0.01 235);
+
+  --border: oklch(0.88 0.018 78);
+  --input: oklch(0.88 0.018 78);
+  --ring: oklch(0.57 0.17 35);
+
+  /* `--paper` is the raised surface the card preview sits on; `--stamp` is the
+     ink for passport-stamp chips and rules. */
+  --paper: oklch(0.99 0.01 85);
+  /* Dark enough to clear 4.5:1 as the chip's 12px lettering, not just as a rule. */
+  --stamp: oklch(0.50 0.13 30);
+
+  --radius: 0.75rem;
+
+  /* Two stops, low opacity, warm-tinted — never black. Depth here is this plus
+     a hairline border, not an elevation ladder. */
+  --shadow-raised:
+    0 1px 2px oklch(0.35 0.04 60 / 0.06),
+    0 8px 24px -6px oklch(0.35 0.04 60 / 0.14);
+}
+
+/*
+  Dark — warm-shifted ink navy, never pure black, and greys hue-shifted warm.
+  Neutral grey is what makes an app look like every other app.
+
+  Shadows all but vanish against a dark background, so `--border` is what
+  carries structure here. Check surface separation in dark before shipping a
+  new surface.
+
+  This block declares exactly the same token set as `:root` above — including
+  `--radius`, which is the same in both presentations and is restated anyway.
+  Parity is the whole invariant `tokens.contract.test.ts` checks, and an
+  exception list would be worth more confusion than the one duplicated line.
+*/
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --background: oklch(0.22 0.02 260);
+  --foreground: oklch(0.94 0.012 85);
+
+  --card: oklch(0.26 0.022 258);
+  --card-foreground: oklch(0.94 0.012 85);
+  --popover: oklch(0.26 0.022 258);
+  --popover-foreground: oklch(0.94 0.012 85);
+
+  /* Lifted from the light value: the same terracotta is too dark to read as a
+     fill against ink navy. */
+  --primary: oklch(0.70 0.15 38);
+  --primary-foreground: oklch(0.20 0.03 40);
+
+  --secondary: oklch(0.31 0.022 255);
+  --secondary-foreground: oklch(0.92 0.012 85);
+
+  --muted: oklch(0.30 0.02 258);
+  --muted-foreground: oklch(0.72 0.02 80);
+
+  --accent: oklch(0.31 0.022 255);
+  --accent-foreground: oklch(0.92 0.012 85);
+
+  --brand-accent: oklch(0.72 0.10 200);
+
+  /*
+    Lifted well past the light value. Destructive is used as *text* here — the
+    ghost delete button and the destructive alert — and at oklch(0.58) it read
+    at 3.3:1 against a dark panel. The foreground flips to ink so a solid fill
+    still works if one is ever needed.
+  */
+  --destructive: oklch(0.70 0.17 25);
+  --destructive-foreground: oklch(0.20 0.03 25);
+
+  --warning: oklch(0.78 0.14 78);
+  --warning-foreground: oklch(0.22 0.04 75);
+  --info: oklch(0.68 0.10 235);
+  --info-foreground: oklch(0.16 0.03 235);
+
+  --border: oklch(0.34 0.022 256);
+  --input: oklch(0.34 0.022 256);
+  --ring: oklch(0.70 0.15 38);
+
+  --paper: oklch(0.28 0.022 258);
+  --stamp: oklch(0.72 0.12 32);
+
+  --radius: 0.75rem;
+
+  --shadow-raised:
+    0 1px 2px oklch(0.12 0.02 260 / 0.5),
+    0 8px 24px -6px oklch(0.12 0.02 260 / 0.6);
+}
+
+/*
+  Not `inline`: this is a literal, not a reference to a token above, so Tailwind
+  can emit `font-display` directly. The bridge in `base.css` carries only the
+  values that must be resolved at use time for dark mode to work.
+*/
+@theme {
+  --font-display: "Outfit Variable", ui-sans-serif, system-ui, sans-serif;
+}

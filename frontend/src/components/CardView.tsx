@@ -114,7 +114,7 @@ export function CardView({
       {/*
         The card preview panel — and the single surface allowed the perforated
         postcard edge (DESIGN.md's one-motif-per-surface rule). Nothing else in
-        the app gets `edge-perf`.
+        the app gets `panel-edge`.
 
         Every `print:` reset here is load-bearing. This element is an ancestor of
         `.bingo-card`, so the print isolation deliberately keeps it — and its
@@ -132,7 +132,7 @@ export function CardView({
         also makes the PNG export a constant size. `max-w-full` so a 390px screen
         still wins. The 2rem is this element's own `p-4`, both sides.
       */}
-      <div className="edge-perf w-[calc(420px+2rem)] max-w-full bg-paper p-4 shadow-postcard print:w-auto print:bg-transparent print:p-0 print:shadow-none print:[mask-image:none]">
+      <div className="panel-edge w-[calc(420px+2rem)] max-w-full bg-paper p-4 shadow-raised print:w-auto print:bg-transparent print:p-0 print:shadow-none print:[mask-image:none]">
         <CardGrid
           ref={cardRef}
           card={card}

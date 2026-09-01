@@ -1,0 +1,10 @@
+{
+  "name": "Office Lingo Bingo",
+  "title": "Office Lingo Bingo — bingo cards for meetings",
+  "description": "Make and print bingo cards for your next meeting. Type the jargon, pick a look, print or share — no account needed.",
+  "themeColorLight": "#f5f7f9",
+  "themeColorDark": "#15191e",
+  "markHex": "#1762b6",
+  "markFgHex": "#fafcfe",
+  "faviconPath": "/favicon-office.svg"
+}

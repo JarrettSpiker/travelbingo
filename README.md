@@ -38,6 +38,14 @@ npm run dev
 
 Then open the printed local URL (typically http://localhost:5173). The dev server supports hot module reloading, so saved changes appear in the browser automatically. Stop it with `Ctrl+C`.
 
+The dev server serves the **Travel Bingo** brand by default. The same codebase ships a second brand, selected at build time:
+
+```bash
+VITE_BRAND=office npm run dev     # Office Lingo Bingo
+```
+
+`VITE_BRAND` is optional for `npm run dev` and **required** for `npm run build` — a fresh clone still runs, while a misconfigured CI job fails loudly instead of publishing one brand's assets to the other's bucket. Everything about a card — how it is generated, printed, exported, shared, and stored — is identical in both; only the palette, the motifs, the wording, and the suggestion content differ. See `frontend/DESIGN.md` and `frontend/src/brand/<id>/BRAND.md`.
+
 The card editor works fully with no further setup. **Account features are off unless you configure them**, which is deliberate — a missing configuration hides the account UI rather than breaking the app. To enable them locally, create `frontend/.env.local` (already gitignored):
 
 ```
@@ -46,6 +54,8 @@ VITE_COGNITO_CLIENT_ID=<the dev SPA client id>
 VITE_APP_ORIGIN=http://localhost:5173
 VITE_API_TARGET=https://dev.travelbingo.ca
 ```
+
+Those values are the **travel** dev stack's. The two brands are separate stacks with no shared state — separate pools, tables, APIs, and accounts — so working against office dev means the office values and `VITE_BRAND=office`.
 
 The first three come from the dev Terraform outputs (`cognito_domain`, `cognito_user_pool_client_id`). `VITE_API_TARGET` points the dev server's `/api` proxy at a deployed environment, so the API stays same-origin exactly as it is in production.
 

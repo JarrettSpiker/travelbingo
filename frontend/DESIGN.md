@@ -2,6 +2,19 @@
 
 How UI work in this app gets reviewed, and the rules it conforms to.
 
+**This document holds the rules; each brand's own values live beside it.** The
+app ships as more than one brand — one is selected at build time by
+`VITE_BRAND` — so what a token is *for* is shared and what colour it *is* is
+not. Token roles, the motif slots, the spacing and type scales, depth, focus,
+the frozen renderer, and the export checklist are here. Palettes, typefaces, and
+each brand's realization of each motif are in `src/brand/<id>/BRAND.md`:
+
+- `src/brand/travel/BRAND.md` — Travel Bingo
+- `src/brand/office/BRAND.md` — Office Lingo Bingo
+
+Neither restates the other. This one stays a document about a system; each of
+those stays a document about a look.
+
 This document exists because the app has **no component tests** — no jsdom, no
 Testing Library, no Playwright. That is deliberate (`AGENTS.md` pushes logic into
 `src/lib/` precisely so it can be tested without a DOM), but it means nothing
@@ -13,8 +26,14 @@ mechanical checks what the app *looks* like. Looking at it is the check.
 
 ```bash
 cd frontend
-npm run dev          # http://localhost:5173
+npm run dev                       # http://localhost:5173, travel brand
+VITE_BRAND=office npm run dev     # the same app as Office Lingo Bingo
 ```
+
+`VITE_BRAND` is optional for the dev server and **required** for `vite build` —
+a fresh clone with no `.env.local` still runs, while a misconfigured CI job
+fails instead of shipping one brand's assets to another brand's bucket. The dev
+default is `travel`.
 
 Port **5173 is load-bearing**: Cognito's redirect URI is registered as exactly
 `http://localhost:5173/auth/callback`. `vite.config.ts` sets `strictPort`, so a
@@ -48,7 +67,15 @@ Two things the gallery does **not** cover, which need their own pass:
 npm run capture -- /            # the editor
 npm run capture -- /ui          # the gallery
 npm run capture -- / --pdf      # also print to PDF, Letter and A4
+
+VITE_BRAND=office npm run capture -- /   # against an office dev server
 ```
+
+**Pass `VITE_BRAND` to `capture` to match the server you started it against.**
+It goes in the output filename (`office-root-1440-light.png`), so one brand's
+captures cannot silently overwrite the other's — which matters because the two
+are meant to be compared, and the failure mode is a reviewer looking at one
+brand twice and concluding they agree.
 
 `scripts/capture.mjs` drives headless Chrome over the DevTools Protocol using
 only Node built-ins — no Playwright, no Puppeteer, no browser extension. Chrome
@@ -86,8 +113,15 @@ baseline. Keep a copy outside the repo when you need a before/after comparison.
 
 ### 4. Compare against intent, then iterate
 
-Compare what you see against what this document and the change's spec say it
-should be — not against a vibe. Edit, let HMR reload, look again.
+Compare what you see against what this document, the brand's `BRAND.md`, and
+the change's spec say it should be — not against a vibe. Edit, let HMR reload,
+look again.
+
+**Review every brand the change can affect.** A change to `src/brand/<id>/` is
+that brand's alone, and the others need only be confirmed unchanged. Anything
+else — a component, `base.css`, a shared utility — affects all of them, and the
+matrix doubles. Nothing mechanical catches "this brand's disabled button fails
+contrast against its own secondary"; the guards catch *structural* drift only.
 
 **Cap it at about three passes per component.** Beyond that you are thrashing
 rather than converging; step back and decide what "right" actually means before
@@ -113,37 +147,57 @@ table. Cards you save are real dev rows and deleting them really deletes them.
 
 ## The visual language
 
-Everything below lives in `src/index.css`. Components consume tokens; **no
-component carries a raw hex value**, and `npm run build` is not what catches
-that — a reviewer is.
+The style layer is split. `src/base.css` holds what every brand shares — the
+dark variant, the `@theme inline` token bridge that *names* every token, the
+base page paint, the reduced-motion rule. `src/brand/<id>/theme.css` holds one
+brand's values for those names, and `src/index.css` is imports only.
+
+Components consume tokens; **no component carries a raw hex value**, and `npm
+run build` is not what catches that — a reviewer is.
 
 ### Colour tokens
 
 The names are shadcn/ui's, verbatim, so `npx shadcn add` output works
 unmodified. See them rendered in both presentations at `/ui`, first section.
 
-| Token | Light | Dark | Use it for |
-| --- | --- | --- | --- |
-| `--background` | warm cream | ink navy | The page. Deliberately **not** white — the card is white and has to sit *on* something. This one value carries most of the warmth. |
-| `--foreground` | warm near-black | warm off-white | Body text. |
-| `--card` | white | raised navy | Panels and any raised surface. |
-| `--popover` | white | raised navy | Popovers, dropdowns, dialogs. Same value as `--card` today; separate because they will diverge if a panel ever gains a tint. |
-| `--primary` | terracotta | lifted terracotta | The main action, the wordmark, one accent per screen. Dark lifts it because the light value is too dark to read as a fill on navy. |
-| `--secondary` | warm sand | slate | Quiet fills: hover states, icon chips, secondary buttons. |
-| `--muted` / `--muted-foreground` | warm greys | warm greys | Helper text, captions, placeholder fills. Hue-shifted to 60–80°; neutral grey is what makes an app look like every other app. |
-| `--accent` | ocean teal | lifted teal | The travel-poster complement to terracotta. Sparingly — it is a second voice, not a second primary. |
-| `--destructive` | deep crimson | lifted crimson | Delete and revoke, **only**. |
-| `--warning` / `--info` | amber / mid blue | lifted | Alert severities. MUI had four and shadcn ships two; these are the additions. |
-| `--border` / `--input` | hairline | hairline | Every surface edge. In dark this is what carries structure — see Depth. |
-| `--ring` | terracotta | lifted terracotta | Focus. Never remove it; see Focus. |
-| `--paper` | near-white | raised navy | The card preview panel only. |
-| `--stamp` | muted terracotta | lifted | Ink for passport-stamp chips — a border and letter colour, never a fill. |
+The table below is what each token is **for**. What each one *is* depends on the
+brand — see that brand's `BRAND.md`. Every brand must define every token in both
+presentations; `src/brand/tokens.contract.test.ts` fails the build otherwise,
+because a token missing from one brand renders as *nothing*, with no error
+anywhere.
 
-⚠️ **`--destructive` and `--primary` are close in hue.** Terracotta and crimson
-are confusable at a glance, which matters when the destructive action is "delete
-a saved card". Two mitigations, both in place, both worth keeping: crimson is
-pushed deeper and higher-chroma than a default red, and **destructive actions use
-a ghost/outline treatment**, never a solid fill beside a solid primary.
+| Token | Use it for |
+| --- | --- |
+| `--background` | The page. Deliberately **not** white — the card is white and has to sit *on* something. This one value carries most of a brand's character. |
+| `--foreground` | Body text. |
+| `--card` | Panels and any raised surface. |
+| `--popover` | Popovers, dropdowns, dialogs. Same value as `--card` in both brands today; separate because they will diverge if a panel ever gains a tint. |
+| `--primary` | The main action, the wordmark, one accent per screen. Dark generally lifts it — a light-mode fill colour is usually too dark to read against a dark page. |
+| `--secondary` | Quiet fills: hover states, icon chips, secondary buttons. |
+| `--muted` / `--muted-foreground` | Helper text, captions, placeholder fills. Hue-shifted, never neutral — neutral grey is what makes an app look like every other app. Which *way* it shifts is the brand's call, and it is the single strongest signal of one. |
+| `--accent` | shadcn's hover/active surface, **not** a brand colour. Every `ghost` and `outline` button and every menu item is `hover:bg-accent`; a saturated value turns each into a solid block on hover. Keep it quiet. |
+| `--brand-accent` | The second voice. Sparingly, and always by name — a background wash and a success icon, not a second primary. |
+| `--destructive` | Delete and revoke, **only**. |
+| `--warning` / `--info` | Alert severities. shadcn ships two variants where this app needs four; these are the additions. |
+| `--border` / `--input` | Every surface edge. In dark this is what carries structure — see Depth. |
+| `--ring` | Focus. Never remove it; see Focus. |
+| `--paper` | The card preview panel only. |
+| `--stamp` | Ink for the selectable chip — a border and letter colour, never a fill. Must clear 4.5:1: it is 12px lettering, not just a rule. |
+| `--radius` | The one corner-radius knob; shadcn's `sm`/`md`/`lg`/`xl` ladder derives from it. |
+| `--shadow-raised` | Depth. See Depth. |
+
+⚠️ **Some pairs must stay distinguishable, and which pairs those are changes
+per brand.** The user has to tell the primary action from the destructive one at
+a glance; wherever two tokens carry meanings that must not be confused, the pair
+has to be **re-derived against that brand's own values**, in both presentations,
+never inherited. The token guard checks presence, never value, so this is a
+human check — once per brand, on the chip and alert surfaces specifically.
+
+Both brands have hit this, and differently. Travel's terracotta `--primary`
+sits close to its crimson `--destructive`. Office's blue primary retires that
+collision and creates two more: a red stamp against a red destructive, and an
+info blue against a primary blue. See each `BRAND.md` for what was done about
+it.
 
 ### Spacing
 
@@ -187,8 +241,8 @@ the app as ours.
 
 Two devices, not an elevation ladder:
 
-1. `shadow-postcard` — warm-tinted, two-stop, low opacity. Warm shadows, never
-   black.
+1. `--shadow-raised` — low opacity, tinted toward the brand's own hue rather
+   than black. Never pure black.
 2. A 1px `--border` hairline on **every** surface.
 
 **Never ship a surface with only a shadow.** Shadows all but vanish against the
@@ -203,7 +257,7 @@ bare `svg` children automatically — pass a class only to override.
 ### Motion
 
 150–200ms, ease-out, and only on hover/open transitions. Nothing in this app
-animates to convey meaning, which is why `index.css` disables all of it under
+animates to convey meaning, which is why `base.css` disables all of it under
 `prefers-reduced-motion: reduce` globally rather than per component — a rule
 every future component must remember is a rule that will be forgotten.
 
@@ -214,22 +268,31 @@ The shadcn primitives do this already; anything hand-rolled — the colour
 swatches, the saved-card open button, the header links — must opt in explicitly.
 Tab through a screen before calling it done.
 
-## The travel motif inventory
+## The motif slots
 
-The theme is carried by five devices. Each is fine alone and kitsch in
+Character is carried by five devices. Each is fine alone and kitsch in
 combination, so the rule is **at most one per surface**:
 
-| Motif | Its one surface |
+| Slot | Its one surface |
 | --- | --- |
-| Layered background — wash, map graticule, two colour blots | The page, via `AppShell`. |
-| Luggage-tag pin mark | The header wordmark. |
-| Perforated postcard edge (`edge-perf`) | The card preview panel in `CardView`. Nothing else. |
-| Passport-stamp chips (`ui/chip.tsx`) | Theme presets and suggestion toggles. |
-| Warm-tinted shadow (`shadow-postcard`) | Any raised surface — the one device that is allowed everywhere, because it reads as depth rather than as decoration. |
+| Page texture (`bg-page-texture`) | The page, via `AppShell` — with the wash and the colour blot. |
+| Wordmark mark (`brand.MarkIcon`) | The header wordmark. |
+| Panel edge (`panel-edge`) | The card preview panel in `CardView`. Nothing else. |
+| Selectable chip (`--stamp`, via `ui/chip.tsx`) | Theme presets and suggestion toggles. |
+| Raised surface (`--shadow-raised`) | Any raised surface — the one device allowed everywhere, because it reads as depth rather than as decoration. |
 
 If you are reaching for a second motif on a surface that already has one, the
 answer is no. This is the failure mode a themed redesign actually has: not too
 little character, but too much of it in one place.
+
+**These are slots, not pictures.** Each is named for the job it does, so a
+component never asks for something a second brand has no answer to — `panel-edge`
+rather than `edge-perf`, `--shadow-raised` rather than `--shadow-postcard`.
+Every brand must fill **every** slot, including filling one with a stated
+nothing (`@utility panel-edge { mask-image: none; }`) rather than an absence, so
+`tokens.contract.test.ts` can tell "deliberately empty" from "forgotten".
+
+What each brand puts in each slot is in its `BRAND.md`.
 
 ## Which component for which job
 

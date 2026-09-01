@@ -1,0 +1,41 @@
+<!--
+  Office Lingo Bingo's mark: the same corporate blue tile and lucide
+  "trending-up" glyph the header wordmark uses, so a pinned tab and the page it
+  opens agree. The hockey-stick growth chart, because of course it is.
+
+  Hex rather than tokens on purpose. This file is served as a static asset from
+  public/ and never sees the app's stylesheet, so it cannot read a CSS custom
+  property. The values are the primary / primary-foreground pair from
+  src/brand/office/theme.css resolved to sRGB. They are declared in
+  src/brand/office/meta.json as markHex / markFgHex, and
+  src/brand/meta.contract.test.ts asserts this file still contains both — so
+  moving the palette without moving this file is a test failure, not a surprise
+  in someone's tab strip.
+
+  Squarer corners than the travel mark (rx 10 against 15), matching this
+  brand's tighter radius token.
+
+  Sized for a 16px tab: the glyph fills ~62% of the tile rather than the ~57% it
+  takes in the header, because at favicon scale the padding is what disappears
+  first.
+
+  (Note for editors: XML forbids a double hyphen inside a comment, so avoid
+  writing CSS custom property names here. A malformed favicon still serves with
+  a 200 and an image/svg+xml type; it simply renders as a broken image.)
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="10" fill="#1762b6"/>
+  <!--
+    lucide trending-up, authored on a 24x24 grid. Scaled by 1.65 and centred:
+    (64 - 24 * 1.65) / 2 = 12.2. The transform scales the stroke along with the
+    path, so this is lucide's own weight expressed on lucide's own grid: 2.4
+    against its default 2, deliberately heavier because the thing renders at
+    16px more often than at 64 and a hairline is the first casualty.
+  -->
+  <g transform="translate(12.2 12.2) scale(1.65)"
+     fill="none" stroke="#fafcfe" stroke-width="2.4"
+     stroke-linecap="round" stroke-linejoin="round">
+    <path d="M16 7h6v6"/>
+    <path d="m22 7-8.5 8.5-5-5L2 17"/>
+  </g>
+</svg>

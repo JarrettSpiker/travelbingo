@@ -1,0 +1,10 @@
+{
+  "name": "Travel Bingo",
+  "title": "Travel Bingo — printable bingo cards for the road",
+  "description": "Make and print your own travel bingo cards. Type your entries, pick a look, print or share — no account needed.",
+  "themeColorLight": "#faf6ee",
+  "themeColorDark": "#151b24",
+  "markHex": "#c74726",
+  "markFgHex": "#fefbf6",
+  "faviconPath": "/favicon-travel.svg"
+}

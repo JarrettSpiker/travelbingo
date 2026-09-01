@@ -39,8 +39,32 @@ jobs:
       - name: Test
         run: npm test
 
-      - name: Build
-        run: npm run build
+      # Every brand, not just the default one.
+      #
+      # A build exercises only the selected brand's CSS graph, copy, and
+      # suggestion data, so a brand that is never built here is never built at
+      # all until someone deploys it. That was the pre-brand-seam status quo —
+      # lint/test/build ran only on the deploy path — and it is exactly the gap
+      # that would let a broken office brand reach production first.
+      #
+      # A loop rather than a `strategy: matrix` for two reasons. The brand list
+      # comes off disk, so it cannot drift from `src/brand/` the way a fourth
+      # hardcoded copy would (`brand.contract.test.ts` ties that directory to
+      # both the registry and `vite.config.ts`'s BRAND_IDS). And the job keeps
+      # the single name `frontend`: a matrix would rename the check to
+      # `frontend (travel)`, so every added brand would need the required-check
+      # list in branch protection updated in the same change or merges would
+      # block on a check that no longer exists.
+      - name: Build every brand
+        run: |
+          set -euo pipefail
+          brands=$(ls -d src/brand/*/ | xargs -n1 basename)
+          echo "Brands: $(echo "$brands" | tr '\n' ' ')"
+          for brand in $brands; do
+            echo "::group::build $brand"
+            VITE_BRAND="$brand" npm run build
+            echo "::endgroup::"
+          done
 
   backend:
     name: backend

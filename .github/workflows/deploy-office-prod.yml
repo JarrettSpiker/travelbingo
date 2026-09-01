@@ -1,0 +1,37 @@
+name: deploy-office-prod
+
+# Deploys the Office Lingo Bingo prod frontend via a manual, review-gated run.
+# The `office-prod` GitHub Environment should have required reviewers
+# configured. Infrastructure for office prod is applied separately by HCP
+# Terraform (workspace `officelingobingo-prod`, manual apply).
+#
+# See deploy-office-dev.yml for why each brand and environment gets its own
+# caller file rather than a matrix.
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+# Its own group: approving a travel production deploy must not hold up an
+# office one, or vice versa.
+concurrency:
+  group: deploy-office-prod
+  cancel-in-progress: false
+
+jobs:
+  backend:
+    name: Deploy office prod backend
+    uses: ./.github/workflows/_deploy-backend.yml
+    with:
+      environment: office-prod
+
+  prod:
+    name: Deploy office prod
+    # The frontend calls the API, so the API is updated first. A failed backend
+    # deploy stops the frontend rather than half-deploying the environment.
+    needs: backend
+    uses: ./.github/workflows/_deploy.yml
+    with:
+      environment: office-prod

@@ -52,12 +52,33 @@ Only `hcp_organization_name` is required (defaults: `github_org=JarrettSpiker`,
 
 After it completes, capture the role ARNs from the outputs:
 
-- `tfc_role_arns.dev` / `tfc_role_arns.prod` → HCP workspace dynamic provider
-  credentials (`TFC_AWS_RUN_ROLE_ARN`).
-- `gha_role_arns.dev` / `gha_role_arns.prod` → GitHub Environment variable
-  `AWS_ROLE_ARN` for the `dev` / `prod` environments.
-- `lambda_execution_role_arns.dev` / `.prod` → HCP workspace variable
-  `lambda_execution_role_arn` on `travelbingo-dev` / `travelbingo-prod`.
+- `tfc_role_arns.<key>` → HCP workspace dynamic provider credentials
+  (`TFC_AWS_RUN_ROLE_ARN`).
+- `gha_role_arns.<key>` → GitHub Environment variable `AWS_ROLE_ARN` on the
+  matching environment.
+- `lambda_execution_role_arns.<key>` → HCP workspace variable
+  `lambda_execution_role_arn`.
+
+…for each of the four keys: `dev`, `prod`, `office-dev`, `office-prod`.
+
+## The `environments` map
+
+Every environment is one entry in `var.environments`. Adding a brand is two
+entries and nothing else.
+
+⚠️ **The map keys are part of the IAM role address.** `for_each` keys appear in
+the resource address (`aws_iam_role.tfc["dev"]`), so renaming one destroys and
+recreates the role — and the existing ARNs are already pasted into HCP and
+GitHub configuration, so a recreate breaks every running deploy. This is why the
+travel entries are keyed `dev` and `prod` rather than `travel-dev` and
+`travel-prod`, and why **adding a brand must show a plan of additions only.**
+Check that before applying.
+
+`github_environment` is an explicit field rather than a reuse of the key, even
+though the two are equal for every entry today. They were previously equal by
+coincidence — the GitHub OIDC subject came from the key while role names came
+from a separate suffix — and an entry where they diverged would produce a role
+nothing can assume, with no error until a deploy fails at the assume step.
 
 ## Re-run
 

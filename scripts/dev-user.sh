@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# Create and authenticate test users in the dev Cognito pool, without needing a
-# Google account per identity.
+# Create and authenticate test users in a brand's Cognito pool, without needing
+# a Google account per identity.
 #
 # Why this exists: the pool federates to Google only, so every test identity
 # would otherwise cost a real, separate Google account. Gmail plus-aliases do
@@ -22,6 +22,17 @@
 #   scripts/dev-user.sh list                     # list test users in the pool
 #   scripts/dev-user.sh delete <email>           # remove the Cognito user
 #
+# The pool is per brand AND per environment, because brand isolation IS stack
+# isolation — there is no shared account between the two sites. Select one with
+# BRAND (default: travel) and ENV_NAME (default: dev):
+#
+#   BRAND=office scripts/dev-user.sh token alice
+#   BRAND=office ENV_NAME=prod scripts/dev-user.sh list
+#
+# A token minted here authenticates against that brand's API and no other. If a
+# request 401s, check which pool you drew the token from before anything else —
+# it is the likeliest cause and it looks nothing like the cause.
+#
 # Emails default to the @example.com domain, which is reserved by RFC 2606 and
 # can never be a real Google account. That matters: Cognito does not link a
 # native user to a federated one sharing an address, so a test user on a real
@@ -32,9 +43,28 @@
 
 set -euo pipefail
 
+BRAND="${BRAND:-travel}"
 ENV_NAME="${ENV_NAME:-dev}"
-POOL_NAME="${POOL_NAME:-travelbingo-${ENV_NAME}}"
-CLIENT_NAME="${CLIENT_NAME:-travelbingo-${ENV_NAME}-spa}"
+
+# Every resource name in a stack derives from its bucket name, and the Cognito
+# pool is one of them — so naming the stack is enough to find the pool. Keep
+# this table in step with the `environments` map in infra/bootstrap/variables.tf
+# and with each workspace's `bucket_name`.
+case "${BRAND}" in
+  travel) STACK_NAME="travelbingo-${ENV_NAME}";      APEX="travelbingo.ca";       STORAGE_PREFIX_DEFAULT="travelbingo" ;;
+  office) STACK_NAME="officelingobingo-${ENV_NAME}"; APEX="officelingobingo.com"; STORAGE_PREFIX_DEFAULT="officelingobingo" ;;
+  *)      echo "error: BRAND must be 'travel' or 'office' (got '${BRAND}')" >&2; exit 1 ;;
+esac
+
+case "${ENV_NAME}" in
+  dev)  SITE_HOST="dev.${APEX}" ;;
+  prod) SITE_HOST="${APEX}" ;;
+  *)    echo "error: ENV_NAME must be 'dev' or 'prod' (got '${ENV_NAME}')" >&2; exit 1 ;;
+esac
+
+POOL_NAME="${POOL_NAME:-${STACK_NAME}}"
+CLIENT_NAME="${CLIENT_NAME:-${STACK_NAME}-spa}"
+STORAGE_PREFIX="${STORAGE_PREFIX:-${STORAGE_PREFIX_DEFAULT}}"
 DEFAULT_DOMAIN="${DEFAULT_DOMAIN:-example.com}"
 
 die() {
@@ -49,7 +79,7 @@ resolve_ids() {
     --query "UserPools[?Name=='${POOL_NAME}'].Id | [0]" --output text)}"
 
   if [[ -z "${POOL_ID}" || "${POOL_ID}" == "None" ]]; then
-    die "no Cognito user pool named '${POOL_NAME}'. Has the ${ENV_NAME} infrastructure been applied?"
+    die "no Cognito user pool named '${POOL_NAME}'. Has the ${BRAND} ${ENV_NAME} infrastructure been applied?"
   fi
 
   CLIENT_ID="${CLIENT_ID:-$(aws cognito-idp list-user-pool-clients --user-pool-id "${POOL_ID}" --max-results 60 \
@@ -138,17 +168,21 @@ cmd_token() {
 
   cat <<EOF
 
-user: ${email}
+user: ${email}   (${BRAND} ${ENV_NAME})
 
 # --- curl ---------------------------------------------------------------
 export TOKEN='${access}'
-curl -s -H "Authorization: Bearer \$TOKEN" https://dev.travelbingo.ca/api/cards
+curl -s -H "Authorization: Bearer \$TOKEN" https://${SITE_HOST}/api/cards
 
 # --- browser ------------------------------------------------------------
 # Paste into the devtools console on http://localhost:5173 or
-# https://dev.travelbingo.ca, then reload. The app refreshes this into a live
+# https://${SITE_HOST}, then reload. The app refreshes this into a live
 # session on load, so no sign-in screen is involved.
-localStorage.setItem('travelbingo.session', JSON.stringify({refreshToken:'${refresh}',email:'${email}'}))
+#
+# The storage key is namespaced per brand, so use the one below rather than the
+# other site's — and note that a localhost dev server keys by whichever brand
+# it was started with (VITE_BRAND).
+localStorage.setItem('${STORAGE_PREFIX}.session', JSON.stringify({refreshToken:'${refresh}',email:'${email}'}))
 
 EOF
 }
@@ -170,7 +204,7 @@ cmd_delete() {
   # `sub` is the DynamoDB partition key, so the account is gone but everything
   # it wrote is not. Say so rather than implying a clean removal.
   echo "deleted ${email} from Cognito."
-  echo "note: their saved cards remain in the ${ENV_NAME} table, now unreachable." >&2
+  echo "note: their saved cards remain in the ${STACK_NAME} table, now unreachable." >&2
 }
 
 case "${1:-}" in
