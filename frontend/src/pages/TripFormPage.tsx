@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router";
-import { Compass, TriangleAlert } from "lucide-react";
+import { TriangleAlert } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { AuthMenu } from "@/components/AuthMenu";
 import { Panel } from "@/components/Panel";
@@ -21,6 +21,11 @@ import { useAuth } from "@/auth/authContext";
 import { createTrip, getTrip, updateTrip } from "@/lib/tripApi";
 import { markableSlots, squaresFromWin, DEFAULT_WIN_CONDITION, type WinCondition } from "@/lib/winCondition";
 import type { TripCard, TripMode } from "@/lib/tripTypes";
+import { ROUTES } from "@/lib/routes";
+import { brand } from "@/brand";
+
+/* Capitalized so JSX reads it as a component; a build-time constant. */
+const TripIcon = brand.TripIcon;
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -107,14 +112,14 @@ export function TripFormPage() {
   if (!accountsEnabled || status === "anonymous") {
     // Account-only: signed-out visitors never reach the form and make zero
     // trip requests. SettingsPage handles the same gate the same way.
-    return <Navigate to="/trips" replace />;
+    return <Navigate to={ROUTES.trips} replace />;
   }
 
   if (status === "loading" || loading) {
     return (
       <AppShell size="narrow" headerActions={<AuthMenu />}>
         <div className="flex justify-center py-12">
-          <Spinner label={isEdit ? "Loading trip" : "Starting"} />
+          <Spinner label={isEdit ? `Loading ${brand.copy.noun.trip}` : "Starting"} />
         </div>
       </AppShell>
     );
@@ -126,9 +131,9 @@ export function TripFormPage() {
         <div className="grid justify-items-start gap-4">
           <Alert variant="destructive">
             <TriangleAlert />
-            <AlertDescription>That trip could not be found.</AlertDescription>
+            <AlertDescription>That {brand.copy.noun.trip} could not be found.</AlertDescription>
           </Alert>
-          <Button onClick={() => void navigate("/trips")}>Back to trips</Button>
+          <Button onClick={() => void navigate(ROUTES.trips)}>Back to {brand.copy.noun.trips}</Button>
         </div>
       </AppShell>
     );
@@ -137,13 +142,13 @@ export function TripFormPage() {
   // A signed-in non-admin who lands on /trips/:id/edit is bounced to the detail
   // page. (The server would 403 the PATCH anyway; this avoids the dead-end.)
   if (notAdmin) {
-    return <Navigate to={`/trips/${tripId}`} replace />;
+    return <Navigate to={ROUTES.trip(tripId!)} replace />;
   }
 
   const titleMissing = title.trim() === "";
   // Shown only once the user has left the field: the value gates submission
   // either way, but the *message* waits until there is something to correct.
-  const titleError = titleTouched && titleMissing ? "Give the trip a name." : undefined;
+  const titleError = titleTouched && titleMissing ? `Give the ${brand.copy.noun.trip} a name.` : undefined;
   const startBad = startDate !== "" && !isValidDate(startDate);
   const endBad = endDate !== "" && !isValidDate(endDate);
   const outOfOrder =
@@ -178,17 +183,21 @@ export function TripFormPage() {
       };
       if (isEdit) {
         await updateTrip(api, tripId!, { title: title.trim(), winCondition, ...dates });
-        navigate(`/trips/${tripId}`, { replace: true });
+        navigate(ROUTES.trip(tripId!), { replace: true });
       } else {
         const { tripId: newId } = await createTrip(
           api,
           { title: title.trim(), mode, winCondition, ...dates },
           email,
         );
-        navigate(`/trips/${newId}`, { replace: true });
+        navigate(ROUTES.trip(newId), { replace: true });
       }
     } catch {
-      setError(isEdit ? "Could not save the trip. Please try again." : "Could not create the trip. Please try again.");
+      setError(
+        isEdit
+          ? `Could not save the ${brand.copy.noun.trip}. Please try again.`
+          : `Could not create the ${brand.copy.noun.trip}. Please try again.`,
+      );
     } finally {
       setSaving(false);
     }
@@ -199,7 +208,7 @@ export function TripFormPage() {
       <div className="grid gap-6">
         <div className="flex items-center justify-between gap-2">
           <h1 className="font-display text-2xl font-semibold">
-            {isEdit ? "Edit trip" : "New trip"}
+            {isEdit ? `Edit ${brand.copy.noun.trip}` : `New ${brand.copy.noun.trip}`}
           </h1>
           <Button variant="ghost" onClick={() => void navigate(isEdit ? `/trips/${tripId}` : "/trips")}>
             Cancel
@@ -213,7 +222,7 @@ export function TripFormPage() {
           </Alert>
         )}
 
-        <Panel title="Trip details" icon={Compass}>
+        <Panel title={`${brand.copy.noun.Trip} details`} icon={TripIcon}>
           <div className="grid gap-6">
             <Field htmlFor="trip-title" label="Title" error={titleError}>
               {({ id, describedBy }) => (
@@ -234,7 +243,7 @@ export function TripFormPage() {
                 The win condition below it stays editable — moving the target
                 invalidates nothing that has already happened. */}
             {isEdit ? (
-              <Field htmlFor="trip-mode" label="Mode" hint="A trip's mode can't be changed after it's created.">
+              <Field htmlFor="trip-mode" label="Mode" hint={brand.copy.trips.modeHint}>
                 {({ id }) => (
                   <Input id={id} value={mode === "cooperative" ? "Cooperative" : "Competitive"} readOnly disabled />
                 )}
@@ -274,9 +283,7 @@ export function TripFormPage() {
               <Alert variant="warning">
                 <TriangleAlert />
                 <AlertDescription>
-                  {unreachableCount === 1
-                    ? "One card already in this trip can't reach this target — its blank squares can never be marked. You can still choose it, and fuller cards can be added later."
-                    : `${unreachableCount} cards already in this trip can't reach this target — their blank squares can never be marked. You can still choose it, and fuller cards can be added later.`}
+                  {brand.copy.trips.winConditionUnreachable(unreachableCount)}
                 </AlertDescription>
               </Alert>
             )}
@@ -316,7 +323,7 @@ export function TripFormPage() {
 
             <div className="flex gap-2">
               <Button onClick={() => void submit()} disabled={!canSubmit}>
-                {saving ? "Saving…" : isEdit ? "Save changes" : "Create trip"}
+                {saving ? "Saving…" : isEdit ? "Save changes" : `Create ${brand.copy.noun.trip}`}
               </Button>
             </div>
           </div>

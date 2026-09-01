@@ -39,7 +39,23 @@ const args = process.argv.slice(2);
 const route = args.find((a) => !a.startsWith("-")) ?? "/";
 const outDir = args.includes("--out") ? args[args.indexOf("--out") + 1] : ".captures";
 const wantPdf = args.includes("--pdf");
-const slug = route.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "") || "root";
+const routeSlug = route.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "") || "root";
+
+/*
+  The brand goes in the filename, not just in whichever terminal ran the server.
+
+  Without it, capturing `/` against the office dev server silently overwrites
+  the travel captures of the same route — and the two are meant to be compared,
+  so the failure is a reviewer looking at one brand twice and concluding they
+  agree. Defaults to `travel` to match `DEV_DEFAULT_BRAND` in vite.config.ts,
+  which is what a dev server with no VITE_BRAND is actually serving.
+
+  Set it to whatever the dev server was started with:
+    VITE_BRAND=office npm run dev
+    VITE_BRAND=office npm run capture -- /
+*/
+const brand = process.env.VITE_BRAND || "travel";
+const slug = `${brand}-${routeSlug}`;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 

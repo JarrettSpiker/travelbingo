@@ -34,19 +34,19 @@ interface AppShellProps {
  * how this app is reviewed. Anchoring the blots to the document also keeps them
  * from sitting over the same part of the screen the whole way down a long page.
  *
- * The base page colour is NOT here — it is on <html> in index.css, so it paints
+ * The base page colour is NOT here — it is on <html> in base.css, so it paints
  * before React mounts rather than after a 260 kB bundle parses.
  */
 function Background() {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
       {/* Wash: lifts the top of the page and lets the card sit on something. */}
-      <div className="absolute inset-0 bg-gradient-to-b from-primary/[0.06] via-transparent to-ocean/[0.05]" />
+      <div className="absolute inset-0 bg-gradient-to-b from-primary/[0.06] via-transparent to-brand-accent/[0.05]" />
 
       {/* Graticule. Masked, so it takes --foreground and reads in both modes —
           but a near-white line on ink navy carries much further than a dark one
           on cream, so dark needs less of it to land in the same place. */}
-      <div className="bg-map-grid absolute inset-0 opacity-[0.045] dark:opacity-[0.028]" />
+      <div className="bg-page-texture absolute inset-0 opacity-[0.045] dark:opacity-[0.028]" />
 
       {/* Two blots, far apart and far off-centre, so they read as light rather
           than as shapes. `blur-3xl` is doing most of the work.
@@ -54,7 +54,7 @@ function Background() {
           They are held back on narrow screens: a 32rem blot covers most of a
           390px viewport, which turns "a hint of warmth" into a coloured page. */}
       <div className="absolute -top-32 -left-24 size-64 rounded-full bg-primary/15 blur-3xl sm:-top-40 sm:-left-32 sm:size-[32rem] sm:bg-primary/20" />
-      <div className="absolute -right-24 bottom-[-8rem] size-72 rounded-full bg-ocean/15 blur-3xl sm:-right-40 sm:bottom-[-12rem] sm:size-[36rem] sm:bg-ocean/20" />
+      <div className="absolute -right-24 bottom-[-8rem] size-72 rounded-full bg-brand-accent/15 blur-3xl sm:-right-40 sm:bottom-[-12rem] sm:size-[36rem] sm:bg-brand-accent/20" />
     </div>
   );
 }

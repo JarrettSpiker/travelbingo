@@ -190,6 +190,25 @@ describe("card renderer guard", () => {
     );
   });
 
+  it("keeps the brand out of the card", () => {
+    // The card is a document made of user data. It does not get a brand any
+    // more than it gets a dark mode: the same card saved under either brand
+    // must print, export, and thumbnail identically, and a link minted under
+    // one must render the same under the other.
+    //
+    // The realistic breach is small and reasonable-looking — someone reaching
+    // for `brand.copy` to label an empty cell, or `brand.name` in a watermark.
+    // One line here is what stands between that and a per-brand PDF.
+    for (const [name, source] of [
+      ["CardGrid.tsx", cardGridSource],
+      ["App.css", appCss],
+    ] as const) {
+      expect(source, `${name} imports the brand module`).not.toContain("@/brand");
+      expect(source, `${name} imports the brand module`).not.toContain("/brand");
+      expect(source, `${name} reads brand data`).not.toContain("brand.");
+    }
+  });
+
   it("keeps app design tokens out of the card", () => {
     // `html-to-image` clones the node and serialises computed styles, so modern
     // colour syntaxes are the most likely source of a silent export regression.

@@ -97,7 +97,7 @@ export interface GalleryEntry {
    * Repo-relative file this entry covers, e.g. "src/components/EntryInput.tsx".
    *
    * A full path rather than a bare filename because not everything reviewable
-   * here is a component — the token strip covers `src/index.css`.
+   * here is a component — the token strip covers the style layer.
    */
   source: string;
   title: string;
@@ -106,7 +106,7 @@ export interface GalleryEntry {
 
 export const GALLERY_ENTRIES: GalleryEntry[] = [
   {
-    source: "src/index.css",
+    source: "src/base.css",
     title: "Design tokens",
     states: [{ label: "Every token, in this presentation", node: <TokenStrip /> }],
   },

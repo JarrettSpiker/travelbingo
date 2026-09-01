@@ -1,11 +1,16 @@
 locals {
   tags = {
-    Project     = "travelbingo"
+    Project     = var.brand
     Environment = var.environment
     ManagedBy   = "terraform"
   }
   # When name_prefix is empty, resource_name == bucket_name, preserving the
   # names the existing dev resources were created with.
+  #
+  # `bucket_name` is the brand-AND-environment discriminator: every other
+  # resource name in this module derives from it, so a second brand is a second
+  # pair of workspaces setting a different `bucket_name` and nothing more.
+  # `var.brand` must never enter this — see its description in variables.tf.
   resource_name = var.name_prefix != "" ? "${var.name_prefix}-${var.bucket_name}" : var.bucket_name
   # Custom domain is active only when both a domain and its hosting zone are set.
   use_custom_domain = var.domain_name != "" && var.hosted_zone_name != ""

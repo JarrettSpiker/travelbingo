@@ -1,4 +1,6 @@
-const DEFAULT_IMAGE_FILENAME = "bingo-card.png";
+import { brand } from "../brand";
+
+const DEFAULT_IMAGE_FILENAME = brand.copy.exportFile.defaultPngName;
 const MAX_BASE_LENGTH = 60;
 const RESERVED_CHARS = /[\\/:*?"<>|]/;
 /** Unicode bidi/override controls that can visually reverse or mislead a filename. */

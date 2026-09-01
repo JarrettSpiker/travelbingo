@@ -187,7 +187,7 @@
     /*
       A page background paints outside the cascade that hides its elements, so
       both of these have to be cleared explicitly. `html` carries the app's page
-      colour (see index.css); `body` carried MUI's while it was present.
+      colour (see base.css); `body` carried MUI's while it was present.
     */
     background: none !important;
   }

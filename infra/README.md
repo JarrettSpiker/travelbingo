@@ -36,10 +36,14 @@ Do these once, before the first apply of the account infrastructure:
 1. **Apply `bootstrap/`** with administrator credentials. Nothing below can
    succeed until the widened deploy-role permissions and the
    `travelbingo-lambda-*` execution roles exist.
-2. **Create two Google OAuth 2.0 Web clients** (one per environment) in Google
-   Cloud, and configure the consent screen. The authorized redirect URI is
+2. **Create a Google OAuth 2.0 Web client per environment** in Google Cloud,
+   and configure the consent screen. The authorized redirect URI is
    `https://<cognito_domain_prefix>.auth.us-east-1.amazoncognito.com/oauth2/idpresponse`
-   — by default `travelbingo-dev` / `travelbingo-prod`.
+   — by default the environment's `bucket_name`, so `travelbingo-dev`,
+   `travelbingo-prod`, `officelingobingo-dev`, `officelingobingo-prod`.
+
+   All four clients live in the **one** Google Cloud project; see the note under
+   the workspace table.
 
    While the consent screen is in "Testing", only explicitly listed test users
    can sign in (capped at 100), so it must be **published** before prod.
@@ -90,25 +94,56 @@ One deliberate divergence, beyond the obvious per-environment values:
 
 Set these as Terraform Variables on each workspace:
 
-| Variable | dev workspace | prod workspace |
-| --- | --- | --- |
-| `bucket_name` | `travelbingo-dev` | `travelbingo-prod` |
-| `environment` | `dev` | `prod` |
-| `name_prefix` | _(empty)_ | _(empty)_ |
-| `cloudfront_price_class` | `PriceClass_100` | `PriceClass_100` |
-| `domain_name` | `dev.travelbingo.ca` | `travelbingo.ca` |
-| `hosted_zone_name` | `travelbingo.ca` | `travelbingo.ca` |
-| `lambda_execution_role_arn` | from `bootstrap` output | from `bootstrap` output |
-| `google_oauth_client_id` | **sensitive** | **sensitive** |
-| `google_oauth_client_secret` | **sensitive** | **sensitive** |
-| `cognito_domain_prefix` | _(empty → `travelbingo-dev`)_ | _(empty → `travelbingo-prod`)_ |
+There are **four** workspaces: two environments per brand. The module itself is
+brand-agnostic — a brand is just a different `bucket_name`, from which every
+other resource name derives.
+
+| Variable | travel dev | travel prod | office dev | office prod |
+| --- | --- | --- | --- | --- |
+| `bucket_name` | `travelbingo-dev` | `travelbingo-prod` | `officelingobingo-dev` | `officelingobingo-prod` |
+| `environment` | `dev` | `prod` | `dev` | `prod` |
+| `brand` | `travelbingo` | `travelbingo` | `officelingobingo` | `officelingobingo` |
+| `name_prefix` | _(empty)_ | _(empty)_ | _(empty)_ | _(empty)_ |
+| `cloudfront_price_class` | `PriceClass_100` | `PriceClass_100` | `PriceClass_100` | `PriceClass_100` |
+| `domain_name` | `dev.travelbingo.ca` | `travelbingo.ca` | `dev.officelingobingo.com` | `officelingobingo.com` |
+| `hosted_zone_name` | `travelbingo.ca` | `travelbingo.ca` | `officelingobingo.com` | `officelingobingo.com` |
+| `lambda_execution_role_arn` | from `bootstrap` output | from `bootstrap` output | from `bootstrap` output | from `bootstrap` output |
+| `google_oauth_client_id` | **sensitive** | **sensitive** | **sensitive** | **sensitive** |
+| `google_oauth_client_secret` | **sensitive** | **sensitive** | **sensitive** | **sensitive** |
+| `cognito_domain_prefix` | _(empty → `travelbingo-dev`)_ | _(empty → `travelbingo-prod`)_ | _(empty → `officelingobingo-dev`)_ | _(empty → `officelingobingo-prod`)_ |
+
+⚠️ **`environment` is `dev` or `prod` and nothing else** — never `office-dev`.
+It is not a label: the Cognito admin-auth flow, the localhost callback URL, and
+DynamoDB deletion protection all branch on it, so a brand-qualified value would
+silently give an office stack prod-like auth and **no deletion protection**. A
+validation block now rejects anything else. Brand is a separate axis, carried by
+`bucket_name`; `brand` exists only for the `Project` cost-allocation tag.
+
+**Both brands share one Google Cloud project, with a separate OAuth client per
+environment.** A Google Cloud project has exactly one consent screen, so this is
+a deliberate, accepted trade: an Office Lingo Bingo visitor is asked to grant
+access to **"Travel Bingo"**, with that app name, logo, and privacy links. It is
+a cosmetic mismatch at a trust-sensitive moment, judged not worth a second
+project for a satire site.
+
+What it does **not** affect is account separation, which happens a layer down:
+each brand has its own Cognito user pool, so the same person signing into both
+sites becomes two unrelated users with different `sub`s in different tables. The
+Google project plays no part in that — see `add-office-brand/design.md`.
+
+Separate *clients* per environment are still worth keeping: they let one stack's
+credentials be rotated or revoked without touching the other, which is the same
+no-shared-state rule the rest of the isolation follows. Both brands' authorized
+domains must be listed on the shared consent screen.
 
 `bucket_name`, `lambda_execution_role_arn`, and the two Google OAuth values are
 required; the rest have defaults if omitted. Mark both Google values
 **sensitive** — they must never reach the repository or GitHub. `domain_name` /
 `hosted_zone_name` are optional — leave both empty to serve via the default
-`*.cloudfront.net` URL. When set, register `travelbingo.ca` in Route53 first
-(it creates the hosted zone that both environments reference).
+`*.cloudfront.net` URL. When set, register the brand's
+apex domain in Route53 first (it creates the hosted zone that both of that
+brand's environments reference). Each brand has its own domain and its own
+hosted zone; they share neither.
 
 ## Triggers
 

@@ -23,7 +23,7 @@ interface PanelProps {
  * because nothing was. A panel is the smallest thing that fixes that: a card
  * surface, a hairline, and a named header.
  *
- * Depth is the border plus `shadow-postcard`, never a shadow alone. Shadows all
+ * Depth is the border plus `shadow-raised`, never a shadow alone. Shadows all
  * but vanish against the dark background and the hairline is what carries
  * structure there.
  *
@@ -41,7 +41,7 @@ export function Panel({ title, icon: Icon, actions, children, className }: Panel
     <Collapsible asChild open={open} onOpenChange={setOpen}>
       <section
         className={cn(
-          "rounded-xl border border-border bg-card p-4 shadow-postcard sm:p-6",
+          "rounded-xl border border-border bg-card p-4 shadow-raised sm:p-6",
           className,
         )}
       >

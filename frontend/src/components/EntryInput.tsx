@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getCardSlotCount, getUniqueEntries, type BingoEntry } from "@/lib/bingo";
 import { cn } from "@/lib/utils";
+import { brand } from "@/brand";
 
 interface EntryInputProps {
   entries: BingoEntry[];
@@ -106,7 +107,7 @@ export function EntryInput({
                 setDraft(e.target.value);
                 setDuplicateError(null);
               }}
-              placeholder="e.g. Says 'synergy'"
+              placeholder={brand.copy.editor.entryPlaceholder}
             />
           )}
         </Field>

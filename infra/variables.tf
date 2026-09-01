@@ -15,10 +15,44 @@ variable "name_prefix" {
   default     = ""
 }
 
-variable "environment" {
-  description = "Environment name, used for tagging."
+variable "brand" {
+  description = <<-EOT
+    Which brand this stack serves. Used for the `Project` cost-allocation tag
+    and nothing else.
+
+    Deliberately NOT part of `local.resource_name`. That name is the DynamoDB
+    table and the Cognito user pool, both of which carry `prevent_destroy`, so
+    changing the formula hard-fails the existing prod apply — and forcing past
+    it would change every `sub` and orphan every saved card. `bucket_name` is
+    the discriminator; every other resource name already falls out of it, which
+    is why a second brand needs no new Terraform here at all.
+  EOT
   type        = string
-  default     = "production"
+  default     = "travelbingo"
+}
+
+variable "environment" {
+  description = <<-EOT
+    Which of the two environments this stack is. NOT just a tag: three
+    behaviours branch on it — the Cognito ALLOW_ADMIN_USER_PASSWORD_AUTH flow,
+    the localhost callback URL, and DynamoDB deletion protection.
+
+    A value outside this set silently gets prod-like Cognito flows and NO
+    deletion protection, which is why it is validated rather than free text.
+    Brand is a separate axis and is carried by `bucket_name`; an `office-dev`
+    here would be exactly that silent failure.
+  EOT
+  type        = string
+  default     = "prod"
+
+  validation {
+    # The old default was "production", which no comparison in this config ever
+    # matched: `dynamodb.tf` gates deletion protection on `== "prod"`. Any
+    # workspace that did not set this explicitly was running production data
+    # with deletion protection OFF. This validation is what surfaces that.
+    condition     = contains(["dev", "prod"], var.environment)
+    error_message = "environment must be exactly \"dev\" or \"prod\"."
+  }
 }
 
 variable "cloudfront_price_class" {

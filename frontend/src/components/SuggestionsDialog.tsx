@@ -175,7 +175,7 @@ export function SuggestionsDialog({
                     {report.skipped > 0 ? (
                       <TriangleAlert />
                     ) : (
-                      <CircleCheck className="text-ocean" />
+                      <CircleCheck className="text-brand-accent" />
                     )}
                     <AlertDescription>
                       Added {report.added} {report.added === 1 ? "cell" : "cells"}.

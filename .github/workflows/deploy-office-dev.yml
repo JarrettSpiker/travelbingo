@@ -1,0 +1,48 @@
+name: deploy-office-dev
+
+# Deploys the Office Lingo Bingo dev frontend on every push to main and dev
+# (and manually). Infrastructure for office dev is applied separately by HCP
+# Terraform (workspace `officelingobingo-dev`).
+#
+# A separate file rather than a `strategy: matrix` over the brands in
+# deploy-dev.yml, for three reasons:
+#   - `needs: backend` waits for an ENTIRE matrix, so an office backend failure
+#     would block the travel frontend deploy. The two stacks share nothing;
+#     their failures should not either.
+#   - prod is behind a per-Environment review gate, and a matrix would put both
+#     brands behind one approval — the opposite of what promoting one brand and
+#     not the other requires.
+#   - matrix jobs collapse in the Actions UI, making "which brand failed" harder
+#     to see.
+# The reusable workflows already hold all the logic; ~20 lines of wiring per
+# environment is not duplication worth eliminating.
+on:
+  push:
+    branches: [main, dev]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+# Its own group, so the two brands deploy in parallel rather than serializing
+# behind one another.
+concurrency:
+  group: deploy-office-dev
+  cancel-in-progress: false
+
+jobs:
+  backend:
+    name: Deploy office dev backend
+    uses: ./.github/workflows/_deploy-backend.yml
+    with:
+      environment: office-dev
+
+  dev:
+    name: Deploy office dev
+    # The frontend calls the API, so the API is updated first. A failed backend
+    # deploy stops the frontend rather than half-deploying the environment.
+    needs: backend
+    uses: ./.github/workflows/_deploy.yml
+    with:
+      environment: office-dev

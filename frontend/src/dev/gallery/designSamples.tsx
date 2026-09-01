@@ -100,8 +100,8 @@ export function TokenStrip() {
       <div>
         <p className="mb-2 text-sm font-medium">Depth</p>
         <div className="flex flex-wrap gap-4">
-          <div className="shadow-postcard rounded-lg border border-border bg-card p-4 text-xs">
-            border + shadow-postcard
+          <div className="shadow-raised rounded-lg border border-border bg-card p-4 text-xs">
+            border + shadow-raised
           </div>
           <div className="rounded-lg border border-border bg-card p-4 text-xs">border only</div>
         </div>
@@ -125,7 +125,7 @@ export function TokenStrip() {
 
       <div>
         <p className="mb-2 text-sm font-medium">Perforated edge</p>
-        <div className="edge-perf shadow-postcard max-w-sm rounded-lg border border-border bg-paper p-6 text-xs">
+        <div className="panel-edge shadow-raised max-w-sm rounded-lg border border-border bg-paper p-6 text-xs">
           One surface only — the card preview panel, further down this page. Reach for it a second
           time and the answer is no.
         </div>

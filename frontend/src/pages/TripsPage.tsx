@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router";
-import { Compass, Info, Plus, RotateCw, TriangleAlert, Users } from "lucide-react";
+import { Info, Plus, RotateCw, TriangleAlert, Users } from "lucide-react";
 import { AppShell } from "@/components/AppShell";
 import { AuthMenu } from "@/components/AuthMenu";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -11,6 +11,11 @@ import { useAuth } from "@/auth/authContext";
 import { formatTripRange } from "@/lib/tripDates";
 import { listTrips } from "@/lib/tripApi";
 import type { TripSummary } from "@/lib/tripTypes";
+import { ROUTES } from "@/lib/routes";
+import { brand } from "@/brand";
+
+/* Capitalized so JSX reads it as a component; a build-time constant. */
+const TripIcon = brand.TripIcon;
 
 /** The list is compact and scanned in bulk, so it drops the year. */
 const RANGE_FORMAT: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
@@ -27,7 +32,7 @@ export function TripsPage() {
       setTrips(await listTrips(api));
       setError(null);
     } catch {
-      setError("Could not load your trips.");
+      setError(`Could not load your ${brand.copy.noun.trips}.`);
       // Deliberately not `[]`: an empty array is indistinguishable from "you
       // have no trips", and the empty-state copy would render under the
       // failure telling the user their trips do not exist.
@@ -54,7 +59,7 @@ export function TripsPage() {
             <Info />
             <AlertDescription>Accounts are not enabled in this build.</AlertDescription>
           </Alert>
-          <Button onClick={() => void navigate("/")}>Back to the card editor</Button>
+          <Button onClick={() => void navigate(ROUTES.editor)}>Back to the card editor</Button>
         </div>
       </AppShell>
     );
@@ -64,7 +69,7 @@ export function TripsPage() {
     return (
       <AppShell size="narrow" headerActions={<AuthMenu />}>
         <div className="flex justify-center py-12">
-          <Spinner label="Loading your trips" />
+          <Spinner label={`Loading your ${brand.copy.noun.trips}`} />
         </div>
       </AppShell>
     );
@@ -74,13 +79,13 @@ export function TripsPage() {
     return (
       <AppShell size="narrow" headerActions={<AuthMenu />}>
         <div className="grid justify-items-start gap-4">
-          <h1 className="font-display text-2xl font-semibold">Trips</h1>
+          <h1 className="font-display text-2xl font-semibold">{brand.copy.noun.Trips}</h1>
           <p className="text-sm text-muted-foreground">
-            Sign in to gather friends and bingo cards under one trip.
+            {brand.copy.trips.signedOutPitch}
           </p>
           <div className="flex gap-2">
-            <Button onClick={() => signIn("/trips")}>Sign in</Button>
-            <Button variant="ghost" onClick={() => void navigate("/")}>
+            <Button onClick={() => signIn(ROUTES.trips)}>Sign in</Button>
+            <Button variant="ghost" onClick={() => void navigate(ROUTES.editor)}>
               Back to the card editor
             </Button>
           </div>
@@ -96,13 +101,13 @@ export function TripsPage() {
             heading and both buttons do not fit on one line, and without this
             they push the whole page into horizontal scroll. */}
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h1 className="font-display text-2xl font-semibold">Trips</h1>
+          <h1 className="font-display text-2xl font-semibold">{brand.copy.noun.Trips}</h1>
           <div className="flex gap-2">
-            <Button variant="ghost" onClick={() => void navigate("/")}>
+            <Button variant="ghost" onClick={() => void navigate(ROUTES.editor)}>
               Back to the editor
             </Button>
-            <Button onClick={() => void navigate("/trips/new")}>
-              <Plus aria-hidden /> New trip
+            <Button onClick={() => void navigate(ROUTES.newTrip)}>
+              <Plus aria-hidden /> New {brand.copy.noun.trip}
             </Button>
           </div>
         </div>
@@ -123,13 +128,13 @@ export function TripsPage() {
             empty state stand down until the retry resolves. */}
         {trips === null && !error && (
           <div className="flex justify-center py-12">
-            <Spinner label="Loading your trips" />
+            <Spinner label={`Loading your ${brand.copy.noun.trips}`} />
           </div>
         )}
 
         {trips?.length === 0 && (
           <p className="text-sm text-muted-foreground">
-            You are not in any trips yet. Create one to gather friends and cards for an event.
+            {brand.copy.trips.emptyState}
           </p>
         )}
 
@@ -140,11 +145,11 @@ export function TripsPage() {
               <li key={trip.tripId}>
                 <button
                   type="button"
-                  onClick={() => void navigate(`/trips/${trip.tripId}`)}
-                  className="grid w-full gap-3 rounded-lg border border-border bg-card p-4 text-left shadow-postcard transition-transform focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none hover:-translate-y-0.5"
+                  onClick={() => void navigate(ROUTES.trip(trip.tripId))}
+                  className="grid w-full gap-3 rounded-lg border border-border bg-card p-4 text-left shadow-raised transition-transform focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none hover:-translate-y-0.5"
                 >
                   <span className="flex size-9 items-center justify-center rounded-md bg-secondary text-primary">
-                    <Compass className="size-5" aria-hidden />
+                    <TripIcon className="size-5" aria-hidden />
                   </span>
                   <span className="grid gap-1">
                     <span className="block font-medium">{trip.title}</span>

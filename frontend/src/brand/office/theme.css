@@ -1,0 +1,178 @@
+/*
+  Office Lingo Bingo's token values. Reached as `#brand-theme`.
+
+  The look: the beige-cubicle version of Travel Bingo's warmth, and it works
+  better the more convincing it is. Cool printer-paper off-white instead of warm
+  cream, the flat "we used the default blue" corporate blue, highlighter green,
+  and a rubber-stamp violet. Cool slate in dark rather than warm navy. Nothing
+  here winks at the joke; the content does that.
+
+  **No chrome font is downloaded.** `--font-display` is the system stack —
+  cheaper than a webfont, and exactly the joke. See `BRAND.md`.
+
+  Every value below was checked against `../travel/theme.css`'s contrast bar
+  rather than inherited from it; the numbers are in `BRAND.md`.
+*/
+
+/*
+  Light — printer paper under fluorescent light.
+*/
+:root {
+  color-scheme: light;
+
+  /* Faintly cool off-white — a laser-printed page, not a warm one. The card is
+     pure white, so it still sits ON something, just barely. */
+  --background: oklch(0.975 0.004 250);
+  --foreground: oklch(0.26 0.012 258);
+
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.26 0.012 258);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.26 0.012 258);
+
+  /* The default blue of every enterprise product ever shipped. Chosen for
+     being unremarkable, which is the whole point — 5.65:1 on the page. */
+  --primary: oklch(0.50 0.15 255);
+  --primary-foreground: oklch(0.99 0.003 250);
+
+  --secondary: oklch(0.93 0.008 250);
+  --secondary-foreground: oklch(0.33 0.015 258);
+
+  --muted: oklch(0.945 0.006 250);
+  --muted-foreground: oklch(0.50 0.014 255);
+
+  /*
+    As in the travel brand: `--accent` is shadcn's hover/active surface, NOT a
+    brand colour. Every `ghost` and `outline` button and every menu item is
+    `hover:bg-accent`, so a saturated value turns each into a solid block on
+    hover. Quiet on purpose — `--brand-accent` carries the voice.
+  */
+  --accent: oklch(0.93 0.008 250);
+  --accent-foreground: oklch(0.33 0.015 258);
+
+  /*
+    Highlighter green — the second voice, used the way travel uses its teal: a
+    background wash and a success icon. Pulled down to oklch(0.62) from a true
+    highlighter's brightness so it clears 3:1 as an icon; a real highlighter
+    yellow-green is invisible as a mark on white.
+  */
+  --brand-accent: oklch(0.62 0.15 125);
+
+  /* A flat alarm red. It has no terracotta to be confused with here, so it can
+     be the obvious red the action deserves. 5.43:1 on the card. */
+  --destructive: oklch(0.55 0.22 28);
+  --destructive-foreground: oklch(0.99 0.01 25);
+
+  --warning: oklch(0.72 0.15 75);
+  --warning-foreground: oklch(0.24 0.04 75);
+  /*
+    Teal rather than another blue. A second saturated blue five degrees from
+    `--primary` reads as the same colour at a glance — this brand's version of
+    the terracotta/crimson collision the travel palette had to solve. 43deg of
+    hue separation is what makes an info alert not look like a primary action.
+  */
+  --info: oklch(0.53 0.09 212);
+  --info-foreground: oklch(0.99 0.01 212);
+
+  --border: oklch(0.87 0.008 250);
+  --input: oklch(0.87 0.008 250);
+  --ring: oklch(0.50 0.15 255);
+
+  /* Pure white — printer paper, against the barely-off-white page. */
+  --paper: oklch(1 0 0);
+  /*
+    Rubber-stamp violet, and a deliberate departure from "bureaucratic red".
+
+    A red stamp against this brand's red `--destructive` measured **1.18:1** —
+    indistinguishable, which is exactly the hazard the design predicted would
+    transfer here rather than disappear. Violet is the authentic answer as well
+    as the safe one: aniline stamp pads are why every RECEIVED and every date
+    stamp in an office is purple. 282deg from `--destructive`, and 7.43:1 on the
+    page so it still carries the chip's 12px lettering.
+  */
+  --stamp: oklch(0.45 0.14 310);
+
+  /* Squarer than travel's 0.75rem. Enterprise software does not have soft
+     corners. */
+  --radius: 0.25rem;
+
+  /* Cool, tighter, and shallower than travel's warm two-stop shadow — a form
+     lying on a desk rather than a postcard propped up. */
+  --shadow-raised:
+    0 1px 1px oklch(0.30 0.03 255 / 0.07),
+    0 4px 12px -4px oklch(0.30 0.03 255 / 0.12);
+}
+
+/*
+  Dark — cool slate, not warm navy. The greys are hue-shifted *cool*, which is
+  the opposite of the travel brand's rule and the single change that stops this
+  reading as the same app with a different accent.
+
+  As there, shadows all but vanish against a dark background, so `--border` is
+  what carries structure. Declares exactly the same token set as `:root`,
+  including `--radius`.
+*/
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --background: oklch(0.21 0.012 255);
+  --foreground: oklch(0.93 0.006 250);
+
+  --card: oklch(0.25 0.012 255);
+  --card-foreground: oklch(0.93 0.006 250);
+  --popover: oklch(0.25 0.012 255);
+  --popover-foreground: oklch(0.93 0.006 250);
+
+  /* Lifted well past the light value; the flat corporate blue is unreadable as
+     a fill against slate. */
+  --primary: oklch(0.70 0.13 255);
+  --primary-foreground: oklch(0.18 0.02 255);
+
+  --secondary: oklch(0.30 0.012 255);
+  --secondary-foreground: oklch(0.92 0.006 250);
+
+  --muted: oklch(0.29 0.010 255);
+  --muted-foreground: oklch(0.71 0.010 255);
+
+  --accent: oklch(0.30 0.012 255);
+  --accent-foreground: oklch(0.92 0.006 250);
+
+  /* Lifted to a true highlighter here: on slate it can be as bright as the real
+     thing and still read, which it cannot on white. */
+  --brand-accent: oklch(0.80 0.16 125);
+
+  /* Used as *text* — the ghost delete button and the destructive alert — so it
+     is lifted past the light value and its foreground flips to ink. */
+  --destructive: oklch(0.70 0.19 28);
+  --destructive-foreground: oklch(0.18 0.02 25);
+
+  --warning: oklch(0.78 0.14 78);
+  --warning-foreground: oklch(0.20 0.04 75);
+  --info: oklch(0.72 0.08 212);
+  --info-foreground: oklch(0.16 0.03 212);
+
+  --border: oklch(0.33 0.012 255);
+  --input: oklch(0.33 0.012 255);
+  --ring: oklch(0.70 0.13 255);
+
+  --paper: oklch(0.27 0.012 255);
+  --stamp: oklch(0.74 0.13 312);
+
+  --radius: 0.25rem;
+
+  --shadow-raised:
+    0 1px 1px oklch(0.10 0.02 255 / 0.5),
+    0 4px 12px -4px oklch(0.10 0.02 255 / 0.6);
+}
+
+/*
+  The system stack, and no `@import`.
+
+  Travel downloads a variable font for its chrome; this brand downloads nothing
+  at all, which is both cheaper and the funnier answer. Whatever the visitor's
+  OS thinks a UI font is, is exactly right for a product that looks like it was
+  specified by procurement.
+*/
+@theme {
+  --font-display: ui-sans-serif, system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}

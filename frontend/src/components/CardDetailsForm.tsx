@@ -2,6 +2,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { brand } from "@/brand";
 
 interface CardDetailsFormProps {
   title: string;
@@ -28,7 +29,7 @@ export function CardDetailsForm({
             id={id}
             value={title}
             onChange={(e) => onTitleChange(e.target.value)}
-            placeholder="e.g. Our Cross Country Road Trip"
+            placeholder={brand.copy.editor.titlePlaceholder}
           />
         )}
       </Field>

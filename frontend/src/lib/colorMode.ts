@@ -1,3 +1,5 @@
+import { brand } from "../brand";
+
 // The light/dark/system colour mode.
 //
 // Everything that can actually be wrong — what a stored value means, what
@@ -7,11 +9,11 @@
 // (private mode, disabled cookies, quota) and the app has to stay usable.
 //
 // The resolved value is written to `data-theme` on <html>. Both styling systems
-// read that one attribute: Tailwind via `@custom-variant dark` in index.css,
+// read that one attribute: Tailwind via `@custom-variant dark` in base.css,
 // and MUI via `colorSchemeSelector` in theme.ts. While both are present that is
 // what keeps a half-migrated screen from disagreeing with itself.
 
-export const COLOR_MODE_KEY = "travelbingo.colorMode";
+export const COLOR_MODE_KEY = `${brand.storagePrefix}.colorMode`;
 
 /** What the user chose. `system` defers to the OS, and keeps deferring. */
 export type ColorMode = "system" | "light" | "dark";

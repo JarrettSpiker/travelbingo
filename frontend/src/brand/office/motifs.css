@@ -1,0 +1,59 @@
+/*
+  Office Lingo Bingo's realizations of the shared motif slots. Reached as
+  `#brand-motifs`.
+
+  Both are the travel brand's own techniques with the imagery swapped, which is
+  the strongest evidence the slots were named for the right thing: a mask-based
+  page texture and a mask-based panel edge generalized without either component
+  changing a line.
+
+  The other three slots are `--stamp` (the chip's ink) and `--shadow-raised` in
+  `theme.css`, and `MarkIcon` in `index.ts` — see `BRAND.md`.
+*/
+
+/*
+  PANEL EDGE — a three-hole-punch binder edge, for exactly one surface (the card
+  preview panel in `CardView`).
+
+  Same `radial-gradient` mask technique as the travel brand's perforation, and
+  the same rule applies: one motif per surface, and this is the one most likely
+  to be sprinkled around. If you are reaching for it a second time, the answer
+  is still no.
+
+  Three holes down the LEFT edge rather than a repeating row along the top and
+  bottom, which is the whole difference. `mask-repeat: no-repeat` and three
+  separate layers, because a punched binder page has exactly three holes at
+  fixed positions — a repeating mask would give a perforated strip, which is a
+  different object entirely. `intersect` so all three are punched rather than
+  the layers cancelling each other out.
+*/
+@utility panel-edge {
+  --punch-hole: 8px;
+  --punch-inset: 14px;
+  mask-image:
+    radial-gradient(circle var(--punch-hole) at var(--punch-inset) 18%, transparent 96%, black 100%),
+    radial-gradient(circle var(--punch-hole) at var(--punch-inset) 50%, transparent 96%, black 100%),
+    radial-gradient(circle var(--punch-hole) at var(--punch-inset) 82%, transparent 96%, black 100%);
+  mask-size: 100% 100%;
+  mask-repeat: no-repeat;
+  mask-position: 0 0;
+  mask-composite: intersect;
+}
+
+/*
+  PAGE TEXTURE — spreadsheet cell ruling.
+
+  Literally the travel brand's 64px graticule SVG with the tick paths deleted,
+  leaving the bare grid. Still masked rather than drawn in a fixed colour, so it
+  takes `--foreground` and is legible in both presentations from one SVG.
+
+  The cells are wider than they are tall — 96x40 rather than 64x64 — because
+  that is what makes it read as a spreadsheet rather than as graph paper. It is
+  the aspect ratio doing the work, not the lines.
+*/
+@utility bg-page-texture {
+  background-color: var(--foreground);
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='40'%3E%3Cpath d='M0 .5H96M.5 0V40' stroke='%23000' fill='none'/%3E%3C/svg%3E");
+  mask-size: 96px 40px;
+  mask-repeat: repeat;
+}

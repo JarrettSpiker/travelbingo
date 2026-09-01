@@ -39,14 +39,23 @@ Originally built from the OpenSpec change in
     `colorScheme.ts`, `fontScheme.ts`), each with a co-located `*.test.ts`.
   - `src/components/` — React components. `src/components/ui/` is generated
     shadcn/ui code, treated as vendored.
-  - `src/index.css` — the design token layer and the Tailwind config.
+  - `src/index.css` — the Tailwind entry. **Imports only** — see the brand seam
+    below.
+  - `src/base.css` — the brand-independent style layer: the dark variant, the
+    `@theme inline` token bridge, the base page paint, the reduced-motion rule.
+  - `src/brand/` — the brand seam. One brand is selected at build time by
+    `VITE_BRAND`; `src/brand/<id>/` holds that brand's token values, motif
+    realizations, copy, suggestion data, and marketing metadata.
   - `src/dev/` — the component gallery at `/ui`. **Dev-only**: guarded by
     `import.meta.env.DEV` behind a dynamic import, so it is dropped from
     production builds. Never import it from application code.
   - `scripts/capture.mjs` — screenshots and print-PDFs of the running dev
     server, via headless Chrome over the DevTools Protocol. Node built-ins only.
-    `npm run capture -- /ui`.
-  - `DESIGN.md` — visual rules, the review loop, and the export checklist.
+    `npm run capture -- /ui`. Output is prefixed with the brand, so pass
+    `VITE_BRAND` to match the server it is pointed at.
+  - `DESIGN.md` — the shared visual *rules*, the review loop, and the export
+    checklist. Each brand's palette, typeface, and motif realizations live in
+    `src/brand/<id>/BRAND.md`.
 - `backend/` — Node 22 TypeScript Lambda behind an API Gateway HTTP API. Owns
   saved cards and share links.
   - `src/auth.ts` — **the** authorization module (see the constraints below).
@@ -64,7 +73,8 @@ Originally built from the OpenSpec change in
 - **Runtime:** Node.js 20+ (developed against Node 22).
 - **Frontend:** React 19, Vite, TypeScript, React Router, Tailwind v4 +
   shadcn/ui (Radix), `lucide-react` for icons. Style from the tokens in
-  `frontend/src/index.css`; **never put a raw hex value in a component**.
+  `frontend/src/base.css` (values per brand in `src/brand/<id>/theme.css`);
+  **never put a raw hex value in a component**.
   `src/components/ui/` is generated shadcn code — editable, but reviewed as
   vendored, and local edits carry a comment saying they diverge from the
   registry. Tailwind is configured in CSS: there is no `tailwind.config.js` and
@@ -162,19 +172,50 @@ terraform apply -var="bucket_name=<globally-unique-bucket>"
 - **Auth effects live only in `frontend/src/auth/AuthProvider.tsx`**, never in
   `App.tsx`. The provider renders children immediately so authentication never
   gates first paint.
+- **Exactly one brand reaches a build.** `VITE_BRAND` is validated in
+  `vite.config.ts` and injected as a compile-time literal; `src/brand/index.ts`
+  selects with a **ternary**, because an object literal or a `Record` lookup
+  references every arm and ships every brand. `src/brand/registry.ts` names them
+  all and is imported **only by tests**. `scripts/check-bundle.mjs` fails the
+  build if another brand's name appears in `dist/`.
+- **The card renderer, the stored card shape, the API, and the URL paths are
+  brand-invariant.** A card is a document made of user data; it does not get a
+  brand any more than it gets a dark mode. The office brand shows "Meetings" and
+  still routes `/trips` — invite and share links are persisted capability URLs,
+  so a brand-dependent path would break every link already issued. `trip` stays
+  the code word everywhere (file names, types, `tripApi.ts`, the `TRIP#` key
+  prefix, `POST /api/trips`); `brand.copy.noun` is the display word.
 
 ## Code conventions
 
 - New pure logic → `src/lib/`; new UI → `src/components/`.
 - Co-locate tests next to source: `foo.ts` ↔ `foo.test.ts`.
-- Styling via Tailwind utilities and the tokens in `src/index.css`; use `@/…`
+- **A string enters `BrandCopy` only when the brands' values actually differ.**
+  `Save`, `Cancel`, `PDF`, `PNG`, `Add selected`, `Entries`, `Look & feel`, and
+  `Card details` read the same in every brand and stay inline where they are.
+  Most trip strings differ only in that one noun — "Delete this trip?" against
+  "Delete this meeting?" is the same sentence — so compose those at the call
+  site from `brand.copy.noun`, whose four capitalized forms exist precisely so
+  no `capitalize()` helper has to guess. A key earns its place in `BrandCopy`
+  when the brands would want a different *sentence*, not a different noun inside
+  one. The failure being avoided is turning every component into an indirection
+  with no payoff.
+- **A token is named for its role, never for its picture.** `--shadow-raised`,
+  not `--shadow-postcard`; `panel-edge`, not `edge-perf`. A component that names
+  a motif asks for something a second brand has no answer to.
+- **`npx shadcn add` needs a follow-up.** It writes new `:root` tokens into
+  `src/index.css`, where they would sit *after* the brand import and silently
+  override the selected brand. Move them into **every** brand's `theme.css`, in
+  both presentations, and add the bridge line to `base.css`.
+  `tokens.contract.test.ts` fails until you do.
+- Styling via Tailwind utilities and the tokens in `src/base.css`; use `@/…`
   imports in new files. **Read `frontend/DESIGN.md` before UI work** — it carries
   the token table, the spacing and type scales, the travel-motif inventory, the
   component-choice table, the review loop, and the frozen-card-renderer
   constraint.
 - **`--accent` is shadcn's hover/active surface, not a brand colour.** Every
   `ghost` and `outline` button and every menu item is `hover:bg-accent`. The
-  app's second brand colour is `--ocean`, used by name and sparingly.
+  app's second brand colour is `--brand-accent`, used by name and sparingly.
 - New components need a gallery entry in `frontend/src/dev/gallery/registry.tsx`;
   `coverage.test.ts` fails without one. Add new *states* of an existing
   component too — nothing mechanical catches those.
@@ -204,13 +245,28 @@ failure here is a failed deploy.
 three commands above can. With the dev server running:
 
 ```bash
-npm run capture -- /ui        # plus each affected route
+npm run capture -- /ui                    # plus each affected route
+VITE_BRAND=office npm run capture -- /ui  # against an office dev server
 ```
 
 That writes light and dark captures at 390px and 1440px to `.captures/`, and
 reports any API request made on load. If you touched `CardGrid.tsx` or
 `App.css`, add `--pdf` and run the export regression checklist (print, PNG,
 thumbnail) in `frontend/DESIGN.md`. "It compiles" is not visual QA.
+
+**Review every brand the change can affect.** A change inside `src/brand/<id>/`
+is that brand's alone; the others need only be confirmed unchanged. Anything
+else — a component, `base.css`, a shared utility — affects all of them, and the
+matrix doubles. Pass `VITE_BRAND` to `capture` to match the server you started,
+or one brand's captures overwrite the other's and you review the same brand
+twice. And run the build for **every** brand before calling it done:
+
+```bash
+VITE_BRAND=travel npm run build && VITE_BRAND=office npm run build
+```
+
+CI does this on every PR, but a build is the only thing that exercises a
+brand's CSS graph, copy, and suggestion data at all.
 
 If you touched the stored card shape, the two contract tests
 (`backend/src/lib/cardPayload.contract.test.ts` and

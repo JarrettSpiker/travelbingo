@@ -1,0 +1,57 @@
+/*
+  Travel Bingo's realizations of the shared motif slots. Reached as
+  `#brand-motifs`.
+
+  The slots are named for the *job* — a panel edge, a page texture — not for the
+  picture, so a component never asks for something a different brand has no
+  answer to. Every brand fills every slot, including filling one with a stated
+  nothing (`mask-image: none`) rather than an absence, so
+  `src/brand/tokens.contract.test.ts` can see it.
+
+  The two slots realized in CSS are below. The other three are `--stamp` (the
+  selectable chip's ink) and `--shadow-raised` in `theme.css`, and `MarkIcon` in
+  `index.ts` — see `BRAND.md`.
+*/
+
+/*
+  PANEL EDGE — a perforated postcard edge, for exactly one surface (the card
+  preview panel in `CardView`).
+
+  The one-motif-per-surface rule in DESIGN.md is what keeps the travel theme
+  from turning into kitsch, and this is the motif most likely to be sprinkled
+  around. If you are reaching for it a second time, the answer is no.
+
+  Implemented as a mask so the "holes" are genuinely transparent and show
+  whatever is behind them, rather than being punched in a colour that has to be
+  kept in step with the background.
+*/
+@utility panel-edge {
+  --perf-hole: 7px;
+  --perf-gap: 16px;
+  /*
+    Both layers are full height and opaque everywhere except their own row of
+    holes — one row along the top edge, one along the bottom — so `intersect`
+    punches both sets. Sizing a layer to half the height instead leaves it
+    transparent over the other half, and intersecting two of those erases
+    almost the entire panel.
+  */
+  mask-image:
+    radial-gradient(circle var(--perf-hole) at 50% 0, transparent 96%, black 100%),
+    radial-gradient(circle var(--perf-hole) at 50% 100%, transparent 96%, black 100%);
+  mask-size: var(--perf-gap) 100%;
+  mask-repeat: repeat-x;
+  mask-position: 0 0;
+  mask-composite: intersect;
+}
+
+/*
+  PAGE TEXTURE — the tiled map graticule behind the app: a 1px grid with a tick
+  at each crossing. Masked rather than drawn in a fixed colour, so it takes
+  `--foreground` and is legible in both presentations from one SVG.
+*/
+@utility bg-page-texture {
+  background-color: var(--foreground);
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Cpath d='M0 .5H64M.5 0V64' stroke='%23000' fill='none'/%3E%3Cpath d='M31 14h2v7h-2zM31 43h2v7h-2zM14 31h7v2h-7zM43 31h7v2h-7z' fill='%23000'/%3E%3C/svg%3E");
+  mask-size: 64px 64px;
+  mask-repeat: repeat;
+}

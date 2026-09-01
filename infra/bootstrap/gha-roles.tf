@@ -23,8 +23,8 @@ data "aws_iam_policy_document" "gha_assume" {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
       values = [
-        "repo:${var.github_org}/${var.github_repo}:environment:${each.key}",
-        "repo:${var.github_org}@*/${var.github_repo}@*:environment:${each.key}",
+        "repo:${var.github_org}/${var.github_repo}:environment:${each.value.github_environment}",
+        "repo:${var.github_org}@*/${var.github_repo}@*:environment:${each.value.github_environment}",
       ]
     }
   }
@@ -32,7 +32,7 @@ data "aws_iam_policy_document" "gha_assume" {
 
 resource "aws_iam_role" "gha" {
   for_each           = local.envs
-  name               = "travelbingo-gha-${each.value.role_suffix}"
+  name               = "${each.value.role_name_prefix}-gha-${each.key}"
   assume_role_policy = data.aws_iam_policy_document.gha_assume[each.key].json
 }
 

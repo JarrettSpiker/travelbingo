@@ -4,9 +4,10 @@ import { createRoot } from 'react-dom/client'
 // anything else. App.css (imported by App.tsx) is unlayered and therefore keeps
 // winning over Tailwind's layered rules regardless — see src/index.css.
 import './index.css'
-// App chrome only — the families below are card-content choices offered to the
-// user, and keeping the two sets apart is the point. One variable file.
-import '@fontsource-variable/outfit'
+// Card-content choices offered to the user, and keeping the two sets apart is
+// the point. The *chrome* font is a brand asset and is imported by the selected
+// brand's `theme.css` instead — a brand that wants no chrome font downloads
+// none simply by not importing one.
 import '@fontsource/poppins/400.css'
 import '@fontsource/poppins/700.css'
 import '@fontsource/playfair-display/400.css'
@@ -31,7 +32,7 @@ import { AppRoutes } from './routes.tsx'
   since CloudFront applies the CSP and dev never sees it.
 
   Running here is enough because the page's base colour is painted by CSS on
-  <html> (see index.css), not by anything in this tree. Nothing outside React
+  <html> (see base.css), not by anything in this tree. Nothing outside React
   reads a token, so nothing can flash.
 */
 applyColorMode(readStoredColorMode())

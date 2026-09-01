@@ -1,3 +1,5 @@
+import { brand } from "../brand";
+
 // Persistence for the sign-in session.
 //
 // Only the refresh token is stored. Access and ID tokens stay in memory, so an
@@ -11,8 +13,13 @@
 // yield "signed out" rather than a crash — the logged-out experience is the
 // thing that must never regress.
 
-const SESSION_KEY = "travelbingo.session";
-const PENDING_KEY = "travelbingo.auth.pending";
+/*
+  Namespaced by brand. Not strictly required — the brands are different
+  origins, so their localStorage is already isolated — but it removes a
+  hardcoded product name from code that is otherwise brand-agnostic.
+*/
+const SESSION_KEY = `${brand.storagePrefix}.session`;
+const PENDING_KEY = `${brand.storagePrefix}.auth.pending`;
 
 export interface StoredSession {
   refreshToken: string;

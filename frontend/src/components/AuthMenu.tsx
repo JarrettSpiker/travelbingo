@@ -10,6 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ROUTES } from "@/lib/routes";
 
 interface AuthMenuProps {
   /**
@@ -99,10 +100,10 @@ export function AuthMenu({ onSaveCard }: AuthMenuProps) {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onSelect={() => void navigate("/cards")}>
+          <DropdownMenuItem onSelect={() => void navigate(ROUTES.cards)}>
             My saved cards
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => void navigate("/settings")}>Settings</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => void navigate(ROUTES.settings)}>Settings</DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => signOut()}>Sign out</DropdownMenuItem>
         </DropdownMenuContent>
