@@ -3,7 +3,8 @@
 See proposal.md — Why. The constraints that actually shape the approach:
 
 - **The table has no GSIs** (`lib/keys.ts`), and adding one for a feature this small would be the most expensive thing in the change. Whatever key layout feedback uses has to make both access patterns — "cap one account's volume" and "read everything recent" — work without one.
-- **TTL is already enabled** on `expiresAt` (`infra/dynamodb.tf:26`), so expiry is a field, not an infrastructure change. This is why the change touches no Terraform.
+- **TTL is already enabled** on `expiresAt` (`infra/dynamodb.tf:26`), so expiry is a field rather than an infrastructure change.
+- **API Gateway routes are enumerated in Terraform** (`local.api_routes` in `apigateway.tf`). A route present in `router.ts` but absent from that map returns 404 from the gateway, before the Lambda runs — so the backend code and the route map have to move together. An early draft of this design claimed the change touched no Terraform at all; that was wrong, and the symptom was a 404 in the browser with a complete and correct backend sitting behind it.
 - **Two brands, four stacks.** Brand isolation is stack isolation, so feedback partitions itself by construction. The read tool has to select a stack rather than filter within one.
 - **The application must work with no backend at all.** `config.ts` exposes `accountsEnabled`, false in a checkout with no `.env.local`, and in that state the app makes no account calls of any kind. The footer has to respect that as a third state, not just signed-in and signed-out.
 - **Motifs are a fixed set of surface-bound slots** (`app-visual-design`), one per surface. A footer is a new surface, and the temptation to give it a decorative edge is exactly what that requirement exists to refuse.

@@ -14,23 +14,28 @@ locals {
   public_invite_route = "GET /api/invites/{token}"
 
   api_routes = {
-    "GET /api/cards"                                = { authorized = true }
-    "POST /api/cards"                               = { authorized = true }
-    "GET /api/cards/{cardId}"                       = { authorized = true }
-    "PUT /api/cards/{cardId}"                       = { authorized = true }
-    "PATCH /api/cards/{cardId}"                     = { authorized = true }
-    "DELETE /api/cards/{cardId}"                    = { authorized = true }
-    "GET /api/cards/{cardId}/shares"                = { authorized = true }
-    "POST /api/cards/{cardId}/shares"               = { authorized = true }
-    "DELETE /api/cards/{cardId}/shares/{token}"     = { authorized = true }
-    "GET /api/me/profile"                           = { authorized = true }
-    "PUT /api/me/profile"                           = { authorized = true }
+    "GET /api/cards"                            = { authorized = true }
+    "POST /api/cards"                           = { authorized = true }
+    "GET /api/cards/{cardId}"                   = { authorized = true }
+    "PUT /api/cards/{cardId}"                   = { authorized = true }
+    "PATCH /api/cards/{cardId}"                 = { authorized = true }
+    "DELETE /api/cards/{cardId}"                = { authorized = true }
+    "GET /api/cards/{cardId}/shares"            = { authorized = true }
+    "POST /api/cards/{cardId}/shares"           = { authorized = true }
+    "DELETE /api/cards/{cardId}/shares/{token}" = { authorized = true }
+    "GET /api/me/profile"                       = { authorized = true }
+    "PUT /api/me/profile"                       = { authorized = true }
     # The notification bell and its preference controls. Self-scoped to the
     # verified identity; none is public.
-    "GET /api/me/notifications"                     = { authorized = true }
-    "POST /api/me/notifications/read"               = { authorized = true }
-    "GET /api/me/notification-preferences"          = { authorized = true }
-    "PUT /api/me/notification-preferences"          = { authorized = true }
+    "GET /api/me/notifications"            = { authorized = true }
+    "POST /api/me/notifications/read"      = { authorized = true }
+    "GET /api/me/notification-preferences" = { authorized = true }
+    "PUT /api/me/notification-preferences" = { authorized = true }
+    # Feedback. Authorized like everything else here — sign-in IS this
+    # endpoint's anti-abuse control, so it is deliberately absent from the two
+    # unauthenticated routes below and needs no stricter throttle than the
+    # stage default.
+    "POST /api/feedback"                            = { authorized = true }
     (local.public_share_route)                      = { authorized = false }
     "GET /api/trips"                                = { authorized = true }
     "POST /api/trips"                               = { authorized = true }
@@ -50,9 +55,9 @@ locals {
     "PUT /api/trips/{tripId}/cards/{tripCardId}/marks/{slotIndex}"    = { authorized = true }
     "DELETE /api/trips/{tripId}/cards/{tripCardId}/marks/{slotIndex}" = { authorized = true }
     # The trip's activity feed, members-only like the rest of the trip reads.
-    "GET /api/trips/{tripId}/activity"                                = { authorized = true }
-    (local.public_invite_route)                                       = { authorized = false }
-    "POST /api/invites/{token}/redeem"                                = { authorized = true }
+    "GET /api/trips/{tripId}/activity" = { authorized = true }
+    (local.public_invite_route)        = { authorized = false }
+    "POST /api/invites/{token}/redeem" = { authorized = true }
   }
 }
 
