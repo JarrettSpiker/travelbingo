@@ -10,11 +10,13 @@ import { CardView } from "../../components/CardView";
 import { ColorSchemeForm } from "../../components/ColorSchemeForm";
 import { EmojiSchemeForm } from "../../components/EmojiSchemeForm";
 import { EntryInput } from "../../components/EntryInput";
+import { FeedbackForm } from "../../components/FeedbackDialog";
 import { FontSchemeForm } from "../../components/FontSchemeForm";
 import { NotificationBellButton } from "../../components/NotificationBell";
 import { NotificationList } from "../../components/NotificationList";
 import { NotificationPreferencesForm } from "../../components/NotificationPreferencesForm";
 import { Panel } from "../../components/Panel";
+import { SiteFooter } from "../../components/SiteFooter";
 import { WinConditionSelect } from "../../components/WinConditionSelect";
 import { MAX_DISPLAY_NAME_LENGTH } from "../../lib/profileApi";
 import { type BingoEntry } from "../../lib/bingo";
@@ -278,4 +280,31 @@ export function DialogSample({
       {open && render(() => setOpen(false))}
     </>
   );
+}
+
+/**
+ * The feedback form in its three interesting states. Renders the real
+ * `FeedbackForm` rather than a copy — the dialog around it branches on auth,
+ * and the gallery has no signed-in state to render into.
+ */
+export function FeedbackFormSample({ error = null }: { error?: string | null }) {
+  const [message, setMessage] = useState("The printed card cut off the bottom row.");
+  const [contact, setContact] = useState("");
+  return (
+    <FeedbackForm
+      message={message}
+      contact={contact}
+      error={error}
+      sending={false}
+      onMessageChange={setMessage}
+      onContactChange={setContact}
+      onSubmit={(event) => event.preventDefault()}
+      onCancel={() => {}}
+    />
+  );
+}
+
+/** The footer as it sits at the bottom of every page. */
+export function SiteFooterSample() {
+  return <SiteFooter />;
 }

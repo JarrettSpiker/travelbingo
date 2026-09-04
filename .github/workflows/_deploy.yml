@@ -12,6 +12,9 @@ name: deploy
 #   vars.VITE_APP_ORIGIN           - origin the app is served from
 #   vars.VITE_BRAND                - which brand this environment serves
 #
+# VITE_COMMIT_SHA is NOT in this list on purpose: it comes from github.sha,
+# so no Environment variable has to be created for it in any environment.
+#
 # VITE_BRAND is required, not defaulted: `vite build` fails on a missing or
 # unrecognized value rather than shipping the default brand's assets to a bucket
 # that belongs to another brand, and `check-bundle.mjs` then proves the artifact
@@ -71,6 +74,10 @@ jobs:
           VITE_COGNITO_DOMAIN: ${{ vars.VITE_COGNITO_DOMAIN }}
           VITE_COGNITO_CLIENT_ID: ${{ vars.VITE_COGNITO_CLIENT_ID }}
           VITE_APP_ORIGIN: ${{ vars.VITE_APP_ORIGIN }}
+          # Not an Environment variable: it comes from the run itself, so it
+          # needs no per-environment setup and cannot drift from the artifact
+          # it describes. Absent outside CI, where the build reports "unknown".
+          VITE_COMMIT_SHA: ${{ github.sha }}
         run: npm run build
 
       - name: Configure AWS credentials (OIDC)

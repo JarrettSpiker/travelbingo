@@ -125,6 +125,49 @@ export interface BrandCopy {
     /** Filename for a PNG export of a card with no title. */
     readonly defaultPngName: string;
   };
+
+  /**
+   * The footer and the feedback dialog it opens.
+   *
+   * Everything here is chrome, so it varies by brand in register rather than in
+   * meaning. The office brand in particular must stay deadpan: a feedback form
+   * is exactly the surface where the satire collapses if the interface starts
+   * being funny about itself.
+   */
+  readonly feedback: {
+    /** The footer link, and the dialog's own title. */
+    readonly linkLabel: string;
+    /** One line under the dialog title saying what this is for. */
+    readonly intro: string;
+    /** Label for the message field. */
+    readonly messageLabel: string;
+    /** Placeholder for the message field — the brand's idea of a useful report. */
+    readonly messagePlaceholder: string;
+    /** Label for the optional contact field. Must read as optional. */
+    readonly contactLabel: string;
+    /**
+     * What the address will be used for, stated before the person types one.
+     * This is the consent, so it says what happens rather than reassuring.
+     */
+    readonly contactHint: string;
+    /** The submit button. */
+    readonly submitLabel: string;
+    /** Shown after a successful submission. */
+    readonly successMessage: string;
+    /** Shown when the per-account cap is reached — not an error, a limit. */
+    readonly capReachedMessage: string;
+    /** Shown when the submission failed for any other reason. */
+    readonly errorMessage: string;
+    /**
+     * Shown to a signed-out visitor in place of the form.
+     *
+     * Names Google explicitly. On the office brand the consent screen carries
+     * the *travel* brand's name — a deliberate accepted trade recorded in
+     * `add-office-brand` task 0.4 — and meeting that cold, having clicked
+     * "send feedback", reads like a phishing page. Forewarning costs one clause.
+     */
+    readonly signedOutPrompt: string;
+  };
 }
 
 /**

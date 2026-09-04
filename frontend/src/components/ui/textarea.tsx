@@ -1,0 +1,26 @@
+import * as React from "react"
+
+import { cn } from "@/lib/utils"
+
+// Mirrors Input's classes exactly, minus the fixed height and the file-input
+// rules, so a textarea and an input sitting in the same dialog are visibly the
+// same control. Kept as its own primitive rather than a styled <textarea> at
+// the call site, so the focus ring stays defined in one place — the app's
+// hand-rolled focus rings are already the thing most likely to regress when a
+// palette changes.
+function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
+  return (
+    <textarea
+      data-slot="textarea"
+      className={cn(
+        "field-sizing-content min-h-24 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-2 text-base shadow-xs transition-[color,box-shadow] outline-none selection:bg-primary selection:text-primary-foreground placeholder:text-muted-foreground disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm dark:bg-input/30",
+        "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
+        "aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+export { Textarea }

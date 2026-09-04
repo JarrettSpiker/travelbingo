@@ -52,4 +52,18 @@ export const travelCopy: BrandCopy = {
   exportFile: {
     defaultPngName: "bingo-card.png",
   },
+
+  feedback: {
+    linkLabel: "Send feedback",
+    intro: "Found something broken, or something missing? Tell us — it goes straight to the person who builds this.",
+    messageLabel: "What's on your mind?",
+    messagePlaceholder: "e.g. The printed card cut off the bottom row",
+    contactLabel: "Your email (optional)",
+    contactHint: "Only used to write back to you about this. Leave it blank and we won't.",
+    submitLabel: "Send",
+    successMessage: "Thanks — that's been sent.",
+    capReachedMessage: "You've sent a lot of feedback today. Try again tomorrow.",
+    errorMessage: "That didn't send. Have another go in a moment.",
+    signedOutPrompt: "Sign in to send feedback. Signing in uses your Google account.",
+  },
 };

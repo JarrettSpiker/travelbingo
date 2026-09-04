@@ -1,4 +1,6 @@
 import { type ReactNode } from "react";
+import { brand } from "@/brand";
+import { FeedbackDialog } from "../../components/FeedbackDialog";
 import { ShareLinkDialog } from "../../components/ShareLinkDialog";
 import { SuggestionsDialog } from "../../components/SuggestionsDialog";
 import { UnsavedChangesDialog } from "../../components/UnsavedChangesDialog";
@@ -35,6 +37,7 @@ import {
   DialogSample,
   EmojiSchemeFormSample,
   EntryInputSample,
+  FeedbackFormSample,
   FontSchemeFormSample,
   NotificationBellButtonSample,
   NotificationListSample,
@@ -42,8 +45,12 @@ import {
   ActivityFeedSample,
   PlayableCardGridSample,
   SettingsPageSample,
+  SiteFooterSample,
   WinConditionSelectSample,
 } from "./samples";
+
+/** The cap message for whichever brand this gallery was built with. */
+const officeCapMessage = brand.copy.feedback.capReachedMessage;
 
 /** Fixed date formatting for the win-status states, so captures are stable. */
 const sampleWinDate = () => "Aug 4, 2026";
@@ -438,6 +445,39 @@ export const GALLERY_ENTRIES: GalleryEntry[] = [
             )}
           />
         ),
+      },
+    ],
+  },
+  {
+    source: "src/components/FeedbackDialog.tsx",
+    title: "Feedback dialog",
+    states: [
+      {
+        label: "Signed out — no form, and no request. Names Google before the consent screen does",
+        node: (
+          <DialogSample
+            label="Open feedback"
+            render={(close) => <FeedbackDialog open onClose={close} />}
+          />
+        ),
+      },
+      {
+        label: "Signed in — the real form, rendered outside the dialog so it is reviewable here",
+        node: <FeedbackFormSample />,
+      },
+      {
+        label: "The per-account cap, which is a limit rather than a failure",
+        node: <FeedbackFormSample error={officeCapMessage} />,
+      },
+    ],
+  },
+  {
+    source: "src/components/SiteFooter.tsx",
+    title: "Site footer",
+    states: [
+      {
+        label: "Sits below the page. No motif — the page texture is already claimed by AppShell",
+        node: <SiteFooterSample />,
       },
     ],
   },

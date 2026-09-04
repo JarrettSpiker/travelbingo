@@ -3,6 +3,7 @@ import type { Deps } from "./context.ts";
 import { badRequest, errorResponse, HttpError, json, type JsonResponse } from "./http.ts";
 import type { RouteRequest } from "./request.ts";
 import { createCard, deleteCard, getCard, listCards, renameCard, replaceCard } from "./routes/cards.ts";
+import { createFeedback } from "./routes/feedback.ts";
 import {
   getNotificationPreferences,
   listNotifications,
@@ -66,6 +67,9 @@ const ROUTES: Record<string, Route> = {
   "GET /api/cards/{cardId}/shares": { handler: listShares },
   "POST /api/cards/{cardId}/shares": { handler: createShare },
   "DELETE /api/cards/{cardId}/shares/{token}": { handler: revokeShare },
+  // Authenticated on purpose: sign-in is this endpoint's anti-abuse control,
+  // so it is absent from the public list below rather than throttled harder.
+  "POST /api/feedback": { handler: createFeedback },
   "GET /api/me/profile": { handler: getProfile },
   "PUT /api/me/profile": { handler: updateProfile },
   // The bell and its controls — all self-scoped, none public.
@@ -154,7 +158,7 @@ export async function route(deps: Deps, event: ApiEvent): Promise<JsonResponse> 
     }
 
     // Deliberately opaque to the caller, and logged without the request body,
-    // which could contain card text.
+    // which could contain card text, a feedback message, or a contact address.
     console.error("unhandled error", {
       routeKey: event.routeKey,
       name: error instanceof Error ? error.name : "unknown",

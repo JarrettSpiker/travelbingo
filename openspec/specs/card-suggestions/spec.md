@@ -3,9 +3,7 @@
 ## Purpose
 
 Help users get started by offering curated starter content — suggested cells grouped into categories and ready-made theme presets — loaded from bundled data and applied with a few clicks, so a new user can reach a complete, good-looking card without authoring every entry or tuning schemes by hand.
-
 ## Requirements
-
 ### Requirement: Open the suggestions dialog
 The system SHALL provide a "See suggestions" control that opens a dialog presenting the available suggested content. The dialog SHALL make both suggested cells and suggested themes reachable from it.
 
@@ -57,9 +55,19 @@ The system SHALL offer suggested themes, where each theme is a preset bundle of 
 ### Requirement: Suggestion content loaded from bundled data
 The system SHALL load the suggested cells and suggested themes from data files bundled with the app at build time, not via a network call. The data SHALL be authored separately from the component and logic code so it can be edited easily.
 
+Suggestion data SHALL be **brand-scoped**: each brand SHALL supply its own suggested cells and suggested themes, and a build SHALL bundle only the selected brand's suggestion data. The loading, normalization, and add-to-pool behaviour SHALL be identical across brands — only the content differs.
+
 #### Scenario: Suggestions are available offline
 - **WHEN** the app runs with no network access
 - **THEN** the suggested cells and themes SHALL still be available and usable
+
+#### Scenario: A brand's suggestions are shown
+- **WHEN** the suggestions dialog is opened in a build for a given brand
+- **THEN** it SHALL present that brand's categories and themes, and SHALL NOT present any other brand's
+
+#### Scenario: A brand supplies no usable suggestion content
+- **WHEN** a brand's suggestion data yields no categories or no themes after normalization
+- **THEN** the automated checks SHALL fail, rather than the brand shipping with an empty suggestions dialog
 
 ### Requirement: Handle missing or malformed suggestion data gracefully
 The system SHALL continue to function when the suggestion data is empty, incomplete, or malformed. The user SHALL be able to use the rest of the app; malformed or missing parts SHALL degrade gracefully (for example, an empty category list or an unavailable section) rather than causing the app to fail.
@@ -71,3 +79,15 @@ The system SHALL continue to function when the suggestion data is empty, incompl
 #### Scenario: Malformed suggestion data
 - **WHEN** part of the bundled suggestion data cannot be interpreted
 - **THEN** the system SHALL skip the unusable parts and SHALL still present any usable content, without showing an error page or breaking the rest of the app
+
+### Requirement: Suggested themes stay within the persisted-card font allowlist
+Every font named by a brand's suggested themes SHALL be one the persisted-card validation accepts. Applying a suggested theme and then saving the card SHALL succeed for every theme every brand offers.
+
+#### Scenario: A brand's theme names an unaccepted font
+- **WHEN** a brand's suggested theme names a font outside the set the persisted-card validation accepts
+- **THEN** the automated checks SHALL fail, naming the theme and the font
+
+#### Scenario: A user saves a card built from a suggested theme
+- **WHEN** a signed-in user applies any suggested theme offered by their brand and saves the card
+- **THEN** the save SHALL succeed, and SHALL NOT be rejected on account of the theme's fonts
+

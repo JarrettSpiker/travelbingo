@@ -141,7 +141,8 @@ resource "aws_apigatewayv2_stage" "default" {
     destination_arn = aws_cloudwatch_log_group.api.arn
 
     # Deliberately omits headers and bodies: no Authorization value, no share
-    # token, and no card text is ever written to logs.
+    # token, no card text, and no feedback message or contact address is ever
+    # written to logs.
     format = jsonencode({
       requestId      = "$context.requestId"
       httpMethod     = "$context.httpMethod"

@@ -23,6 +23,10 @@
 //                                   expiresAt                                          <- per-user bell, TTL-bound
 //   USER#<sub>      NOTIFREAD       readUpTo, updatedAt                          <- read marker (one item, not one per row)
 //   USER#<sub>      NOTIFPREFS      types{progress_marked,one_away,victory}, mutedTripIds[], createdAt, updatedAt
+//
+//   FEEDBACK#<date> <ts>#<r>        message, contact?, context{}, submitterId, createdAt,
+//                                   expiresAt                                    <- the submission, TTL-bound
+//   USER#<sub>      FEEDBACK#<ts>#<r>  createdAt, expiresAt                       <- cap pointer, carries no text
 
 export interface TableKey {
   PK: string;
@@ -37,6 +41,7 @@ export const TRIPCARD_SK_PREFIX = "TRIPCARD#";
 export const INVITE_SK_PREFIX = "INVITE#";
 export const EVENT_SK_PREFIX = "EVENT#";
 export const NOTIF_SK_PREFIX = "NOTIF#";
+export const FEEDBACK_SK_PREFIX = "FEEDBACK#";
 
 export function cardMetaKey(cardId: string): TableKey {
   return { PK: `CARD#${cardId}`, SK: "META" };
@@ -181,4 +186,38 @@ export function notificationReadKey(userId: string): TableKey {
 /** Recovers the `<ts>#<rand>` sort id from a notification item's sort key. */
 export function sortIdFromNotificationSk(sk: string): string | null {
   return sk.startsWith(NOTIF_SK_PREFIX) ? sk.slice(NOTIF_SK_PREFIX.length) : null;
+}
+
+// --- Feedback ---------------------------------------------------------------
+
+/**
+ * A submission, partitioned by the UTC date it was made. The date is the
+ * partition rather than the submitter because the read path wants "everything
+ * recent" and there are no GSIs — a handful of date partitions is a bounded
+ * query, where a submitter-partitioned layout would need a scan of the whole
+ * table to answer the same question.
+ *
+ * The `<isoTs>#<rand>` sort suffix is the notification idiom, for the same two
+ * reasons: descending order without a GSI, and no collision within a
+ * millisecond.
+ */
+export function feedbackKey(date: string, sortId: string): TableKey {
+  return { PK: `FEEDBACK#${date}`, SK: sortId };
+}
+
+/**
+ * The submitter-facing pointer, written in the same transaction as the
+ * submission. It exists only so the per-account cap is a query on one
+ * partition, and so it deliberately carries no message text — the cap check
+ * must never read what anyone wrote.
+ *
+ * Mirrors the card/share pointer pair rather than inventing a pattern.
+ */
+export function userFeedbackPointerKey(userId: string, sortId: string): TableKey {
+  return { PK: `USER#${userId}`, SK: `${FEEDBACK_SK_PREFIX}${sortId}` };
+}
+
+/** The UTC date partition a timestamp belongs to, as `YYYY-MM-DD`. */
+export function feedbackPartition(date: string): string {
+  return `FEEDBACK#${date}`;
 }
