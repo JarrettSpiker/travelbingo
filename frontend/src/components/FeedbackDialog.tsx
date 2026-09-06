@@ -111,7 +111,9 @@ export function FeedbackDialog({ open, onClose }: FeedbackDialogProps) {
               <AlertDescription>{copy.successMessage}</AlertDescription>
             </Alert>
             <DialogFooter>
-              <Button onClick={onClose}>Close</Button>
+              {/* "Done", not "Close" — see the signed-out branch: DialogContent
+                  renders its own close control already labelled "Close". */}
+              <Button onClick={onClose}>Done</Button>
             </DialogFooter>
           </>
         )}

@@ -174,8 +174,16 @@ print()
 PYTHON
 
 render() {
-  local days="$1" mode="$2"
-  fetch "${days}" \
+  local days="$1" mode="$2" raw
+
+  # Fetch fully before rendering anything. Piping fetch straight into the
+  # renderer looks tidier and is wrong: a failed query (expired credentials is
+  # the common one) still feeds the renderer an empty stream, which prints
+  # "0 submission(s)" — indistinguishable from "there is no feedback". A tool
+  # whose entire job is answering that question must never guess at it.
+  raw="$(fetch "${days}")" || exit 1
+
+  printf '%s' "${raw}" \
     | python3 -c "${RENDER}" "${EXPIRY_WARNING_DAYS}" "${mode}" "${BRAND}" "${ENV_NAME}" "${days}" \
     | sanitize
 }
