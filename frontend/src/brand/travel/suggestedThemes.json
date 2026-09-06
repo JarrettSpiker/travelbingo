@@ -169,6 +169,142 @@
       "emojiScheme": {
         "emojis": ["⚡", "🦉", "🪄"]
       }
+    },
+    {
+      "id": "mountain",
+      "label": "Mountain",
+      "colorScheme": {
+        "backgroundColor": "#eceff1",
+        "cellColor": "#ffffff",
+        "textColor": "#263238",
+        "titleColor": "#455a64"
+      },
+      "fontScheme": {
+        "titleFont": "'Anton', sans-serif",
+        "cellFont": "system-ui, sans-serif"
+      },
+      "emojiScheme": {
+        "emojis": ["🏔️", "🐐", "🧗🏽"]
+      }
+    },
+    {
+      "id": "desert",
+      "label": "Desert",
+      "colorScheme": {
+        "backgroundColor": "#fff8e1",
+        "cellColor": "#ffffff",
+        "textColor": "#5d4037",
+        "titleColor": "#bf5700"
+      },
+      "fontScheme": {
+        "titleFont": "'Playfair Display', serif",
+        "cellFont": "'Poppins', sans-serif"
+      },
+      "emojiScheme": {
+        "emojis": ["🏜️", "🌵", "🦎"]
+      }
+    },
+    {
+      "id": "prairie",
+      "label": "Prairie",
+      "colorScheme": {
+        "backgroundColor": "#f9fbe7",
+        "cellColor": "#ffffff",
+        "textColor": "#61661b",
+        "titleColor": "#827717"
+      },
+      "fontScheme": {
+        "titleFont": "'Fredoka', sans-serif",
+        "cellFont": "'Poppins', sans-serif"
+      },
+      "emojiScheme": {
+        "emojis": ["🌾", "🦬", "🌻"]
+      }
+    },
+    {
+      "id": "city",
+      "label": "City",
+      "colorScheme": {
+        "backgroundColor": "#263238",
+        "cellColor": "#37474f",
+        "textColor": "#eceff1",
+        "titleColor": "#ffd54f"
+      },
+      "fontScheme": {
+        "titleFont": "'Anton', sans-serif",
+        "cellFont": "'Arial Narrow', Arial, sans-serif"
+      },
+      "emojiScheme": {
+        "emojis": ["🏙️", "🚕", "🌃"]
+      }
+    },
+    {
+      "id": "hiking",
+      "label": "Hiking",
+      "colorScheme": {
+        "backgroundColor": "#efebe9",
+        "cellColor": "#ffffff",
+        "textColor": "#3e2723",
+        "titleColor": "#33691e"
+      },
+      "fontScheme": {
+        "titleFont": "'Fredoka', sans-serif",
+        "cellFont": "system-ui, sans-serif"
+      },
+      "emojiScheme": {
+        "emojis": ["🥾", "🎒", "🧭"]
+      }
+    },
+    {
+      "id": "resort",
+      "label": "Resort",
+      "colorScheme": {
+        "backgroundColor": "#e0f7fa",
+        "cellColor": "#ffffff",
+        "textColor": "#006064",
+        "titleColor": "#00838f"
+      },
+      "fontScheme": {
+        "titleFont": "'Pacifico', cursive",
+        "cellFont": "'Poppins', sans-serif"
+      },
+      "emojiScheme": {
+        "emojis": ["🍹", "🌺", "🩴"]
+      }
+    },
+    {
+      "id": "cycling",
+      "label": "Cycling",
+      "colorScheme": {
+        "backgroundColor": "#fff9c4",
+        "cellColor": "#ffffff",
+        "textColor": "#212121",
+        "titleColor": "#f57f17"
+      },
+      "fontScheme": {
+        "titleFont": "'Anton', sans-serif",
+        "cellFont": "system-ui, sans-serif"
+      },
+      "emojiScheme": {
+        "emojis": ["🚴", "🍻", "🗺️"]
+      }
+    },
+    {
+      "id": "road-trip",
+      "label": "Road Trip",
+      "colorScheme": {
+        "backgroundColor": "#e8eaf6",
+        "cellColor": "#ffffff",
+        "textColor": "#283593",
+        "titleColor": "#3949ab"
+      },
+      "fontScheme": {
+        "titleFont": "'Pacifico', cursive",
+        "cellFont": "Georgia, 'Times New Roman', serif"
+      },
+      "emojiScheme": {
+        "emojis": ["🚗", "🛣️", "📍"]
+      }
     }
   ]
 }

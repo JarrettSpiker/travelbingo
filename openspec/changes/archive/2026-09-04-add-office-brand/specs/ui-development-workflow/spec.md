@@ -18,7 +18,7 @@ The shared document SHALL describe the **rules** — the token roles, the motif 
 - **THEN** it SHALL carry its own document describing its palette, typeface, and motif realizations
 
 ### Requirement: Visual review is part of the definition of done
-The project's definition of done SHALL include a visual review step for any change that alters rendered output. The step SHALL require reviewing the affected screens in both light and dark presentation **for every brand the change can affect**, and SHALL additionally require the print and export checks when the card renderer or its stylesheet was touched.
+The project's definition of done SHALL include a visual review step for any change that alters rendered output. The step SHALL require reviewing the affected screens in both light and dark presentation **for every brand the change can affect**, and SHALL additionally require the print and export checks when the card renderer or its stylesheet was touched. Those print and export checks SHALL confirm that a card carrying no progress is unaffected, and — when the change concerns the progress-marking layer — that a card carrying progress renders its marks correctly in printed output, in exported images, and in saved-card thumbnails.
 
 Review artifacts SHALL be identifiable by brand, so that one brand's captures cannot be mistaken for or overwritten by another's.
 
@@ -28,7 +28,11 @@ Review artifacts SHALL be identifiable by brand, so that one brand's captures ca
 
 #### Scenario: A change touches the card renderer
 - **WHEN** a change modifies the card renderer or its stylesheet
-- **THEN** the change SHALL NOT be considered complete until printed output, exported images, and saved-card thumbnails have been confirmed unaffected
+- **THEN** the change SHALL NOT be considered complete until printed output, exported images, and saved-card thumbnails have been confirmed correct — unaffected for a card carrying no progress, and showing the expected marks for a card carrying progress
+
+#### Scenario: A change touches the progress-marking layer
+- **WHEN** a change modifies how recorded progress is drawn on a card
+- **THEN** the change SHALL NOT be considered complete until a card carrying progress has been reviewed in printed output, in an exported image, and as a saved-card thumbnail
 
 #### Scenario: Review artifacts are captured for more than one brand
 - **WHEN** review artifacts are captured for more than one brand

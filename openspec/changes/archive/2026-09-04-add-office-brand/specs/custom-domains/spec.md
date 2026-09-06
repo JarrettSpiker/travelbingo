@@ -24,6 +24,10 @@ Each brand SHALL have its own domain and its own hosted zone; brands SHALL NOT s
 ### Requirement: The hosted zone is referenced, not managed, by Terraform
 The system SHALL reference an existing Route53 hosted zone by name rather than creating or managing it, so that domain registration and delegation remain outside the deployment configuration. Each brand's hosted zone SHALL be referenced independently, and registering a brand's domain and creating its hosted zone SHALL be a prerequisite to that brand's first apply.
 
+#### Scenario: Records are created in the externally registered zone
+- **WHEN** custom domain resources are applied for a brand
+- **THEN** the validation records and the alias record SHALL be created in that brand's hosted zone, the one created by Route53 domain registration, and Terraform SHALL NOT manage the hosted zone resource
+
 #### Scenario: The hosted zone already exists
 - **WHEN** an environment is applied with a hosted zone name configured
 - **THEN** the configuration SHALL reference the existing zone and SHALL NOT create, modify, or destroy the zone itself

@@ -125,6 +125,8 @@ export class FakeDdb {
   private runQuery(input: Record<string, any>): {
     Items: Item[];
     LastEvaluatedKey?: { PK: string; SK: string };
+    /** Present only for Select: "COUNT", mirroring the real response shape. */
+    Count?: number;
   } {
     const expression: string = input.KeyConditionExpression;
     const values = input.ExpressionAttributeValues ?? {};
@@ -138,9 +140,26 @@ export class FakeDdb {
     const beginsMatch = /begins_with\(SK, (:\w+)\)/.exec(expression);
     const prefix = beginsMatch?.[1] ? String(values[beginsMatch[1]]) : null;
 
+    // A BETWEEN range on the sort key, used by the feedback cap to count only
+    // the submissions inside its window. Compared with < and > rather than
+    // localeCompare: DynamoDB orders sort keys by their UTF-8 bytes, and a
+    // locale-aware comparison would put a boundary value on the wrong side of
+    // the range for exactly the characters chosen to sit at the edges.
+    const betweenMatch = /SK BETWEEN (:\w+) AND (:\w+)/.exec(expression);
+    const lower = betweenMatch?.[1] ? String(values[betweenMatch[1]]) : null;
+    const upper = betweenMatch?.[2] ? String(values[betweenMatch[2]]) : null;
+
+    if (!beginsMatch && !betweenMatch && /SK/.test(expression)) {
+      throw new Error(`FakeDdb: unsupported sort key condition ${expression}`);
+    }
+
     let matches = [...this.items.values()].filter((item) => {
       if (item.PK !== pk) return false;
-      return prefix === null || String(item.SK).startsWith(prefix);
+      const sk = String(item.SK);
+      if (prefix !== null && !sk.startsWith(prefix)) return false;
+      if (lower !== null && sk < lower) return false;
+      if (upper !== null && sk > upper) return false;
+      return true;
     });
 
     matches.sort((a, b) => String(a.SK).localeCompare(String(b.SK)));
@@ -205,6 +224,13 @@ export class FakeDdb {
       return last
         ? { Items: project(truncated), LastEvaluatedKey: { PK: String(last.PK), SK: String(last.SK) } }
         : { Items: project(truncated) };
+    }
+
+    // COUNT returns the tally and no items, as the real service does — a fake
+    // that returned Items here would let a caller read content it never asked
+    // for and would hide a projection mistake.
+    if (input.Select === "COUNT") {
+      return { Count: matches.length, Items: [] };
     }
 
     return { Items: project(matches) };

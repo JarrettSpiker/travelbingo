@@ -32,3 +32,19 @@ export const authConfig: AuthConfig | null = (() => {
 })();
 
 export const accountsEnabled = authConfig !== null;
+
+/**
+ * The source revision this bundle was built from, or "unknown".
+ *
+ * Deliberately does NOT follow `VITE_BRAND`'s rule, and the difference is not
+ * guessable from looking at them, so: `VITE_BRAND` is validated in
+ * vite.config.ts and fails the build when unset, because shipping one brand's
+ * assets to another brand's bucket is silent and unrecoverable. This value
+ * fails nothing. A local `npm run build` has no commit to report, and breaking
+ * the ordinary development loop would protect nothing — the worst case here is
+ * a feedback report that says "unknown" where a SHA would have been.
+ *
+ * Read straight from the environment rather than through a `define`, because
+ * there is no fail-loud behaviour to arrange.
+ */
+export const buildSha: string = read(import.meta.env.VITE_COMMIT_SHA) ?? "unknown";

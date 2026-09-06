@@ -59,11 +59,15 @@ The system SHALL authorize every read and write of a stored resource against the
 - **THEN** the system SHALL refuse the operation
 
 ### Requirement: Untrusted payloads are validated before storage
-The system SHALL validate every client-supplied card payload before storing it, bounding the number of grid slots, the length of every text field, and the overall payload size, and constraining colors, fonts, and emoji counts to the same rules the client applies. An invalid payload SHALL be rejected with a client-error response rather than silently corrected or partially stored.
+The system SHALL validate every client-supplied payload before storing it. For a card payload this SHALL bound the number of grid slots, the length of every text field, and the overall payload size, and SHALL constrain colors, fonts, and emoji counts to the same rules the client applies. For any other client-supplied payload the system SHALL bound the length of every text field and the overall payload size. An invalid payload SHALL be rejected with a client-error response rather than silently corrected or partially stored.
 
 #### Scenario: An oversized or malformed payload is submitted
 - **WHEN** a request carries a payload that violates any bound or format rule
 - **THEN** the system SHALL reject it with a client-error response and SHALL NOT store any part of it
+
+#### Scenario: A payload that is not a card is submitted
+- **WHEN** a request carries a client-supplied payload of a kind other than a card
+- **THEN** its text fields and overall size SHALL be bounded and validated before storage, by the same rule rather than by a parallel one
 
 ### Requirement: Stored data uses a single table with role-based membership records
 The system SHALL store all account data in a single table whose entities are distinguished by key prefixes, so that new entity types can be introduced without provisioning new storage. A user's relationship to a card SHALL be stored as its own record carrying a role, from the outset, so that listing a user's cards is a single query and additional roles or shared resources can be added without restructuring existing data.
@@ -77,7 +81,7 @@ The system SHALL store all account data in a single table whose entities are dis
 - **THEN** it SHALL be storable as a new key prefix in the existing table, without provisioning additional storage resources
 
 ### Requirement: The API bounds its own resource consumption
-The system SHALL limit the rate at which the API accepts requests, SHALL cap the concurrency of the backend compute, and SHALL apply a stricter rate limit to endpoints reachable without an account. Backend logs SHALL be retained for a bounded period, and SHALL NOT record credentials, share tokens, or card contents.
+The system SHALL limit the rate at which the API accepts requests, SHALL cap the concurrency of the backend compute, and SHALL apply a stricter rate limit to endpoints reachable without an account. Backend logs SHALL be retained for a bounded period, and SHALL NOT record credentials, share tokens, card contents, feedback message text, or a feedback submitter's contact address.
 
 #### Scenario: Request rate exceeds the configured limit
 - **WHEN** requests arrive faster than the configured limit
@@ -85,7 +89,7 @@ The system SHALL limit the rate at which the API accepts requests, SHALL cap the
 
 #### Scenario: Logs exclude sensitive values
 - **WHEN** the backend logs a request
-- **THEN** the log SHALL NOT contain the authorization credential, a share token, or the text of a user's card
+- **THEN** the log SHALL NOT contain the authorization credential, a share token, the text of a user's card, the text of a feedback submission, or a contact address supplied with one
 
 ### Requirement: Card thumbnails are stored as private objects with a key reference
 The system SHALL store a saved card's thumbnail as an object in a dedicated, non-public S3 bucket, separate from the bucket that serves the application's static assets. The card's stored record SHALL carry a reference to the thumbnail object's key rather than the thumbnail bytes. Read access SHALL be granted only via short-lived presigned URLs minted by the backend, and a presigned URL SHALL be issued only after the caller's membership of that card is verified through the same shared authorization routine used for every other resource access. Writes and deletes of thumbnail objects SHALL be performed by the backend, not the browser.
@@ -112,8 +116,6 @@ The system SHALL treat a supplied thumbnail as untrusted and SHALL validate it b
 #### Scenario: A card is saved without a thumbnail
 - **WHEN** a save request carries no thumbnail (for example, generation failed in the browser)
 - **THEN** the system SHALL store the card without a thumbnail key, and the library SHALL show a placeholder for it
-
-
 
 ### Requirement: Trip access is authorized through the same shared routine as card access
 The system SHALL authorize every read and write of a trip, a trip's members, a trip's cards, and a trip's invites through the single shared authorization routine used for cards, parametrized by the operation's permitted roles. Trip memberships SHALL carry a role of either administrator or member. Absence of a membership SHALL be reported identically to absence of the trip, so that trip ids belonging to other users do not leak. An operation permitted only to an administrator, requested by a member, SHALL be refused. The caller's role SHALL be derived solely from the caller's membership record for that trip, and SHALL never be taken from the request body, path, query string, or headers.
@@ -151,3 +153,4 @@ The system SHALL validate every client-supplied trip payload and trip-card snaps
 #### Scenario: An invalid trip-card snapshot is rejected
 - **WHEN** a request carries a trip-card snapshot whose grid, colors, fonts, or emoji counts violate the card rules
 - **THEN** the system SHALL reject it and SHALL NOT add the card to the trip
+

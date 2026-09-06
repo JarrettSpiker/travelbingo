@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { SiteHeader } from "@/components/SiteHeader";
+import { SiteFooter } from "@/components/SiteFooter";
 import { cn } from "@/lib/utils";
 
 interface AppShellProps {
@@ -90,6 +91,7 @@ export function AppShell({ children, headerActions, size = "default", className 
       >
         {children}
       </main>
+      <SiteFooter />
     </div>
   );
 }

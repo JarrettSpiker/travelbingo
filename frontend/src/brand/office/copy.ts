@@ -57,4 +57,26 @@ export const officeCopy: BrandCopy = {
   exportFile: {
     defaultPngName: "bingo-card.png",
   },
+
+  feedback: {
+    linkLabel: "Submit feedback",
+    intro: "Report a defect or request an enhancement. Submissions are reviewed.",
+    messageLabel: "Details",
+    messagePlaceholder: "e.g. The printed card omitted the final row",
+    contactLabel: "Email address (optional)",
+    contactHint: "Used only to respond to this submission. If omitted, no response will be issued.",
+    submitLabel: "Submit",
+    successMessage: "Your submission has been received.",
+    capReachedMessage: "You have reached the submission limit for today. Please try again tomorrow.",
+    errorMessage: "The submission could not be completed. Please try again.",
+    // Warns that the consent screen carries a different product name, without
+    // saying which. The Google project is shared (add-office-brand task 0.4),
+    // so meeting an unfamiliar name immediately after clicking "submit
+    // feedback" reads as a phishing page — but naming the other brand here
+    // would be one brand's copy knowing about another's, which is exactly what
+    // the seam exists to prevent. `check-bundle.mjs` enforces that, and caught
+    // an earlier draft of this string that spelled the name out.
+    signedOutPrompt:
+      "Sign in to submit feedback. Sign-in is handled by Google, and the consent screen shows a different product name.",
+  },
 };

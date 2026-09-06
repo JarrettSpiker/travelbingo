@@ -42,6 +42,16 @@ export function unauthorized(): HttpError {
   return new HttpError(401, "unauthorized");
 }
 
+/**
+ * A per-account cap was reached. Distinct from badRequest because the client
+ * has to tell these apart: "what you sent is wrong, fix it and retry" and "what
+ * you sent was fine, you have simply sent enough for now" call for different
+ * words, and a caller cannot infer which from a 400.
+ */
+export function tooManyRequests(code: string, message?: string): HttpError {
+  return new HttpError(429, code, message);
+}
+
 // no-store belongs on every response, not just share resolutions: these are
 // per-user documents, and CloudFront's Managed-CachingDisabled policy on
 // /api/* is the other half of the same guarantee.
